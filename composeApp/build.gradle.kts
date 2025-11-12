@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    id("com.google.gms.google-services")
 }
 
 kotlin {
@@ -44,7 +45,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
-        }
+
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -54,6 +55,13 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+
+            // Firebase BOM (Bill of Materials)
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
+            implementation("com.google.firebase:firebase-analytics")// Firebase Authentication
+            implementation("com.google.firebase:firebase-auth")
+        }
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -61,6 +69,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(npm("firebase", "11.0.1"))
         }
     }
 }

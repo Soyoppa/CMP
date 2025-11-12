@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "710341043141",
+    "project_id": "soy-cmp-c10ca",
+    "storage_bucket": "soy-cmp-c10ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:710341043141:android:e2fec9afb939f82128a1ac",
+        "android_client_info": {
+          "package_name": "org.example.project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANb8d7bXS-wBZonp0D1ZW6oxytKo_YJeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
