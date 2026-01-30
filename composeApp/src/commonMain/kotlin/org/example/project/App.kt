@@ -1,49 +1,79 @@
 package org.example.project
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import org.example.project.ui.TestConnectionScreen
+import org.example.project.ui.TransactionInputScreen
+import org.example.project.viewmodel.TransactionViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
-
-import kotlinproject.composeapp.generated.resources.Res
-import kotlinproject.composeapp.generated.resources.compose_multiplatform
 
 @Composable
 @Preview
 fun App() {
     MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
+        val viewModel: TransactionViewModel = viewModel()
+        val snackbarHostState = remember { SnackbarHostState() }
+        val coroutineScope = rememberCoroutineScope()
+        var showTestScreen by remember { mutableStateOf(false) }
+        
         Column(
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
+                .background(MaterialTheme.colorScheme.background)
                 .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .fillMaxSize()
         ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+            // Toggle button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { showTestScreen = false },
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+                    Text("Add Transaction")
+                }
+                Button(
+                    onClick = { showTestScreen = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Test Connection")
                 }
             }
+            
+            if (showTestScreen) {
+                TestConnectionScreen(modifier = Modifier.weight(1f))
+            } else {
+                TransactionInputScreen(
+                    onTransactionSaved = { transaction ->
+                        viewModel.addTransaction(transaction) {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    "Transaction saved to Google Sheets!"
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
+            // Show error messages
+            viewModel.errorMessage?.let { error ->
+                LaunchedEffect(error) {
+                    snackbarHostState.showSnackbar(error)
+                }
+            }
+            
+            SnackbarHost(hostState = snackbarHostState)
         }
     }
 }

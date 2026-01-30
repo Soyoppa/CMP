@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     id("com.google.gms.google-services")
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.20"
 }
 
 kotlin {
@@ -45,6 +46,10 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            
+            // Android-specific HTTP client engine
+            implementation("io.ktor:ktor-client-okhttp:3.0.3")
+        }
 
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -55,13 +60,22 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-
+            
+            // Date/Time handling
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+            
+            // HTTP Client for API calls
+            implementation("io.ktor:ktor-client-core:3.0.3")
+            implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
+            implementation("io.ktor:ktor-client-auth:3.0.3")
+            implementation("io.ktor:ktor-client-logging:3.0.3")
 
             // Firebase BOM (Bill of Materials)
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
             implementation("com.google.firebase:firebase-analytics")// Firebase Authentication
             implementation("com.google.firebase:firebase-auth")
-        }
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -70,6 +84,9 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(npm("firebase", "11.0.1"))
+            
+            // JVM-specific HTTP client engine
+            implementation("io.ktor:ktor-client-cio:3.0.3")
         }
     }
 }
