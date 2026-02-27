@@ -103,14 +103,7 @@ fun TestConnectionScreen(
             )
         }
         
-        Text(
-            text = "Current Config:\n" +
-                    "Spreadsheet ID: ${org.example.project.config.ApiConfig.SPREADSHEET_ID}\n" +
-                    "API Key: ${org.example.project.config.ApiConfig.API_KEY.take(10)}...\n" +
-                    "Range: ${org.example.project.config.ApiConfig.SHEET_RANGE}",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(16.dp)
-        )
+
         
         Text(
             text = "Instructions:\n" +
