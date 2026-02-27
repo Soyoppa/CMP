@@ -49,6 +49,11 @@ kotlin {
             
             // Android-specific HTTP client engine
             implementation("io.ktor:ktor-client-okhttp:3.0.3")
+            
+            // Firebase dependencies (Android only)
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
+            implementation("com.google.firebase:firebase-analytics")
+            implementation("com.google.firebase:firebase-auth")
         }
 
         commonMain.dependencies {
@@ -71,11 +76,6 @@ kotlin {
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
             implementation("io.ktor:ktor-client-auth:3.0.3")
             implementation("io.ktor:ktor-client-logging:3.0.3")
-
-            // Firebase BOM (Bill of Materials)
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
-            implementation("com.google.firebase:firebase-analytics")// Firebase Authentication
-            implementation("com.google.firebase:firebase-auth")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -87,6 +87,16 @@ kotlin {
             
             // JVM-specific HTTP client engine
             implementation("io.ktor:ktor-client-cio:3.0.3")
+        }
+        
+        jsMain.dependencies {
+            // JS-specific HTTP client engine
+            implementation("io.ktor:ktor-client-js:3.0.3")
+        }
+        
+        wasmJsMain.dependencies {
+            // WASM-specific HTTP client engine  
+            implementation("io.ktor:ktor-client-js:3.0.3")
         }
     }
 }

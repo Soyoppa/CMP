@@ -1,38 +1,36 @@
 package org.example.project.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.datetime.LocalDate
 import org.example.project.model.PaymentMode
-import org.example.project.model.Transaction
 import org.example.project.model.TransactionCategory
+import org.example.project.ui.components.DatePickerDialog
+import org.example.project.viewmodel.TransactionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionInputScreen(
-    onTransactionSaved: (Transaction) -> Unit = {},
+    viewModel: TransactionViewModel,
     modifier: Modifier = Modifier
 ) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var isIncome by remember { mutableStateOf(false) } // true for income, false for expense
-    var selectedCategory by remember { mutableStateOf(TransactionCategory.OTHER) }
-    var selectedPaymentMode by remember { mutableStateOf(PaymentMode.OTHER) }
-    var selectedDate by remember { mutableStateOf("2026-01-26") }
-    var isPaid by remember { mutableStateOf(false) }
-    var showCategoryDropdown by remember { mutableStateOf(false) }
-    var showPaymentDropdown by remember { mutableStateOf(false) }
+    val uiState = viewModel.uiState
+    val formState = viewModel.formState
+    var showDatePicker by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -42,20 +40,39 @@ fun TransactionInputScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
 
-        // Date Input
+        // Date Input with Picker
         OutlinedTextField(
-            value = selectedDate,
-            onValueChange = { selectedDate = it },
-            label = { Text("Date (YYYY-MM-DD)") },
-            modifier = Modifier.fillMaxWidth()
+            value = formState.selectedDate,
+            onValueChange = {},
+            label = { Text("Date") },
+            placeholder = { Text("3/1/2026") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDatePicker = true },
+            enabled = false,
+            readOnly = true,
+            trailingIcon = {
+                TextButton(onClick = { showDatePicker = true }) {
+                    Text("📅")
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         )
 
         // Description Input
         OutlinedTextField(
-            value = description,
-            onValueChange = { description = it },
+            value = formState.description,
+            onValueChange = viewModel::updateDescription,
             label = { Text("Description") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !uiState.isLoading
         )
 
         // Income/Expense Toggle
@@ -66,35 +83,36 @@ fun TransactionInputScreen(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text("Transaction Type", style = MaterialTheme.typography.labelMedium)
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .selectable(
-                                selected = !isIncome,
-                                onClick = { isIncome = false }
+                                selected = !formState.isIncome,
+                                onClick = { viewModel.updateIsIncome(false) }
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = !isIncome,
-                            onClick = { isIncome = false }
+                            selected = !formState.isIncome,
+                            onClick = { viewModel.updateIsIncome(false) },
+                            enabled = !uiState.isLoading
                         )
                         Text("Expense (Outflow)")
                     }
                     Row(
                         modifier = Modifier
                             .selectable(
-                                selected = isIncome,
-                                onClick = { isIncome = true }
+                                selected = formState.isIncome,
+                                onClick = { viewModel.updateIsIncome(true) }
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = isIncome,
-                            onClick = { isIncome = true }
+                            selected = formState.isIncome,
+                            onClick = { viewModel.updateIsIncome(true) },
+                            enabled = !uiState.isLoading
                         )
                         Text("Income (Inflow)")
                     }
@@ -104,41 +122,41 @@ fun TransactionInputScreen(
 
         // Amount Input
         OutlinedTextField(
-            value = amount,
-            onValueChange = { amount = it },
-            label = { Text(if (isIncome) "Inflow Amount" else "Outflow Amount") },
+            value = formState.amount,
+            onValueChange = viewModel::updateAmount,
+            label = { Text(if (formState.isIncome) "Inflow Amount" else "Outflow Amount") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
-            prefix = { Text("₱") }
+            prefix = { Text("₱") },
+            enabled = !uiState.isLoading,
+            isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null
         )
 
         // Category Dropdown
         ExposedDropdownMenuBox(
-            expanded = showCategoryDropdown,
-            onExpandedChange = { showCategoryDropdown = it }
+            expanded = formState.showCategoryDropdown,
+            onExpandedChange = { viewModel.toggleCategoryDropdown() }
         ) {
             OutlinedTextField(
-                value = selectedCategory.displayName,
+                value = formState.selectedCategory,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Category") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showCategoryDropdown) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = formState.showCategoryDropdown) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                enabled = !uiState.isLoading
             )
             
             ExposedDropdownMenu(
-                expanded = showCategoryDropdown,
-                onDismissRequest = { showCategoryDropdown = false }
+                expanded = formState.showCategoryDropdown,
+                onDismissRequest = { viewModel.toggleCategoryDropdown() }
             ) {
                 TransactionCategory.entries.forEach { category ->
                     DropdownMenuItem(
                         text = { Text(category.displayName) },
-                        onClick = {
-                            selectedCategory = category
-                            showCategoryDropdown = false
-                        }
+                        onClick = { viewModel.updateCategory(category.displayName) }
                     )
                 }
             }
@@ -146,31 +164,29 @@ fun TransactionInputScreen(
 
         // Payment Mode Dropdown
         ExposedDropdownMenuBox(
-            expanded = showPaymentDropdown,
-            onExpandedChange = { showPaymentDropdown = it }
+            expanded = formState.showPaymentDropdown,
+            onExpandedChange = { viewModel.togglePaymentDropdown() }
         ) {
             OutlinedTextField(
-                value = selectedPaymentMode.displayName,
+                value = formState.selectedPaymentMode,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Mode of Payment") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPaymentDropdown) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = formState.showPaymentDropdown) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                enabled = !uiState.isLoading
             )
             
             ExposedDropdownMenu(
-                expanded = showPaymentDropdown,
-                onDismissRequest = { showPaymentDropdown = false }
+                expanded = formState.showPaymentDropdown,
+                onDismissRequest = { viewModel.togglePaymentDropdown() }
             ) {
                 PaymentMode.entries.forEach { mode ->
                     DropdownMenuItem(
                         text = { Text(mode.displayName) },
-                        onClick = {
-                            selectedPaymentMode = mode
-                            showPaymentDropdown = false
-                        }
+                        onClick = { viewModel.updatePaymentMode(mode.displayName) }
                     )
                 }
             }
@@ -182,52 +198,57 @@ fun TransactionInputScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
-                checked = isPaid,
-                onCheckedChange = { isPaid = it }
+                checked = formState.isPaid,
+                onCheckedChange = viewModel::updateIsPaid,
+                enabled = !uiState.isLoading
             )
             Text("Paid", modifier = Modifier.padding(start = 8.dp))
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Save Button
-        Button(
-            onClick = {
-                val amountValue = amount.toDoubleOrNull()
-                if (amountValue != null && amountValue > 0 && description.isNotEmpty()) {
-                    try {
-                        val date = LocalDate.parse(selectedDate)
-                        val transaction = Transaction(
-                            date = date,
-                            description = description,
-                            inflow = if (isIncome) amountValue else 0.0,
-                            outflow = if (!isIncome) amountValue else 0.0,
-                            category = selectedCategory.displayName,
-                            modeOfPayment = selectedPaymentMode.displayName,
-                            isPaid = isPaid
-                        )
-                        onTransactionSaved(transaction)
-                        
-                        // Clear form
-                        description = ""
-                        amount = ""
-                        isIncome = false
-                        selectedCategory = TransactionCategory.OTHER
-                        selectedPaymentMode = PaymentMode.OTHER
-                        isPaid = false
-                    } catch (e: Exception) {
-                        // Handle invalid date format
-                    }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            enabled = amount.toDoubleOrNull() != null && 
-                     amount.toDoubleOrNull()!! > 0 && 
-                     description.isNotEmpty()
-        ) {
-            Text("Save Transaction")
+        // Error message
+        uiState.errorMessage?.let { error ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Text(
+                    text = error,
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
         }
+        
+        // Success message
+        if (uiState.showSuccessMessage) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Text(
+                    text = uiState.successMessage ?: "Success!",
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        
+        // Add bottom padding to account for bottom bar
+        Spacer(modifier = Modifier.height(80.dp))
+    }
+    
+    // Date Picker Dialog
+    if (showDatePicker) {
+        DatePickerDialog(
+            currentDate = formState.selectedDate,
+            onDateSelected = { date ->
+                viewModel.updateDate(date)
+            },
+            onDismiss = { showDatePicker = false }
+        )
     }
 }

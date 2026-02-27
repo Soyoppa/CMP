@@ -4,9 +4,10 @@ import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
 
 @Serializable
+
 data class Transaction(
     val id: String = "",
-    val date: LocalDate,
+    val date: String,
     val description: String,
     val inflow: Double = 0.0,  // Income
     val outflow: Double = 0.0, // Expenses

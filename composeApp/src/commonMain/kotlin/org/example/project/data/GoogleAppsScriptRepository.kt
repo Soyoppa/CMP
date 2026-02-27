@@ -9,8 +9,10 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.example.project.config.ApiConfig
+import org.example.project.config.ConfigManager
 import org.example.project.model.Transaction
+import org.example.project.util.FormatUtils
+import org.example.project.util.DateUtils
 
 @Serializable
 data class ScriptTransactionRequest(
@@ -50,19 +52,19 @@ class GoogleAppsScriptRepository {
         return try {
             // Go back to POST request with JSON body since that was working before
             val request = ScriptTransactionRequest(
-                date = transaction.date.toString(),
+                date = transaction.date,
                 description = transaction.description,
-                inflow = if (transaction.inflow > 0) "₱${String.format("%.2f", transaction.inflow)}" else "",
-                outflow = if (transaction.outflow > 0) "₱${String.format("%.2f", transaction.outflow)}" else "",
+                inflow = if (transaction.inflow > 0) FormatUtils.formatPeso(transaction.inflow) else "",
+                outflow = if (transaction.outflow > 0) FormatUtils.formatPeso(transaction.outflow) else "",
                 category = transaction.category,
                 modeOfPayment = transaction.modeOfPayment,
                 isPaid = if (transaction.isPaid) "TRUE" else "FALSE"
             )
             
-            println("Sending POST to Google Apps Script: ${ApiConfig.SCRIPT_URL}")
+            println("Sending POST to Google Apps Script: ${ConfigManager.getConfig().scriptUrl}")
             println("Request data: $request")
             
-            val response = client.post(ApiConfig.SCRIPT_URL) {
+            val response = client.post(ConfigManager.getConfig().scriptUrl) {
                 contentType(ContentType.Application.Json)
                 setBody(request)
                 header("User-Agent", "FinanceApp/1.0")
@@ -118,7 +120,7 @@ class GoogleAppsScriptRepository {
     
     suspend fun testConnection(): String {
         return try {
-            val response = client.get(ApiConfig.SCRIPT_URL)
+            val response = client.get(ConfigManager.getConfig().scriptUrl)
             val responseBody = response.body<String>()
             println("Test response status: ${response.status}")
             println("Test response body: $responseBody")

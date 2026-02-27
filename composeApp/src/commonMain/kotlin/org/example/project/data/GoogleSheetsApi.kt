@@ -9,8 +9,9 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.example.project.config.ApiConfig
+import org.example.project.config.ConfigManager
 import org.example.project.model.Transaction
+import org.example.project.util.FormatUtils
 
 @Serializable
 data class SheetsResponse(
@@ -37,10 +38,11 @@ class GoogleSheetsApi {
     
     suspend fun getTransactions(): List<Transaction> {
         return try {
+            val config = ConfigManager.getConfig()
             val response: SheetsResponse = client.get(
-                "https://sheets.googleapis.com/v4/spreadsheets/${ApiConfig.SPREADSHEET_ID}/values/${ApiConfig.SHEET_RANGE}"
+                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
             ) {
-                parameter("key", ApiConfig.API_KEY)
+                parameter("key", config.apiKey)
             }.body()
             
             response.values?.drop(1)?.mapNotNull { row ->
@@ -60,7 +62,7 @@ class GoogleSheetsApi {
                         val outflowStr = if (row.size > 3) row[3].replace("₱", "").replace(",", "").trim() else ""
                         
                         Transaction(
-                            date = parsedDate,
+                            date = parsedDate.toString(),
                             description = row[1].trim(),
                             inflow = if (inflowStr.isNotEmpty()) inflowStr.toDoubleOrNull() ?: 0.0 else 0.0,
                             outflow = if (outflowStr.isNotEmpty()) outflowStr.toDoubleOrNull() ?: 0.0 else 0.0,
@@ -82,12 +84,13 @@ class GoogleSheetsApi {
     
     suspend fun addTransaction(transaction: Transaction): Boolean {
         return try {
+            val config = ConfigManager.getConfig()
             val values = listOf(
                 listOf(
                     transaction.date.toString(), // Will be in YYYY-MM-DD format
                     transaction.description,
-                    if (transaction.inflow > 0) "₱${String.format("%.2f", transaction.inflow)}" else "",
-                    if (transaction.outflow > 0) "₱${String.format("%.2f", transaction.outflow)}" else "",
+                    if (transaction.inflow > 0) FormatUtils.formatPeso(transaction.inflow) else "",
+                    if (transaction.outflow > 0) FormatUtils.formatPeso(transaction.outflow) else "",
                     transaction.category,
                     transaction.modeOfPayment,
                     if (transaction.isPaid) "TRUE" else "FALSE",
@@ -95,13 +98,13 @@ class GoogleSheetsApi {
                 )
             )
             
-            val url = "https://sheets.googleapis.com/v4/spreadsheets/${ApiConfig.SPREADSHEET_ID}/values/${ApiConfig.SHEET_RANGE}:append"
+            val url = "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}:append"
             println("Attempting to write to: $url")
             println("Data to write: $values")
             println("Request body: ${SheetsRequest(values)}")
             
             val response = client.post(url) {
-                parameter("key", ApiConfig.API_KEY)
+                parameter("key", config.apiKey)
                 parameter("valueInputOption", "RAW")
                 parameter("insertDataOption", "INSERT_ROWS")
                 contentType(ContentType.Application.Json)

@@ -1,0 +1,64 @@
+name: Deploy Web App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+      
+    - name: Inject API Configuration
+      run: |
+        # Replace placeholder values with actual secrets
+        sed -i 's/BUILD_TIME_SPREADSHEET_ID/${{ secrets.SPREADSHEET_ID }}/g' composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+        sed -i 's/BUILD_TIME_API_KEY/${{ secrets.API_KEY }}/g' composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+        sed -i 's|BUILD_TIME_SCRIPT_URL|${{ secrets.SCRIPT_URL }}|g' composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+        
+    - name: Build JS Distribution
+      run: ./gradlew :composeApp:jsBrowserDistribution
+      
+    - name: Prepare deployment files
+      run: |
+        mkdir -p public
+        cp -r composeApp/build/dist/js/productionExecutable/* public/
+        
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./public
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-distribution
+        path: public/
+        retention-days: 30

@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
+import org.example.project.util.DateUtils
 
 @Composable
 fun TestConnectionScreen(
@@ -63,7 +64,7 @@ fun TestConnectionScreen(
                     isLoading = true
                     try {
                         val testTransaction = Transaction(
-                            date = kotlinx.datetime.LocalDate.parse("2026-01-26"),
+                            date = DateUtils.getCurrentDateFormatted(),
                             description = "Test Transaction",
                             outflow = 100.0,
                             category = "Test",

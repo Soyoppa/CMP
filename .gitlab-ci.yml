@@ -1,0 +1,51 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+
+cache:
+  paths:
+    - .gradle/wrapper
+    - .gradle/caches
+
+before_script:
+  - chmod +x ./gradlew
+
+build:
+  stage: build
+  image: openjdk:17-jdk
+  script:
+    # Inject API configuration from GitLab CI/CD variables
+    - sed -i "s/BUILD_TIME_SPREADSHEET_ID/$SPREADSHEET_ID/g" composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+    - sed -i "s/BUILD_TIME_API_KEY/$API_KEY/g" composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+    - sed -i "s|BUILD_TIME_SCRIPT_URL|$SCRIPT_URL|g" composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+    
+    # Build the web distribution
+    - ./gradlew :composeApp:jsBrowserDistribution
+    
+    # Prepare public directory for GitLab Pages
+    - mkdir -p public
+    - cp -r composeApp/build/dist/js/productionExecutable/* public/
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 hour
+  only:
+    - main
+    - master
+
+pages:
+  stage: deploy
+  script:
+    - echo "Deploying to GitLab Pages..."
+  artifacts:
+    paths:
+      - public
+  dependencies:
+    - build
+  only:
+    - main
+    - master

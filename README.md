@@ -1,76 +1,130 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM).
+# Finance Tracker - Kotlin Compose Multiplatform
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+A cross-platform finance tracking application built with Kotlin Compose Multiplatform that integrates with Google Sheets for data storage.
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+## Features
 
-### Build and Run Android Application
+- ✅ Cross-platform support (Android, iOS, Web, Desktop)
+- ✅ Google Sheets integration via Google Apps Script
+- ✅ Transaction input with categories and payment modes
+- ✅ Real-time data synchronization
+- ✅ MVVM architecture with proper state management
+- ✅ Secure API key management for production deployments
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+## Architecture
 
-### Build and Run Desktop (JVM) Application
+This app follows MVVM (Model-View-ViewModel) architecture:
 
-To build and run the development version of the desktop app, use the run configuration from the run widget
-in your IDE’s toolbar or run it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:run
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:run
-  ```
+- **Model**: Transaction data classes and business logic
+- **View**: Compose UI screens with reactive state
+- **ViewModel**: State management and business operations
+- **Repository**: Data access layer with Google Sheets integration
 
-### Build and Run Web Application
+## Development Setup
 
-To build and run the development version of the web app, use the run configuration from the run widget
-in your IDE's toolbar or run it directly from the terminal:
-- for the Wasm target (faster, modern browsers):
-  - on macOS/Linux
-    ```shell
-    ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
-    ```
-  - on Windows
-    ```shell
-    .\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun
-    ```
-- for the JS target (slower, supports older browsers):
-  - on macOS/Linux
-    ```shell
-    ./gradlew :composeApp:jsBrowserDevelopmentRun
-    ```
-  - on Windows
-    ```shell
-    .\gradlew.bat :composeApp:jsBrowserDevelopmentRun
-    ```
+1. Clone the repository
+2. Open in Android Studio or IntelliJ IDEA
+3. Update API configuration in `ApiConfig.kt` with your Google Sheets details
+4. Run the app on your preferred platform
 
-### Build and Run iOS Application
+## Production Deployment
 
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+### Web Deployment (GitLab Pages) - RECOMMENDED
 
----
+1. **Set up GitLab CI/CD Variables**:
+   - Go to your GitLab project → Settings → CI/CD → Variables
+   - Add these variables:
+     - `SPREADSHEET_ID`: Your Google Sheets ID (`1P7FnOo2Cv-HwfyY3RbWlrr6W1kLURNoEDjxmMj-3NCY`)
+     - `API_KEY`: Your Google Sheets API key (`AIzaSyAKJBhNENUHgz4HYJv24epFef0tsIv-Nc0`)
+     - `SCRIPT_URL`: Your Google Apps Script web app URL
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/#compose-multiplatform),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
+2. **Enable GitLab Pages**:
+   - Push to `main` or `master` branch
+   - GitLab CI will automatically build and deploy
+   - Access your app at `https://yourusername.gitlab.io/yourproject`
 
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+### Web Deployment (GitHub Pages)
+
+1. **Set up GitHub Secrets**:
+   - Go to your GitHub repo → Settings → Secrets and variables → Actions
+   - Add these secrets with the same values as above
+
+2. **Enable GitHub Pages**:
+   - Go to Settings → Pages
+   - Select "GitHub Actions" as source
+   - Push to `main` branch to trigger deployment
+
+## Security Features
+
+- ✅ API keys are injected at build time, not stored in source code
+- ✅ Environment-based configuration for different deployment targets
+- ✅ Secure credential management through CI/CD variables
+- ✅ Production vs development configuration detection
+
+## Google Sheets Setup
+
+Your current configuration:
+- **Spreadsheet ID**: `1P7FnOo2Cv-HwfyY3RbWlrr6W1kLURNoEDjxmMj-3NCY`
+- **Sheet Name**: "Data Dump"
+- **API Key**: `AIzaSyAKJBhNENUHgz4HYJv24epFef0tsIv-Nc0`
+- **Script URL**: `https://script.google.com/macros/s/AKfycbwIwiZaZezvby_ntecR1NfHFkno1fJauCluIk5IWVC0_sEWsLb5AvxTnmqvpaGVGfQA/exec`
+
+## Building for Different Platforms
+
+```bash
+# Android APK
+./gradlew :composeApp:assembleDebug
+
+# Web (JS) - for deployment
+./gradlew :composeApp:jsBrowserDistribution
+
+# Web (JS) - for development
+./gradlew :composeApp:jsBrowserDevelopmentRun
+
+# Desktop (JVM)
+./gradlew :composeApp:createDistributable
+
+# iOS (requires macOS)
+./gradlew :composeApp:iosSimulatorArm64Test
+```
+
+## Project Structure
+
+```
+composeApp/src/
+├── commonMain/kotlin/org/example/project/
+│   ├── config/          # Configuration and environment management
+│   ├── data/            # API clients and data sources
+│   ├── model/           # Data models
+│   ├── repository/      # Data access layer
+│   ├── ui/              # Compose UI screens
+│   ├── viewmodel/       # ViewModels for state management
+│   └── App.kt           # Main application entry point
+├── androidMain/         # Android-specific code
+├── iosMain/            # iOS-specific code
+├── webMain/            # Web-specific code
+└── jvmMain/            # Desktop-specific code
+```
+
+## Next Steps for Deployment
+
+1. **Test the web build locally**:
+   ```bash
+   ./gradlew :composeApp:jsBrowserDistribution
+   ```
+
+2. **Push to GitLab** and set up the CI/CD variables
+
+3. **Access your web app** from any device including iPhone
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes following MVVM architecture
+4. Test on multiple platforms
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
