@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -67,7 +68,8 @@ fun TransactionInputScreen(
             prefix = { Text("₱") },
             enabled = !uiState.value.isLoading,
             isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
-            colors = customTextFieldColors()
+            colors = customTextFieldColors(),
+            shape = textFieldCornerShape()
         )
 
         // Date Input with Picker
@@ -86,7 +88,7 @@ fun TransactionInputScreen(
                     Text("📅")
                 }
             },
-            colors = disabledTextFieldColors()
+            colors =customTextFieldColors()
         )
 
         // Description Input
@@ -103,7 +105,8 @@ fun TransactionInputScreen(
                     focusManager.clearFocus()
                 }
             ),
-            colors = customTextFieldColors()
+            colors = customTextFieldColors(),
+            shape = textFieldCornerShape()
         )
 
         // Category Dropdown
@@ -181,7 +184,8 @@ private fun CategoryDropdown(
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             enabled = isEnabled,
-            colors = customTextFieldColors()
+            colors = customTextFieldColors(),
+            shape = textFieldCornerShape()
         )
 
         ExposedDropdownMenu(
@@ -221,7 +225,8 @@ private fun PaymentModeDropdown(
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             enabled = isEnabled,
-            colors = customTextFieldColors()
+            colors = customTextFieldColors(),
+            shape = textFieldCornerShape()
         )
 
         ExposedDropdownMenu(
@@ -289,8 +294,9 @@ private fun TransactionTypeCard(
 // Reusable color configurations
 @Composable
 private fun customTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Color.DarkGray,
-    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+    focusedBorderColor = Color.LightGray,
+    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer
+
 )
 
 @Composable
@@ -302,3 +308,6 @@ private fun disabledTextFieldColors() = OutlinedTextFieldDefaults.colors(
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
 )
+
+
+private fun textFieldCornerShape() = RoundedCornerShape(12.dp)

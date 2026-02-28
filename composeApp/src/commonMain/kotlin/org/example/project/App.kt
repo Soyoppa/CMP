@@ -2,6 +2,8 @@ package org.example.project
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -60,11 +62,21 @@ fun App() {
                 )
             }
         ) { paddingValues ->
+            val focusManager = LocalFocusManager.current
+            val keyboardController = LocalSoftwareKeyboardController.current
+
             Box(
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.background)
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null // No ripple effect
+                    ) {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
             ) {
                 if (showTestScreen) {
                     TestConnectionScreen(modifier = Modifier.fillMaxSize())
