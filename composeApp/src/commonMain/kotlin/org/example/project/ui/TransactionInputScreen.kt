@@ -72,24 +72,6 @@ fun TransactionInputScreen(
             shape = textFieldCornerShape()
         )
 
-        // Date Input with Picker
-        OutlinedTextField(
-            value = formState.selectedDate,
-            onValueChange = {},
-            label = { Text("Date") },
-            placeholder = { Text("3/1/2026") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { showDatePicker = true },
-            enabled = false,
-            readOnly = true,
-            trailingIcon = {
-                IconButton(onClick = { showDatePicker = true }) {
-                    Text("📅")
-                }
-            },
-            colors =customTextFieldColors()
-        )
 
         // Description Input
         OutlinedTextField(
@@ -126,6 +108,23 @@ fun TransactionInputScreen(
             onExpandedChange = viewModel::togglePaymentDropdown,
             onModeSelected = viewModel::updatePaymentMode
         )
+        OutlinedTextField(
+            value = formState.selectedDate,
+            onValueChange = { showDatePicker = true }, // Trigger on any "change" attempt
+            label = { Text("Date") },
+            placeholder = { Text("3/1/2026") },
+            colors = customTextFieldColors(),
+            shape = textFieldCornerShape(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDatePicker = true },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Text("📅")
+                }
+            }
+        )
 
         // Paid Checkbox
         Row(
@@ -150,6 +149,8 @@ fun TransactionInputScreen(
         // Bottom padding for button bar
         Spacer(modifier = Modifier.height(80.dp))
     }
+
+
 
     // Date Picker Dialog
     if (showDatePicker) {
@@ -294,20 +295,16 @@ private fun TransactionTypeCard(
 // Reusable color configurations
 @Composable
 private fun customTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Color.LightGray,
-    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer
 
-)
-
-@Composable
-private fun disabledTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    focusedLabelColor =  MaterialTheme.colorScheme.secondary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
     disabledTextColor = MaterialTheme.colorScheme.onSurface,
     disabledBorderColor = MaterialTheme.colorScheme.outline,
     disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
-
 
 private fun textFieldCornerShape() = RoundedCornerShape(12.dp)
