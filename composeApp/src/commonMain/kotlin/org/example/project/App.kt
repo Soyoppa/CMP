@@ -1,21 +1,26 @@
 package org.example.project
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinproject.composeapp.generated.resources.Res
+import kotlinproject.composeapp.generated.resources.levels
 import kotlinx.coroutines.launch
 import org.example.project.ui.TestConnectionScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.TransactionViewModel
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
@@ -24,13 +29,14 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun App() {
     FinanceTrackerTheme {
         val viewModel: TransactionViewModel = viewModel()
+        val uiState by viewModel.uiState.collectAsState() // Collect StateFlow
         val snackbarHostState = remember { SnackbarHostState() }
         var showTestScreen by remember { mutableStateOf(false) }
 
         // Handle snackbar messages
         SnackbarHandler(
-            errorMessage = viewModel.uiState.errorMessage,
-            successMessage = viewModel.uiState.successMessage.takeIf { viewModel.uiState.showSuccessMessage },
+            errorMessage = uiState.errorMessage,
+            successMessage = uiState.successMessage.takeIf { uiState.showSuccessMessage },
             snackbarHostState = snackbarHostState,
             onErrorCleared = viewModel::clearError,
             onSuccessCleared = viewModel::clearSuccess
@@ -41,7 +47,7 @@ fun App() {
             bottomBar = {
                 BottomActionBar(
                     showTestScreen = showTestScreen,
-                    isLoading = viewModel.uiState.isLoading,
+                    isLoading = uiState.isLoading,
                     isFormValid = viewModel.formState.isValid,
                     onSaveClick = {
                         if (showTestScreen) {
@@ -83,18 +89,25 @@ private fun SnackbarHandler(
 ) {
     LaunchedEffect(errorMessage) {
         errorMessage?.let { error ->
-            snackbarHostState.showSnackbar(error)
+            snackbarHostState.showSnackbar(
+                message = error,
+                duration = SnackbarDuration.Short
+            )
             onErrorCleared()
         }
     }
 
     LaunchedEffect(successMessage) {
         successMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
             onSuccessCleared()
         }
     }
 }
+
 
 @Composable
 private fun BottomActionBar(
@@ -112,13 +125,32 @@ private fun BottomActionBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 16.dp)
-                .padding(bottom = 34.dp), // Account for system navigation
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(bottom = 34.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Button(
                 onClick = onSaveClick,
                 modifier = Modifier.weight(1f),
-                enabled = if (showTestScreen) true else (isFormValid && !isLoading)
+                enabled = !isLoading ,
+                colors = when {
+                    showTestScreen -> ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    isLoading -> ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                    !isFormValid -> ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    else -> ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             ) {
                 if (!showTestScreen && isLoading) {
                     CircularProgressIndicator(
@@ -126,18 +158,30 @@ private fun BottomActionBar(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text(if (showTestScreen) "Add Transaction" else "Save Transaction")
+                    Text(if (showTestScreen) "Add Transaction" else "Send Transaction")
                 }
             }
 
-            Button(
+            // PNG icon button with conditional colors
+            FilledTonalIconButton(
                 onClick = onTestClick,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
+                modifier = Modifier.size(39.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = if (showTestScreen)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = if (showTestScreen)
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
-                Text("Test Connection")
+                Icon(
+                    painter = painterResource(Res.drawable.levels),
+                    contentDescription = "Test Connection",
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

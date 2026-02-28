@@ -65,7 +65,7 @@ fun TransactionInputScreen(
             ),
             modifier = Modifier.fillMaxWidth(),
             prefix = { Text("₱") },
-            enabled = !uiState.isLoading,
+            enabled = !uiState.value.isLoading,
             isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
             colors = customTextFieldColors()
         )
@@ -95,7 +95,7 @@ fun TransactionInputScreen(
             onValueChange = viewModel::updateDescription,
             label = { Text("Description") },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !uiState.isLoading,
+            enabled = !uiState.value.isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
                 onDone = {
@@ -110,7 +110,7 @@ fun TransactionInputScreen(
         CategoryDropdown(
             selectedCategory = formState.selectedCategory,
             isExpanded = formState.showCategoryDropdown,
-            isEnabled = !uiState.isLoading,
+            isEnabled = !uiState.value.isLoading,
             onExpandedChange = viewModel::toggleCategoryDropdown,
             onCategorySelected = viewModel::updateCategory
         )
@@ -119,7 +119,7 @@ fun TransactionInputScreen(
         PaymentModeDropdown(
             selectedMode = formState.selectedPaymentMode,
             isExpanded = formState.showPaymentDropdown,
-            isEnabled = !uiState.isLoading,
+            isEnabled =!uiState.value.isLoading,
             onExpandedChange = viewModel::togglePaymentDropdown,
             onModeSelected = viewModel::updatePaymentMode
         )
@@ -132,7 +132,7 @@ fun TransactionInputScreen(
             Checkbox(
                 checked = formState.isPaid,
                 onCheckedChange = viewModel::updateIsPaid,
-                enabled = !uiState.isLoading
+                enabled =!uiState.value.isLoading
             )
             Text("Paid", modifier = Modifier.padding(start = 8.dp))
         }
@@ -140,7 +140,7 @@ fun TransactionInputScreen(
         // Transaction Type Toggle
         TransactionTypeCard(
             isIncome = formState.isIncome,
-            isEnabled = !uiState.isLoading,
+            isEnabled =!uiState.value.isLoading,
             onTypeChanged = viewModel::updateIsIncome
         )
 
