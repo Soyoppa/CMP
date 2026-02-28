@@ -7,6 +7,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
@@ -16,80 +18,43 @@ import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.TransactionViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+
 @Composable
 @Preview
 fun App() {
     FinanceTrackerTheme {
         val viewModel: TransactionViewModel = viewModel()
         val snackbarHostState = remember { SnackbarHostState() }
-        val coroutineScope = rememberCoroutineScope()
         var showTestScreen by remember { mutableStateOf(false) }
-        
-        // Handle UI state changes
-        LaunchedEffect(viewModel.uiState.errorMessage) {
-            viewModel.uiState.errorMessage?.let { error ->
-                snackbarHostState.showSnackbar(error)
-                viewModel.clearError()
-            }
-        }
-        
-        LaunchedEffect(viewModel.uiState.showSuccessMessage) {
-            if (viewModel.uiState.showSuccessMessage) {
-                viewModel.uiState.successMessage?.let { message ->
-                    snackbarHostState.showSnackbar(message)
-                }
-                viewModel.clearSuccess()
-            }
-        }
-        
+
+        // Handle snackbar messages
+        SnackbarHandler(
+            errorMessage = viewModel.uiState.errorMessage,
+            successMessage = viewModel.uiState.successMessage.takeIf { viewModel.uiState.showSuccessMessage },
+            snackbarHostState = snackbarHostState,
+            onErrorCleared = viewModel::clearError,
+            onSuccessCleared = viewModel::clearSuccess
+        )
+
         Scaffold(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             bottomBar = {
-                // Bottom buttons
-                Surface(
-                    shadowElevation = 8.dp,
-                    tonalElevation = 3.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp, end = 16.dp, bottom = 50.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (!showTestScreen) {
-                                    viewModel.addTransaction()
-                                } else {
-                                    showTestScreen = false
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = if (showTestScreen) true else (viewModel.formState.isValid && !viewModel.uiState.isLoading)
-                        ) {
-                            if (!showTestScreen && viewModel.uiState.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Text(if (showTestScreen) "Add Transaction" else "Save Transaction")
-                            }
+                BottomActionBar(
+                    showTestScreen = showTestScreen,
+                    isLoading = viewModel.uiState.isLoading,
+                    isFormValid = viewModel.formState.isValid,
+                    onSaveClick = {
+                        if (showTestScreen) {
+                            showTestScreen = false
+                        } else {
+                            viewModel.addTransaction()
                         }
-                        Button(
-                            onClick = { showTestScreen = true },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text("Test Connection")
-                        }
-                    }
-                }
+                    },
+                    onTestClick = { showTestScreen = true }
+                )
             }
         ) { paddingValues ->
-            Column(
+            Box(
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.background)
                     .fillMaxSize()
@@ -103,6 +68,76 @@ fun App() {
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SnackbarHandler(
+    errorMessage: String?,
+    successMessage: String?,
+    snackbarHostState: SnackbarHostState,
+    onErrorCleared: () -> Unit,
+    onSuccessCleared: () -> Unit
+) {
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            onErrorCleared()
+        }
+    }
+
+    LaunchedEffect(successMessage) {
+        successMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            onSuccessCleared()
+        }
+    }
+}
+
+@Composable
+private fun BottomActionBar(
+    showTestScreen: Boolean,
+    isLoading: Boolean,
+    isFormValid: Boolean,
+    onSaveClick: () -> Unit,
+    onTestClick: () -> Unit
+) {
+    Surface(
+        shadowElevation = 8.dp,
+        tonalElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(bottom = 34.dp), // Account for system navigation
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onSaveClick,
+                modifier = Modifier.weight(1f),
+                enabled = if (showTestScreen) true else (isFormValid && !isLoading)
+            ) {
+                if (!showTestScreen && isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text(if (showTestScreen) "Add Transaction" else "Save Transaction")
+                }
+            }
+
+            Button(
+                onClick = onTestClick,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Text("Test Connection")
             }
         }
     }

@@ -4,18 +4,27 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.example.project.model.PaymentMode
 import org.example.project.model.TransactionCategory
 import org.example.project.ui.components.DatePickerDialog
 import org.example.project.viewmodel.TransactionViewModel
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,6 +35,8 @@ fun TransactionInputScreen(
     val uiState = viewModel.uiState
     val formState = viewModel.formState
     var showDatePicker by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Column(
         modifier = modifier
@@ -40,6 +51,25 @@ fun TransactionInputScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
 
+        // Amount Input
+        OutlinedTextField(
+            value = formState.amount,
+            onValueChange = viewModel::updateAmount,
+            label = { Text(if (formState.isIncome) "Inflow Amount" else "Outflow Amount") },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Decimal,
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            prefix = { Text("₱") },
+            enabled = !uiState.isLoading,
+            isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
+            colors = customTextFieldColors()
+        )
+
         // Date Input with Picker
         OutlinedTextField(
             value = formState.selectedDate,
@@ -52,18 +82,11 @@ fun TransactionInputScreen(
             enabled = false,
             readOnly = true,
             trailingIcon = {
-                TextButton(onClick = { showDatePicker = true }) {
+                IconButton(onClick = { showDatePicker = true }) {
                     Text("📅")
                 }
             },
-            colors = OutlinedTextFieldDefaults.colors(
-                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            colors = disabledTextFieldColors()
         )
 
         // Description Input
@@ -72,125 +95,34 @@ fun TransactionInputScreen(
             onValueChange = viewModel::updateDescription,
             label = { Text("Description") },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !uiState.isLoading
-        )
-
-        // Income/Expense Toggle
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text("Transaction Type", style = MaterialTheme.typography.labelMedium)
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .selectable(
-                                selected = !formState.isIncome,
-                                onClick = { viewModel.updateIsIncome(false) }
-                            ),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = !formState.isIncome,
-                            onClick = { viewModel.updateIsIncome(false) },
-                            enabled = !uiState.isLoading
-                        )
-                        Text("Expense (Outflow)")
-                    }
-                    Row(
-                        modifier = Modifier
-                            .selectable(
-                                selected = formState.isIncome,
-                                onClick = { viewModel.updateIsIncome(true) }
-                            ),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = formState.isIncome,
-                            onClick = { viewModel.updateIsIncome(true) },
-                            enabled = !uiState.isLoading
-                        )
-                        Text("Income (Inflow)")
-                    }
-                }
-            }
-        }
-
-        // Amount Input
-        OutlinedTextField(
-            value = formState.amount,
-            onValueChange = viewModel::updateAmount,
-            label = { Text(if (formState.isIncome) "Inflow Amount" else "Outflow Amount") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
-            prefix = { Text("₱") },
             enabled = !uiState.isLoading,
-            isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }
+            ),
+            colors = customTextFieldColors()
         )
 
         // Category Dropdown
-        ExposedDropdownMenuBox(
-            expanded = formState.showCategoryDropdown,
-            onExpandedChange = { viewModel.toggleCategoryDropdown() }
-        ) {
-            OutlinedTextField(
-                value = formState.selectedCategory,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Category") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = formState.showCategoryDropdown) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                enabled = !uiState.isLoading
-            )
-            
-            ExposedDropdownMenu(
-                expanded = formState.showCategoryDropdown,
-                onDismissRequest = { viewModel.toggleCategoryDropdown() }
-            ) {
-                TransactionCategory.entries.forEach { category ->
-                    DropdownMenuItem(
-                        text = { Text(category.displayName) },
-                        onClick = { viewModel.updateCategory(category.displayName) }
-                    )
-                }
-            }
-        }
+        CategoryDropdown(
+            selectedCategory = formState.selectedCategory,
+            isExpanded = formState.showCategoryDropdown,
+            isEnabled = !uiState.isLoading,
+            onExpandedChange = viewModel::toggleCategoryDropdown,
+            onCategorySelected = viewModel::updateCategory
+        )
 
         // Payment Mode Dropdown
-        ExposedDropdownMenuBox(
-            expanded = formState.showPaymentDropdown,
-            onExpandedChange = { viewModel.togglePaymentDropdown() }
-        ) {
-            OutlinedTextField(
-                value = formState.selectedPaymentMode,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Mode of Payment") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = formState.showPaymentDropdown) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                enabled = !uiState.isLoading
-            )
-            
-            ExposedDropdownMenu(
-                expanded = formState.showPaymentDropdown,
-                onDismissRequest = { viewModel.togglePaymentDropdown() }
-            ) {
-                PaymentMode.entries.forEach { mode ->
-                    DropdownMenuItem(
-                        text = { Text(mode.displayName) },
-                        onClick = { viewModel.updatePaymentMode(mode.displayName) }
-                    )
-                }
-            }
-        }
+        PaymentModeDropdown(
+            selectedMode = formState.selectedPaymentMode,
+            isExpanded = formState.showPaymentDropdown,
+            isEnabled = !uiState.isLoading,
+            onExpandedChange = viewModel::togglePaymentDropdown,
+            onModeSelected = viewModel::updatePaymentMode
+        )
 
         // Paid Checkbox
         Row(
@@ -205,50 +137,168 @@ fun TransactionInputScreen(
             Text("Paid", modifier = Modifier.padding(start = 8.dp))
         }
 
-        // Error message
-        uiState.errorMessage?.let { error ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Text(
-                    text = error,
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-        
-        // Success message
-        if (uiState.showSuccessMessage) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Text(
-                    text = uiState.successMessage ?: "Success!",
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-        
-        // Add bottom padding to account for bottom bar
+        // Transaction Type Toggle
+        TransactionTypeCard(
+            isIncome = formState.isIncome,
+            isEnabled = !uiState.isLoading,
+            onTypeChanged = viewModel::updateIsIncome
+        )
+
+        // Bottom padding for button bar
         Spacer(modifier = Modifier.height(80.dp))
     }
-    
+
     // Date Picker Dialog
     if (showDatePicker) {
         DatePickerDialog(
             currentDate = formState.selectedDate,
-            onDateSelected = { date ->
-                viewModel.updateDate(date)
-            },
+            onDateSelected = viewModel::updateDate,
             onDismiss = { showDatePicker = false }
         )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryDropdown(
+    selectedCategory: String,
+    isExpanded: Boolean,
+    isEnabled: Boolean,
+    onExpandedChange: () -> Unit,
+    onCategorySelected: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { onExpandedChange() }
+    ) {
+        OutlinedTextField(
+            value = selectedCategory,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Category") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            enabled = isEnabled,
+            colors = customTextFieldColors()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = onExpandedChange
+        ) {
+            TransactionCategory.entries.forEach { category ->
+                DropdownMenuItem(
+                    text = { Text(category.displayName) },
+                    onClick = { onCategorySelected(category.displayName) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PaymentModeDropdown(
+    selectedMode: String,
+    isExpanded: Boolean,
+    isEnabled: Boolean,
+    onExpandedChange: () -> Unit,
+    onModeSelected: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { onExpandedChange() }
+    ) {
+        OutlinedTextField(
+            value = selectedMode,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Mode of Payment") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            enabled = isEnabled,
+            colors = customTextFieldColors()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = onExpandedChange
+        ) {
+            PaymentMode.entries.forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(mode.displayName) },
+                    onClick = { onModeSelected(mode.displayName) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransactionTypeCard(
+    isIncome: Boolean,
+    isEnabled: Boolean,
+    onTypeChanged: (Boolean) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Transaction Type", style = MaterialTheme.typography.labelMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = !isIncome,
+                        onClick = { onTypeChanged(false) }
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = !isIncome,
+                    onClick = { onTypeChanged(false) },
+                    enabled = isEnabled
+                )
+                Text("Expense (Outflow)")
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = isIncome,
+                        onClick = { onTypeChanged(true) }
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = isIncome,
+                    onClick = { onTypeChanged(true) },
+                    enabled = isEnabled
+                )
+                Text("Income (Inflow)")
+            }
+        }
+    }
+}
+
+// Reusable color configurations
+@Composable
+private fun customTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Color.DarkGray,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+)
+
+@Composable
+private fun disabledTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+    disabledBorderColor = MaterialTheme.colorScheme.outline,
+    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
