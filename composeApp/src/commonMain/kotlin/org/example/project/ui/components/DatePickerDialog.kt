@@ -30,7 +30,7 @@ fun DatePickerDialog(
         DateUtils.parseDate(currentDate)?.let { date ->
             selectedYear = date.year
             selectedMonth = date.month.ordinal + 1
-            selectedDay = date.dayOfMonth
+            selectedDay = date.day
         }
     }
     

@@ -108,9 +108,11 @@ fun TransactionInputScreen(
             onExpandedChange = viewModel::togglePaymentDropdown,
             onModeSelected = viewModel::updatePaymentMode
         )
+
+        // Date Input with Picker
         OutlinedTextField(
             value = formState.selectedDate,
-            onValueChange = { showDatePicker = true }, // Trigger on any "change" attempt
+            onValueChange = {},
             label = { Text("Date") },
             placeholder = { Text("3/1/2026") },
             colors = customTextFieldColors(),
@@ -118,12 +120,13 @@ fun TransactionInputScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { showDatePicker = true },
+            enabled = true,
             readOnly = true,
             trailingIcon = {
                 IconButton(onClick = { showDatePicker = true }) {
                     Text("📅")
                 }
-            }
+            },
         )
 
         // Paid Checkbox

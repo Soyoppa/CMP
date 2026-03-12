@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.levels
 import kotlinx.coroutines.launch
@@ -22,15 +21,15 @@ import org.example.project.ui.TestConnectionScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.TransactionViewModel
+import org.example.project.viewmodel.createTransactionViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
 @Composable
 @Preview
-fun App() {
+fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
     FinanceTrackerTheme {
-        val viewModel: TransactionViewModel = viewModel()
         val uiState by viewModel.uiState.collectAsState() // Collect StateFlow
         val snackbarHostState = remember { SnackbarHostState() }
         var showTestScreen by remember { mutableStateOf(false) }

@@ -44,6 +44,6 @@ object DateUtils {
      */
     fun getCurrentDateFormatted(): String {
         val today = kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault())
-        return "${today.monthNumber}/${today.day}/${today.year}"
+        return "${today.month}/${today.day}/${today.year}"
     }
 }
