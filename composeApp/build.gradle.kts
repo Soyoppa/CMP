@@ -1,6 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -10,6 +11,15 @@ plugins {
     alias(libs.plugins.composeHotReload)
     id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.plugin.serialization") version "2.2.20"
+    id("com.github.gmazzo.buildconfig") version "5.5.0"
+}
+
+// Load local.properties
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
 }
 
 kotlin {
@@ -142,4 +152,13 @@ compose.desktop {
             packageVersion = "1.0.0"
         }
     }
+}
+
+buildConfig {
+    packageName("org.example.project.config")
+    
+    buildConfigField("String", "SPREADSHEET_ID", "\"${localProperties.getProperty("SPREADSHEET_ID", "")}\"")
+    buildConfigField("String", "GOOGLE_API_KEY", "\"${localProperties.getProperty("GOOGLE_API_KEY", "")}\"")
+    buildConfigField("String", "SHEET_RANGE", "\"${localProperties.getProperty("SHEET_RANGE", "'Data Dump'!A:H")}\"")
+    buildConfigField("String", "SCRIPT_URL", "\"${localProperties.getProperty("SCRIPT_URL", "")}\"")
 }

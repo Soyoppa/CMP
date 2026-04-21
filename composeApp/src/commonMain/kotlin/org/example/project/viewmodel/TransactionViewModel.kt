@@ -150,13 +150,14 @@ class TransactionViewModel(
                 if (success) {
                     showSuccess("Transaction saved successfully!")
                     clearForm()
-                    // Optional: reload transactions
-                    // loadTransactions()
                 } else {
                     showError("Failed to save transaction. Please try again.")
                 }
             } catch (e: Exception) {
                 showError("Error: ${e.message ?: "Unknown error occurred"}")
+            } finally {
+                // Always reset loading — guards against any uncaught path
+                setLoading(false)
             }
         }
     }
