@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finance Tracker — System Architecture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 32px 24px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #75EEA5;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 0.82rem;
+      color: #8b949e;
+      margin-bottom: 36px;
+    }
+
+    /* ── GRID LAYOUT ── */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ── CARDS ── */
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+
+    .card.accent-green  { border-color: #75EEA5; }
+    .card.accent-blue   { border-color: #58a6ff; }
+    .card.accent-orange { border-color: #f0883e; }
+    .card.accent-purple { border-color: #bc8cff; }
+    .card.accent-red    { border-color: #f85149; }
+    .card.accent-teal   { border-color: #39d353; }
+
+    .card-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card.accent-green  .card-title { color: #75EEA5; }
+    .card.accent-blue   .card-title { color: #58a6ff; }
+    .card.accent-orange .card-title { color: #f0883e; }
+    .card.accent-purple .card-title { color: #bc8cff; }
+    .card.accent-red    .card-title { color: #f85149; }
+    .card.accent-teal   .card-title { color: #39d353; }
+
+    .icon { font-size: 1rem; }
+
+    /* ── PLATFORM BADGES ── */
+    .platforms {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+
+    .badge-android  { color: #3ddc84; border-color: #3ddc84; background: #3ddc8415; }
+    .badge-web      { color: #58a6ff; border-color: #58a6ff; background: #58a6ff15; }
+    .badge-desktop  { color: #f0883e; border-color: #f0883e; background: #f0883e15; }
+    .badge-ios      { color: #8b949e; border-color: #8b949e; background: #8b949e15; }
+
+    /* ── ITEMS ── */
+    .item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #0d1117;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+    }
+
+    .item:last-child { margin-bottom: 0; }
+
+    .item-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .dot-green  { background: #75EEA5; }
+    .dot-blue   { background: #58a6ff; }
+    .dot-orange { background: #f0883e; }
+    .dot-purple { background: #bc8cff; }
+    .dot-red    { background: #f85149; }
+    .dot-teal   { background: #39d353; }
+    .dot-gray   { background: #8b949e; }
+
+    .item-label { color: #e6edf3; font-weight: 600; }
+    .item-desc  { color: #8b949e; font-size: 0.74rem; margin-top: 1px; }
+
+    /* ── FLOW ARROWS ── */
+    .flow {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 4px 0;
+    }
+
+    .flow-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #e6edf3;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .flow-arrow {
+      color: #30363d;
+      font-size: 1.4rem;
+      padding: 0 6px;
+      flex-shrink: 0;
+    }
+
+    .flow-arrow.green  { color: #75EEA5; }
+    .flow-arrow.blue   { color: #58a6ff; }
+    .flow-arrow.orange { color: #f0883e; }
+
+    /* ── SPAN HELPERS ── */
+    .span-2 { grid-column: span 2; }
+    .span-3 { grid-column: span 3; }
+
+    /* ── SECTION DIVIDER ── */
+    .divider {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 4px 0;
+    }
+
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background: #21262d;
+    }
+
+    .divider-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #484f58;
+    }
+
+    /* ── TECH STACK ── */
+    .tech-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tech-tag {
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: #21262d;
+      color: #8b949e;
+      border: 1px solid #30363d;
+    }
+
+    /* ── SECURITY SECTION ── */
+    .security-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sec-item {
+      flex: 1;
+      min-width: 140px;
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.76rem;
+    }
+
+    .sec-item .sec-title { font-weight: 600; color: #e6edf3; margin-bottom: 3px; }
+    .sec-item .sec-desc  { color: #8b949e; font-size: 0.7rem; }
+
+    /* ── DATA FLOW DIAGRAM ── */
+    .dataflow {
+      grid-column: 1 / -1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+
+    .dataflow-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8b949e;
+      margin-bottom: 16px;
+    }
+
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .flow-row:last-child { margin-bottom: 0; }
+
+    .flow-node {
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .fn-ui       { background: #75EEA520; border: 1px solid #75EEA5; color: #75EEA5; }
+    .fn-vm       { background: #58a6ff20; border: 1px solid #58a6ff; color: #58a6ff; }
+    .fn-repo     { background: #bc8cff20; border: 1px solid #bc8cff; color: #bc8cff; }
+    .fn-api      { background: #f0883e20; border: 1px solid #f0883e; color: #f0883e; }
+    .fn-ext      { background: #f8514920; border: 1px solid #f85149; color: #f85149; }
+    .fn-firebase { background: #ffa65720; border: 1px solid #ffa657; color: #ffa657; }
+
+    .fa { color: #484f58; font-size: 1.1rem; padding: 0 8px; }
+    .fa.w { color: #75EEA5; }
+    .fa.r { color: #58a6ff; }
+
+    .flow-label {
+      font-size: 0.65rem;
+      color: #484f58;
+      padding: 0 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>💰 Finance Tracker — System Architecture</h1>
+  <p class="subtitle">Kotlin Multiplatform · Compose UI · Google Sheets Backend · Firebase Hosting</p>
+
+  <div class="grid">
+
+    <!-- ── PLATFORMS ── -->
+    <div class="card accent-green span-3">
+      <div class="card-title"><span class="icon">📱</span> Supported Platforms</div>
+      <div class="platforms">
+        <span class="badge badge-android">Android (Primary)</span>
+        <span class="badge badge-web">Web / WASM (Firebase Hosting)</span>
+        <span class="badge badge-desktop">Desktop / JVM</span>
+        <span class="badge badge-ios">iOS (configured)</span>
+      </div>
+      <div style="font-size:0.75rem; color:#8b949e;">
+        Single shared codebase via <strong style="color:#e6edf3;">Kotlin Multiplatform</strong> — UI, ViewModels, data layer, and models are all shared in <code style="color:#75EEA5;">commonMain</code>. Only HTTP engine and entry point differ per platform.
+      </div>
+    </div>
+
+    <!-- ── DATA FLOW ── -->
+    <div class="dataflow">
+      <div class="dataflow-title">⚡ Data Flow</div>
+
+      <div class="flow-row">
+        <div class="flow-node fn-ui">UI Screen</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-vm">TransactionViewModel</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-repo">TransactionRepository</div>
+        <span class="fa w">→ WRITE</span>
+        <div class="flow-node fn-api">GoogleAppsScriptRepository</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-ext">Google Apps Script</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-ext">Google Sheet</div>
+      </div>
+
+      <div class="flow-row">
+        <div class="flow-node fn-ui">UI Screen</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-vm">TransactionViewModel</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-repo">TransactionRepository</div>
+        <span class="fa r">→ READ</span>
+        <div class="flow-node fn-api">GoogleSheetsApi</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-ext">Sheets REST API</div>
+        <span class="fa">→</span>
+        <div class="flow-node fn-ext">Google Sheet</div>
+      </div>
+
+      <div class="flow-row" style="margin-top:10px;">
+        <div class="flow-node fn-firebase">Firebase Hosting</div>
+        <span class="fa">→</span>
+        <div style="font-size:0.75rem; color:#8b949e; padding: 0 4px;">serves compiled WASM/JS bundle to browser</div>
+      </div>
+    </div>
+
+    <!-- ── UI LAYER ── -->
+    <div class="card accent-green">
+      <div class="card-title"><span class="icon">🖼️</span> UI Layer</div>
+
+      <div class="item">
+        <div class="item-dot dot-green"></div>
+        <div>
+          <div class="item-label">TransactionInputScreen</div>
+          <div class="item-desc">Main form — amount, description, category, payment mode, date, income/expense toggle</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-green"></div>
+        <div>
+          <div class="item-label">TestConnectionScreen</div>
+          <div class="item-desc">Diagnostic screen — test read/write to Google Sheets</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-gray"></div>
+        <div>
+          <div class="item-label">DatePickerDialog</div>
+          <div class="item-desc">Custom calendar with year/month/day navigation</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-gray"></div>
+        <div>
+          <div class="item-label">BottomActionBar</div>
+          <div class="item-desc">Save/Send + Test buttons with loading states</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-gray"></div>
+        <div>
+          <div class="item-label">SnackbarHandler</div>
+          <div class="item-desc">Success / error toast notifications</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEWMODEL ── -->
+    <div class="card accent-blue">
+      <div class="card-title"><span class="icon">🧠</span> ViewModel & State</div>
+
+      <div class="item">
+        <div class="item-dot dot-blue"></div>
+        <div>
+          <div class="item-label">TransactionViewModel</div>
+          <div class="item-desc">Business logic, form validation, coroutine scope</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-blue"></div>
+        <div>
+          <div class="item-label">TransactionUiState</div>
+          <div class="item-desc">StateFlow — loading, error, success, transaction list</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-blue"></div>
+        <div>
+          <div class="item-label">TransactionFormState</div>
+          <div class="item-desc">MutableState — all form fields + dropdown visibility</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-gray"></div>
+        <div>
+          <div class="item-label">ViewModelProvider</div>
+          <div class="item-desc">Platform-specific factory (Android uses Lifecycle, others direct)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DATA LAYER ── -->
+    <div class="card accent-purple">
+      <div class="card-title"><span class="icon">🗄️</span> Data Layer</div>
+
+      <div class="item">
+        <div class="item-dot dot-purple"></div>
+        <div>
+          <div class="item-label">TransactionRepository</div>
+          <div class="item-desc">Orchestrates reads (Sheets API) and writes (Apps Script)</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-purple"></div>
+        <div>
+          <div class="item-label">GoogleSheetsApi</div>
+          <div class="item-desc">GET transactions from Sheets REST API using API key</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-purple"></div>
+        <div>
+          <div class="item-label">GoogleAppsScriptRepository</div>
+          <div class="item-desc">GET with query params to Apps Script URL — avoids CORS/POST redirect issues</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-gray"></div>
+        <div>
+          <div class="item-label">Ktor HTTP Client</div>
+          <div class="item-desc">OkHttp (Android) · CIO (Desktop) · JS engine (Web)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DATA MODEL ── -->
+    <div class="card accent-orange">
+      <div class="card-title"><span class="icon">📦</span> Data Model</div>
+
+      <div class="item">
+        <div class="item-dot dot-orange"></div>
+        <div>
+          <div class="item-label">Transaction</div>
+          <div class="item-desc">id · date · description · inflow · outflow · category · modeOfPayment · isPaid</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-orange"></div>
+        <div>
+          <div class="item-label">TransactionCategory (enum)</div>
+          <div class="item-desc">16 types — Salary, Rent, Food, Grocery, Travel, Church…</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-orange"></div>
+        <div>
+          <div class="item-label">PaymentMode (enum)</div>
+          <div class="item-desc">11 modes — Maya, GCash, BPI, Cash, Citi Rewards…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CONFIG ── -->
+    <div class="card accent-teal">
+      <div class="card-title"><span class="icon">⚙️</span> Config & Build</div>
+
+      <div class="item">
+        <div class="item-dot dot-teal"></div>
+        <div>
+          <div class="item-label">local.properties</div>
+          <div class="item-desc">Stores secrets locally — gitignored, never committed</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-teal"></div>
+        <div>
+          <div class="item-label">BuildConfig (generated)</div>
+          <div class="item-desc">Keys injected at build time via gmazzo/buildconfig plugin</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-teal"></div>
+        <div>
+          <div class="item-label">ConfigManager</div>
+          <div class="item-desc">Singleton — lazy-loads config, supports override for testing</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-teal"></div>
+        <div>
+          <div class="item-label">Environment.kt</div>
+          <div class="item-desc">Build-time placeholders with dev fallback</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EXTERNAL SERVICES ── -->
+    <div class="card accent-red">
+      <div class="card-title"><span class="icon">🌐</span> External Services</div>
+
+      <div class="item">
+        <div class="item-dot dot-red"></div>
+        <div>
+          <div class="item-label">Google Sheets API</div>
+          <div class="item-desc">sheets.googleapis.com — reads transaction rows from "Data Dump" tab</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-red"></div>
+        <div>
+          <div class="item-label">Google Apps Script</div>
+          <div class="item-desc">Deployed web app — writes new rows to sheet. Rate limited (100 req/hr)</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-red"></div>
+        <div>
+          <div class="item-label">Firebase Hosting</div>
+          <div class="item-desc">soy-cmp-c10ca.web.app — serves WASM/JS build with COEP/COOP headers</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="item-dot dot-gray"></div>
+        <div>
+          <div class="item-label">Firebase Analytics + Auth</div>
+          <div class="item-desc">Android only — included as dependency, not yet initialized</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SECURITY ── -->
+    <div class="card accent-blue span-2">
+      <div class="card-title"><span class="icon">🔒</span> Security Measures</div>
+      <div class="security-row">
+        <div class="sec-item">
+          <div class="sec-title">✅ API Key in local.properties</div>
+          <div class="sec-desc">Gitignored — never pushed to repo</div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-title">✅ Build-time injection</div>
+          <div class="sec-desc">Keys baked into binary via BuildConfig, not in source</div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-title">✅ Apps Script rate limit</div>
+          <div class="sec-desc">100 req/hr per time window via CacheService</div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-title">⚠️ Restrict API key</div>
+          <div class="sec-desc">Recommended: limit to web.app referrer + Sheets API only</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TECH STACK ── -->
+    <div class="card accent-green">
+      <div class="card-title"><span class="icon">🛠️</span> Tech Stack</div>
+      <div class="tech-grid">
+        <span class="tech-tag">Kotlin Multiplatform</span>
+        <span class="tech-tag">Compose Multiplatform</span>
+        <span class="tech-tag">Material 3</span>
+        <span class="tech-tag">Ktor</span>
+        <span class="tech-tag">kotlinx.serialization</span>
+        <span class="tech-tag">kotlinx.datetime</span>
+        <span class="tech-tag">StateFlow</span>
+        <span class="tech-tag">ViewModel</span>
+        <span class="tech-tag">Firebase Hosting</span>
+        <span class="tech-tag">Google Sheets API</span>
+        <span class="tech-tag">Google Apps Script</span>
+        <span class="tech-tag">Gradle KTS</span>
+        <span class="tech-tag">gmazzo/buildconfig</span>
+        <span class="tech-tag">OkHttp · CIO · JS</span>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
