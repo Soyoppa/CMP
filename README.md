@@ -27,48 +27,6 @@ This app follows MVVM (Model-View-ViewModel) architecture:
 3. Update API configuration in `ApiConfig.kt` with your Google Sheets details
 4. Run the app on your preferred platform
 
-## Production Deployment
-
-### Web Deployment (GitLab Pages) - RECOMMENDED
-
-1. **Set up GitLab CI/CD Variables**:
-   - Go to your GitLab project → Settings → CI/CD → Variables
-   - Add these variables:
-     - `SPREADSHEET_ID`: Your Google Sheets ID (`1P7FnOo2Cv-HwfyY3RbWlrr6W1kLURNoEDjxmMj-3NCY`)
-     - `API_KEY`: Your Google Sheets API key (`AIzaSyAKJBhNENUHgz4HYJv24epFef0tsIv-Nc0`)
-     - `SCRIPT_URL`: Your Google Apps Script web app URL
-
-2. **Enable GitLab Pages**:
-   - Push to `main` or `master` branch
-   - GitLab CI will automatically build and deploy
-   - Access your app at `https://yourusername.gitlab.io/yourproject`
-
-### Web Deployment (GitHub Pages)
-
-1. **Set up GitHub Secrets**:
-   - Go to your GitHub repo → Settings → Secrets and variables → Actions
-   - Add these secrets with the same values as above
-
-2. **Enable GitHub Pages**:
-   - Go to Settings → Pages
-   - Select "GitHub Actions" as source
-   - Push to `main` branch to trigger deployment
-
-## Security Features
-
-- ✅ API keys are injected at build time, not stored in source code
-- ✅ Environment-based configuration for different deployment targets
-- ✅ Secure credential management through CI/CD variables
-- ✅ Production vs development configuration detection
-
-## Google Sheets Setup
-
-Your current configuration:
-- **Spreadsheet ID**: `1P7FnOo2Cv-HwfyY3RbWlrr6W1kLURNoEDjxmMj-3NCY`
-- **Sheet Name**: "Data Dump"
-- **API Key**: `AIzaSyAKJBhNENUHgz4HYJv24epFef0tsIv-Nc0`
-- **Script URL**: `https://script.google.com/macros/s/AKfycbwIwiZaZezvby_ntecR1NfHFkno1fJauCluIk5IWVC0_sEWsLb5AvxTnmqvpaGVGfQA/exec`
-
 ## Building for Different Platforms
 
 ```bash
