@@ -7,3 +7,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 actual fun createTransactionViewModel(): TransactionViewModel {
     return viewModel()
 }
+
+@Composable
+actual fun createAiViewModel(): AiViewModel {
+    return viewModel()
+}

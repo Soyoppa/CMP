@@ -9,6 +9,8 @@ object Environment {
     const val SPREADSHEET_ID = "BUILD_TIME_SPREADSHEET_ID"
     const val API_KEY = "BUILD_TIME_API_KEY" 
     const val SCRIPT_URL = "BUILD_TIME_SCRIPT_URL"
+    const val OLLAMA_URL = "BUILD_TIME_OLLAMA_URL"
+    const val OLLAMA_MODEL = "BUILD_TIME_OLLAMA_MODEL"
     
     // Fallback to hardcoded values for development (will be removed in production)
     fun getSpreadsheetId(): String {
@@ -32,6 +34,22 @@ object Environment {
             ApiConfig.SCRIPT_URL // Development fallback
         } else {
             SCRIPT_URL
+        }
+    }
+
+    fun getOllamaUrl(): String {
+        return if (OLLAMA_URL == "BUILD_TIME_OLLAMA_URL") {
+            "http://localhost:11434" // Development fallback
+        } else {
+            OLLAMA_URL
+        }
+    }
+
+    fun getOllamaModel(): String {
+        return if (OLLAMA_MODEL == "BUILD_TIME_OLLAMA_MODEL") {
+            "llama3.1:8b" // Development fallback
+        } else {
+            OLLAMA_MODEL
         }
     }
 }

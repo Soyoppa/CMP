@@ -14,13 +14,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.levels
 import kotlinx.coroutines.launch
+import org.example.project.ui.ChatScreen
 import org.example.project.ui.TestConnectionScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.TransactionViewModel
+import org.example.project.viewmodel.createAiViewModel
 import org.example.project.viewmodel.createTransactionViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -30,9 +33,11 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Preview
 fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
     FinanceTrackerTheme {
-        val uiState by viewModel.uiState.collectAsState() // Collect StateFlow
+        val uiState by viewModel.uiState.collectAsState()
         val snackbarHostState = remember { SnackbarHostState() }
         var showTestScreen by remember { mutableStateOf(false) }
+        var showChatScreen by remember { mutableStateOf(false) }
+        val aiViewModel = createAiViewModel()
 
         // Handle snackbar messages
         SnackbarHandler(
@@ -48,16 +53,18 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
             bottomBar = {
                 BottomActionBar(
                     showTestScreen = showTestScreen,
+                    showChatScreen = showChatScreen,
                     isLoading = uiState.isLoading,
                     isFormValid = viewModel.formState.isValid,
                     onSaveClick = {
-                        if (showTestScreen) {
-                            showTestScreen = false
-                        } else {
-                            viewModel.addTransaction()
+                        when {
+                            showTestScreen -> showTestScreen = false
+                            showChatScreen -> showChatScreen = false
+                            else -> viewModel.addTransaction()
                         }
                     },
-                    onTestClick = { showTestScreen = true }
+                    onTestClick = { showTestScreen = true; showChatScreen = false },
+                    onChatClick = { showChatScreen = true; showTestScreen = false }
                 )
             }
         ) { paddingValues ->
@@ -79,6 +86,11 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
             ) {
                 if (showTestScreen) {
                     TestConnectionScreen(modifier = Modifier.fillMaxSize())
+                } else if (showChatScreen) {
+                    ChatScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        viewModel = aiViewModel
+                    )
                 } else {
                     TransactionInputScreen(
                         viewModel = viewModel,
@@ -123,10 +135,12 @@ private fun SnackbarHandler(
 @Composable
 private fun BottomActionBar(
     showTestScreen: Boolean,
+    showChatScreen: Boolean,
     isLoading: Boolean,
     isFormValid: Boolean,
     onSaveClick: () -> Unit,
-    onTestClick: () -> Unit
+    onTestClick: () -> Unit,
+    onChatClick: () -> Unit
 ) {
     Surface(
         shadowElevation = 8.dp,
@@ -143,9 +157,9 @@ private fun BottomActionBar(
             Button(
                 onClick = onSaveClick,
                 modifier = Modifier.weight(1f),
-                enabled = !isLoading ,
+                enabled = !isLoading,
                 colors = when {
-                    showTestScreen -> ButtonDefaults.buttonColors(
+                    showTestScreen || showChatScreen -> ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -163,17 +177,35 @@ private fun BottomActionBar(
                     )
                 }
             ) {
-                if (!showTestScreen && isLoading) {
+                if (!showTestScreen && !showChatScreen && isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text(if (showTestScreen) "Add Transaction" else "Send Transaction")
+                    Text(if (showTestScreen || showChatScreen) "Add Transaction" else "Send Transaction")
                 }
             }
 
-            // PNG icon button with conditional colors
+            // Chat button
+            FilledTonalIconButton(
+                onClick = onChatClick,
+                modifier = Modifier.size(39.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = if (showChatScreen)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = if (showChatScreen)
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
+                Text("💬", fontSize = 16.sp)
+            }
+
+            // Test connection button
             FilledTonalIconButton(
                 onClick = onTestClick,
                 modifier = Modifier.size(39.dp),

@@ -10,7 +10,9 @@ object ConfigManager {
         val spreadsheetId: String,
         val apiKey: String,
         val scriptUrl: String,
-        val sheetRange: String = "'Data Dump'!A:H"
+        val sheetRange: String = "'Data Dump'!A:H",
+        val ollamaUrl: String = "http://localhost:11434",
+        val ollamaModel: String = "llama3.1:8b"
     )
     
     private var _config: ApiConfiguration? = null
@@ -24,7 +26,9 @@ object ConfigManager {
             _config = ApiConfiguration(
                 spreadsheetId = Environment.getSpreadsheetId(),
                 apiKey = Environment.getApiKey(),
-                scriptUrl = Environment.getScriptUrl()
+                scriptUrl = Environment.getScriptUrl(),
+                ollamaUrl = Environment.getOllamaUrl(),
+                ollamaModel = Environment.getOllamaModel()
             )
         }
         return _config!!
@@ -35,6 +39,10 @@ object ConfigManager {
      */
     fun setConfig(config: ApiConfiguration) {
         _config = config
+    }
+
+    fun reset() {
+        _config = null
     }
     
     /**

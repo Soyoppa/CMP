@@ -7,3 +7,8 @@ import androidx.compose.runtime.remember
 actual fun createTransactionViewModel(): TransactionViewModel {
     return remember { TransactionViewModel() }
 }
+
+@Composable
+actual fun createAiViewModel(): AiViewModel {
+    return remember { AiViewModel() }
+}
