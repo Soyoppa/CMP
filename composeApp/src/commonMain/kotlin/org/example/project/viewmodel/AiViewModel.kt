@@ -79,6 +79,7 @@ class AiViewModel(
             try {
                 val transactions = transactionRepository.getAllTransactions()
                 println("🤖 [AiViewModel] Sending with ${transactions.size} transactions")
+                println("🤖 [AiViewModel] transactions ${transactions} transactions")
                 val response = aiRepository.chat(
                     userMessage = userInput.trim(),
                     transactions = transactions,

@@ -39,7 +39,7 @@ object Environment {
 
     fun getOllamaUrl(): String {
         return if (OLLAMA_URL == "BUILD_TIME_OLLAMA_URL") {
-            "http://localhost:11434" // Development fallback
+            ApiConfig.OLLAMA_URL // Use BuildConfig value from local.properties
         } else {
             OLLAMA_URL
         }

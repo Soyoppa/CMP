@@ -44,7 +44,7 @@ class GoogleSheetsApi {
             ) {
                 parameter("key", config.apiKey)
             }.body()
-            
+
             response.values?.drop(1)?.mapNotNull { row ->
                 if (row.size >= 5 && row[0].isNotEmpty() && row[1].isNotEmpty()) {
                     try {
@@ -56,11 +56,11 @@ class GoogleSheetsApi {
                         } else {
                             kotlinx.datetime.LocalDate.parse(dateStr)
                         }
-                        
+
                         // Parse amounts - remove ₱ symbol and commas
                         val inflowStr = if (row.size > 2) row[2].replace("₱", "").replace(",", "").trim() else ""
                         val outflowStr = if (row.size > 3) row[3].replace("₱", "").replace(",", "").trim() else ""
-                        
+
                         Transaction(
                             date = parsedDate.toString(),
                             description = row[1].trim(),
@@ -81,7 +81,7 @@ class GoogleSheetsApi {
             emptyList()
         }
     }
-    
+
     suspend fun addTransaction(transaction: Transaction): Boolean {
         return try {
             val config = ConfigManager.getConfig()

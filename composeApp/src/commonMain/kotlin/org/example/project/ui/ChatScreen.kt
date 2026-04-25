@@ -1,5 +1,6 @@
 package org.example.project.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,10 +17,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinproject.composeapp.generated.resources.Res
+import kotlinproject.composeapp.generated.resources.ai_icon
+import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
 import org.example.project.model.ChatMessage
 import org.example.project.viewmodel.AiViewModel
 import org.example.project.viewmodel.createAiViewModel
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun ChatScreen(
@@ -218,7 +224,6 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("💬", fontSize = 40.sp)
         Text(
             text = "Ask me about your finances",
             style = MaterialTheme.typography.titleSmall,
@@ -232,6 +237,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
     }
 }
+
 
 @Composable
 private fun ChatInputBar(
@@ -272,8 +278,24 @@ private fun ChatInputBar(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text("↑", fontSize = 18.sp)
+                Icon(painter = painterResource(Res.drawable.send), contentDescription = "send",
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .padding(8.dp))
+
             }
         }
     }
+}
+
+
+@Composable
+@Preview
+fun PreviewChatInputBar() {
+    ChatInputBar(
+        value = "",
+        isLoading = false,
+        onValueChange = {},
+        onSend = {}
+    )
 }
