@@ -10,6 +10,8 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
+import org.example.project.model.AiSummaryRecord
+import org.example.project.model.SHEET_MONTHS
 import org.example.project.model.Transaction
 import org.example.project.util.FormatUtils
 
@@ -78,6 +80,54 @@ class GoogleSheetsApi {
             }?.filter { it.description.isNotEmpty() } ?: emptyList()
         } catch (e: Exception) {
             println("Error fetching transactions: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Fetches monthly expense summary records from the AISummaryRecords sheet tab.
+     *
+     * Each row is a parent category (BILLS, FOOD, etc.) with amounts per month.
+     * The TOTAL row is excluded — it can be derived from the records themselves.
+     *
+     * @return List of [AiSummaryRecord], one per parent category.
+     */
+    suspend fun getAiSummaryRecords(): List<AiSummaryRecord> {
+        return try {
+            val config = ConfigManager.getConfig()
+            val range = "AISummaryRecords!A:M"
+            val response: SheetsResponse = client.get(
+                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/$range"
+            ) {
+                parameter("key", config.apiKey)
+            }.body()
+
+            val rows = response.values ?: return emptyList()
+            if (rows.isEmpty()) return emptyList()
+
+            // First row is the header: Category, January, February, ... December
+            val headers = rows[0]
+            val monthHeaders = headers.drop(1) // skip "Category" column
+
+            rows.drop(1)
+                .filter { row ->
+                    row.isNotEmpty() &&
+                    row[0].isNotBlank() &&
+                    row[0].trim().uppercase() != "TOTAL" // skip the total row
+                }
+                .map { row ->
+                    val category = row[0].trim().uppercase()
+                    val monthlyAmounts = monthHeaders.mapIndexed { index, month ->
+                        val amount = row.getOrNull(index + 1)
+                            ?.replace(",", "")
+                            ?.trim()
+                            ?.toDoubleOrNull() ?: 0.0
+                        month to amount
+                    }.toMap()
+                    AiSummaryRecord(category = category, monthlyAmounts = monthlyAmounts)
+                }
+        } catch (e: Exception) {
+            println("Error fetching AI summary records: ${e.message}")
             emptyList()
         }
     }

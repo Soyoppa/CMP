@@ -8,6 +8,8 @@ import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
+import org.example.project.model.AiSummaryRecord
+import org.example.project.model.CATEGORY_GROUP_MAP
 import org.example.project.model.Transaction
 import org.example.project.util.FormatUtils
 
@@ -42,11 +44,12 @@ class AiRepository {
     suspend fun chat(
         userMessage: String,
         transactions: List<Transaction>,
+        summaryRecords: List<AiSummaryRecord> = emptyList(),
         history: List<OllamaMessage> = emptyList()
     ): String {
         val baseUrl = ConfigManager.getConfig().ollamaUrl
         val model = ConfigManager.getConfig().ollamaModel
-        val systemPrompt = buildSystemPrompt(transactions)
+        val systemPrompt = buildSystemPrompt(transactions, summaryRecords)
 
         val messages = buildList {
             add(OllamaMessage("system", systemPrompt))
@@ -89,8 +92,11 @@ class AiRepository {
         }
     }
 
-    private fun buildSystemPrompt(transactions: List<Transaction>): String {
-        if (transactions.isEmpty()) {
+    private fun buildSystemPrompt(
+        transactions: List<Transaction>,
+        summaryRecords: List<AiSummaryRecord> = emptyList()
+    ): String {
+        if (transactions.isEmpty() && summaryRecords.isEmpty()) {
             return """
                 You are a personal finance assistant for a Filipino user.
                 No transaction data is loaded yet. Answer general finance questions.
@@ -115,6 +121,29 @@ class AiRepository {
             "  ${t.date} | ${t.description} | $amount | ${t.category} | ${t.modeOfPayment}"
         }
 
+        // Build monthly summary table from AISummaryRecords
+        val summarySection = if (summaryRecords.isNotEmpty()) {
+            val categoryGrouping = CATEGORY_GROUP_MAP.entries.joinToString("\n") { (parent, subs) ->
+                "  $parent → ${subs.joinToString(", ")}"
+            }
+
+            val monthlyTable = summaryRecords.joinToString("\n") { record ->
+                val months = record.monthlyAmounts.entries
+                    .filter { it.value > 0 }
+                    .joinToString(" | ") { (month, amt) -> "$month: ${FormatUtils.formatPeso(amt)}" }
+                "  ${record.category}: $months  [Year Total: ${FormatUtils.formatPeso(record.yearTotal)}]"
+            }
+
+            """
+
+            === CATEGORY GROUPS (sub-categories roll up to parent) ===
+            $categoryGrouping
+
+            === MONTHLY EXPENSE SUMMARY BY PARENT CATEGORY ===
+            $monthlyTable
+            """.trimIndent()
+        } else ""
+
         return """
             You are a personal finance assistant for a Filipino user.
             Answer questions based on the transaction data below. Be concise and helpful.
@@ -131,6 +160,7 @@ class AiRepository {
 
             === RECENT TRANSACTIONS (last 20) ===
             $recentRows
+            $summarySection
         """.trimIndent()
     }
 }

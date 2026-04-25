@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.data.AiRepository
 import org.example.project.data.OllamaMessage
+import org.example.project.model.AiSummaryRecord
 import org.example.project.model.ChatMessage
 import org.example.project.repository.TransactionRepository
 import kotlinx.datetime.Clock
@@ -32,17 +33,25 @@ class AiViewModel(
 
     // Conversation history for context (Ollama format)
     private val conversationHistory = mutableListOf<OllamaMessage>()
+    private var summaryRecords: List<AiSummaryRecord> = emptyList()
 
     init {
-        ConfigManager.reset() // ensure fresh config on each ViewModel init
-        loadTransactions()
+        ConfigManager.reset()
+        loadData()
     }
 
-    private fun loadTransactions() {
+    private fun loadData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingTransactions = true) }
             try {
-                transactionRepository.getAllTransactions() // preloads into repo cache
+                // Load both in parallel
+                val txJob = launch { transactionRepository.getAllTransactions() }
+                val summaryJob = launch {
+                    summaryRecords = transactionRepository.getAiSummaryRecords()
+                    println("📊 [AiViewModel] Loaded ${summaryRecords.size} summary records")
+                }
+                txJob.join()
+                summaryJob.join()
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = false) }
@@ -83,6 +92,7 @@ class AiViewModel(
                 val response = aiRepository.chat(
                     userMessage = userInput.trim(),
                     transactions = transactions,
+                    summaryRecords = summaryRecords,
                     history = conversationHistory.toList()
                 )
 
