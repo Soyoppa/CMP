@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import org.example.project.data.AiRepository
 import org.example.project.data.OllamaMessage
 import org.example.project.model.AiSummaryRecord
+import org.example.project.model.BudgetExpenseRecord
 import org.example.project.model.ChatMessage
 import org.example.project.repository.TransactionRepository
 import kotlinx.datetime.Clock
@@ -34,6 +35,7 @@ class AiViewModel(
     // Conversation history for context (Ollama format)
     private val conversationHistory = mutableListOf<OllamaMessage>()
     private var summaryRecords: List<AiSummaryRecord> = emptyList()
+    private var budgetExpenseRecords: List<BudgetExpenseRecord> = emptyList()
 
     init {
         ConfigManager.reset()
@@ -44,14 +46,18 @@ class AiViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingTransactions = true) }
             try {
-                // Load both in parallel
-                val txJob = launch { transactionRepository.getAllTransactions() }
+                val txJob = launch { transactionRepository.getFromDataDump() }
                 val summaryJob = launch {
                     summaryRecords = transactionRepository.getAiSummaryRecords()
                     println("📊 [AiViewModel] Loaded ${summaryRecords.size} summary records")
                 }
+                val budgetJob = launch {
+                    budgetExpenseRecords = transactionRepository.getFromBudgetExpense()
+                    println("💰 [AiViewModel] Loaded ${budgetExpenseRecords.size} budget records")
+                }
                 txJob.join()
                 summaryJob.join()
+                budgetJob.join()
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = false) }
@@ -86,13 +92,14 @@ class AiViewModel(
 
         viewModelScope.launch {
             try {
-                val transactions = transactionRepository.getAllTransactions()
+                val transactions = transactionRepository.getFromDataDump()
                 println("🤖 [AiViewModel] Sending with ${transactions.size} transactions")
                 println("🤖 [AiViewModel] transactions ${transactions} transactions")
                 val response = aiRepository.chat(
                     userMessage = userInput.trim(),
                     transactions = transactions,
                     summaryRecords = summaryRecords,
+                    budgetExpenseRecords = budgetExpenseRecords,
                     history = conversationHistory.toList()
                 )
 

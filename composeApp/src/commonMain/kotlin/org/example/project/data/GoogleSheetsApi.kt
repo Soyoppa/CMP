@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.AiSummaryRecord
-import org.example.project.model.SHEET_MONTHS
+import org.example.project.model.BudgetExpenseRecord
 import org.example.project.model.Transaction
 import org.example.project.util.FormatUtils
 
@@ -38,7 +38,7 @@ class GoogleSheetsApi {
         }
     }
     
-    suspend fun getTransactions(): List<Transaction> {
+    suspend fun getFromDataDump(): List<Transaction> {
         return try {
             val config = ConfigManager.getConfig()
             val response: SheetsResponse = client.get(
@@ -128,6 +128,78 @@ class GoogleSheetsApi {
                 }
         } catch (e: Exception) {
             println("Error fetching AI summary records: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Fetches budget vs actual expense records from the "Budget vs Expense" sheet tab.
+     *
+     * Each row is a sub-category with a fixed monthly budget and actual spend per month.
+     * Summary rows (Total Budgeted, Income - Budget) and blank rows are skipped.
+     *
+     * @return List of [BudgetExpenseRecord], one per sub-category.
+     */
+    suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> {
+        return try {
+            val config = ConfigManager.getConfig()
+            val range = "'Budget vs Expense'!A:M"
+            println("💰 [BudgetExpense] Fetching from spreadsheet: ${config.spreadsheetId}, range: $range")
+
+            val response: SheetsResponse = client.get(
+                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/$range"
+            ) {
+                parameter("key", config.apiKey)
+            }.body()
+
+            val rows = response.values ?: run {
+                println("💰 [BudgetExpense] No values returned from sheet")
+                return emptyList()
+            }
+            if (rows.isEmpty()) {
+                println("💰 [BudgetExpense] Sheet returned empty rows")
+                return emptyList()
+            }
+
+            println("💰 [BudgetExpense] Total rows (including header): ${rows.size}")
+
+            val headers = rows[0]
+            println("💰 [BudgetExpense] Headers: ${headers.joinToString(", ")}")
+            val monthHeaders = headers.drop(2)
+
+            val skipPrefixes = listOf("total", "income")
+
+            val records = rows.drop(1)
+                .filter { row ->
+                    row.isNotEmpty() &&
+                    row[0].isNotBlank() &&
+                    skipPrefixes.none { row[0].trim().lowercase().startsWith(it) }
+                }
+                .map { row ->
+                    val category = row[0].trim()
+                    val budget = row.getOrNull(1)
+                        ?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
+                    val monthlyActual = monthHeaders.mapIndexed { index, month ->
+                        val amount = row.getOrNull(index + 2)
+                            ?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
+                        month to amount
+                    }.toMap()
+                    BudgetExpenseRecord(
+                        category = category,
+                        budget = budget,
+                        monthlyActual = monthlyActual
+                    )
+                }
+
+            println("💰 [BudgetExpense] Parsed ${records.size} category records")
+            records.forEach { r ->
+                val activeMonths = r.monthlyActual.entries.filter { it.value > 0 }.size
+                println("  - ${r.category}: budget=₱${r.budget}, active months=$activeMonths, total=₱${r.totalActual}")
+            }
+
+            records
+        } catch (e: Exception) {
+            println("💥 [BudgetExpense] Error fetching records: ${e::class.simpleName} — ${e.message}")
             emptyList()
         }
     }

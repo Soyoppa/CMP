@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.AiSummaryRecord
+import org.example.project.model.BudgetExpenseRecord
 import org.example.project.model.CATEGORY_GROUP_MAP
 import org.example.project.model.Transaction
 import org.example.project.util.FormatUtils
@@ -45,11 +46,12 @@ class AiRepository {
         userMessage: String,
         transactions: List<Transaction>,
         summaryRecords: List<AiSummaryRecord> = emptyList(),
+        budgetExpenseRecords: List<BudgetExpenseRecord> = emptyList(),
         history: List<OllamaMessage> = emptyList()
     ): String {
         val baseUrl = ConfigManager.getConfig().ollamaUrl
         val model = ConfigManager.getConfig().ollamaModel
-        val systemPrompt = buildSystemPrompt(transactions, summaryRecords)
+        val systemPrompt = buildSystemPrompt(transactions, summaryRecords, budgetExpenseRecords)
 
         val messages = buildList {
             add(OllamaMessage("system", systemPrompt))
@@ -94,7 +96,8 @@ class AiRepository {
 
     private fun buildSystemPrompt(
         transactions: List<Transaction>,
-        summaryRecords: List<AiSummaryRecord> = emptyList()
+        summaryRecords: List<AiSummaryRecord> = emptyList(),
+        budgetExpenseRecords: List<BudgetExpenseRecord> = emptyList()
     ): String {
         if (transactions.isEmpty() && summaryRecords.isEmpty()) {
             return """
@@ -144,6 +147,27 @@ class AiRepository {
             """.trimIndent()
         } else ""
 
+        // Build budget vs expense section
+        val budgetSection = if (budgetExpenseRecords.isNotEmpty()) {
+            val rows = budgetExpenseRecords.joinToString("\n") { r ->
+                val activeMonths = r.monthlyActual.entries
+                    .filter { it.value > 0 }
+                    .joinToString(" | ") { (month, amt) -> "$month: ${FormatUtils.formatPeso(amt)}" }
+                val status = when {
+                    r.variance > 0 -> "OVER by ${FormatUtils.formatPeso(r.variance)}"
+                    r.variance < 0 -> "UNDER by ${FormatUtils.formatPeso(-r.variance)}"
+                    else -> "ON BUDGET"
+                }
+                "  ${r.category}: budget=${FormatUtils.formatPeso(r.budget)}/mo | $activeMonths | $status"
+            }
+            """
+
+            === BUDGET VS ACTUAL EXPENSE (per sub-category) ===
+            Format: category: budget/mo | monthly actuals | variance status
+            $rows
+            """.trimIndent()
+        } else ""
+
         return """
             You are a personal finance assistant for a Filipino user.
             Answer questions based on the transaction data below. Be concise and helpful.
@@ -161,6 +185,7 @@ class AiRepository {
             === RECENT TRANSACTIONS (last 20) ===
             $recentRows
             $summarySection
+            $budgetSection
         """.trimIndent()
     }
 }

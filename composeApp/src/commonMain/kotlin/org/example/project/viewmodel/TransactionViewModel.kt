@@ -168,7 +168,7 @@ class TransactionViewModel(
             clearError()
 
             try {
-                val transactions = repository.getAllTransactions()
+                val transactions = repository.getFromDataDump()
                 _uiState.update {
                     it.copy(
                         transactions = transactions,

@@ -37,7 +37,7 @@ fun TestConnectionScreen(
                 coroutineScope.launch {
                     isLoading = true
                     try {
-                        val transactions = repository.getAllTransactions()
+                        val transactions = repository.getFromDataDump()
                         testResult = "Read Success! Found ${transactions.size} transactions\n" +
                                    "First few: ${transactions.take(3).joinToString("\n") { 
                                        "${it.date}: ${it.description} - ${it.category}" 
