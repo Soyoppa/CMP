@@ -39,123 +39,142 @@ fun TransactionInputScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Add Transaction",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+    Box(modifier = modifier.fillMaxSize().padding(bottom = 20.dp)) {
 
-        // Amount Input
-        OutlinedTextField(
-            value = formState.amount,
-            onValueChange = viewModel::updateAmount,
-            label = { Text(if (formState.isIncome) "Inflow Amount" else "Outflow Amount") },
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Decimal,
-                imeAction = ImeAction.Next
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-            ),
-            modifier = Modifier.fillMaxWidth(),
-            prefix = { Text("₱") },
-            enabled = !uiState.value.isLoading,
-            isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
-            colors = customTextFieldColors(),
-            shape = textFieldCornerShape()
-        )
-
-
-        // Description Input
-        OutlinedTextField(
-            value = formState.description,
-            onValueChange = viewModel::updateDescription,
-            label = { Text("Description") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !uiState.value.isLoading,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
-                }
-            ),
-            colors = customTextFieldColors(),
-            shape = textFieldCornerShape()
-        )
-
-        // Category Dropdown
-        CategoryDropdown(
-            selectedCategory = formState.selectedCategory,
-            isExpanded = formState.showCategoryDropdown,
-            isEnabled = !uiState.value.isLoading,
-            onExpandedChange = viewModel::toggleCategoryDropdown,
-            onCategorySelected = viewModel::updateCategory
-        )
-
-        // Payment Mode Dropdown
-        PaymentModeDropdown(
-            selectedMode = formState.selectedPaymentMode,
-            isExpanded = formState.showPaymentDropdown,
-            isEnabled =!uiState.value.isLoading,
-            onExpandedChange = viewModel::togglePaymentDropdown,
-            onModeSelected = viewModel::updatePaymentMode
-        )
-
-        // Date Input with Picker
-        OutlinedTextField(
-            value = formState.selectedDate,
-            onValueChange = {},
-            label = { Text("Date") },
-            placeholder = { Text("3/1/2026") },
-            colors = customTextFieldColors(),
-            shape = textFieldCornerShape(),
+        // ── Scrollable form ──
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .clickable { showDatePicker = true },
-            enabled = true,
-            readOnly = true,
-            trailingIcon = {
-                IconButton(onClick = { showDatePicker = true }) {
-                    Text("📅")
-                }
-            },
-        )
-
-        // Paid Checkbox
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+                .padding(bottom = 80.dp), // clears sticky button + pill
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Checkbox(
-                checked = formState.isPaid,
-                onCheckedChange = viewModel::updateIsPaid,
-                enabled =!uiState.value.isLoading
+            Text(
+                text = "Add Transaction",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
-            Text("Paid", modifier = Modifier.padding(start = 8.dp))
+
+            OutlinedTextField(
+                value = formState.amount,
+                onValueChange = viewModel::updateAmount,
+                label = { Text(if (formState.isIncome) "Inflow Amount" else "Outflow Amount") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                prefix = { Text("₱") },
+                enabled = !uiState.value.isLoading,
+                isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
+                colors = customTextFieldColors(),
+                shape = textFieldCornerShape()
+            )
+
+            OutlinedTextField(
+                value = formState.description,
+                onValueChange = viewModel::updateDescription,
+                label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.value.isLoading,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                ),
+                colors = customTextFieldColors(),
+                shape = textFieldCornerShape()
+            )
+
+            CategoryDropdown(
+                selectedCategory = formState.selectedCategory,
+                isExpanded = formState.showCategoryDropdown,
+                isEnabled = !uiState.value.isLoading,
+                onExpandedChange = viewModel::toggleCategoryDropdown,
+                onCategorySelected = viewModel::updateCategory
+            )
+
+            PaymentModeDropdown(
+                selectedMode = formState.selectedPaymentMode,
+                isExpanded = formState.showPaymentDropdown,
+                isEnabled = !uiState.value.isLoading,
+                onExpandedChange = viewModel::togglePaymentDropdown,
+                onModeSelected = viewModel::updatePaymentMode
+            )
+
+            OutlinedTextField(
+                value = formState.selectedDate,
+                onValueChange = {},
+                label = { Text("Date") },
+                placeholder = { Text("3/1/2026") },
+                colors = customTextFieldColors(),
+                shape = textFieldCornerShape(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDatePicker = true },
+                enabled = true,
+                readOnly = true,
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Text("📅")
+                    }
+                },
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = formState.isPaid,
+                    onCheckedChange = viewModel::updateIsPaid,
+                    enabled = !uiState.value.isLoading
+                )
+                Text("Paid", modifier = Modifier.padding(start = 8.dp))
+            }
+
+            TransactionTypeCard(
+                isIncome = formState.isIncome,
+                isEnabled = !uiState.value.isLoading,
+                onTypeChanged = viewModel::updateIsIncome
+            )
         }
 
-        // Transaction Type Toggle
-        TransactionTypeCard(
-            isIncome = formState.isIncome,
-            isEnabled =!uiState.value.isLoading,
-            onTypeChanged = viewModel::updateIsIncome
-        )
-
-        // Bottom padding for button bar
-        Spacer(modifier = Modifier.height(80.dp))
+        // ── Sticky save button — floats above the nav pill ──
+        Button(
+            onClick = {
+                keyboardController?.hide()
+                focusManager.clearFocus()
+                viewModel.addTransaction()
+            },
+            enabled = formState.isValid && !uiState.value.isLoading,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(bottom = 80.dp), // sits just above the floating pill
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            if (uiState.value.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Saving...")
+            } else {
+                Text("Save Transaction")
+            }
+        }
     }
 
-
-
-    // Date Picker Dialog
     if (showDatePicker) {
         DatePickerDialog(
             currentDate = formState.selectedDate,
