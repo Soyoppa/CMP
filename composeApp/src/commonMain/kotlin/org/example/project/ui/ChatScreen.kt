@@ -129,7 +129,7 @@ private fun ChatHeader(
             Text(
                 text = when {
                     isLoadingTransactions -> "Loading your transactions..."
-                    transactionsLoaded -> "Transactions loaded ✓"
+                    transactionsLoaded -> "Transactions loaded"
                     else -> "No transaction data"
                 },
                 style = MaterialTheme.typography.labelSmall,

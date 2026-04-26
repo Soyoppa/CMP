@@ -95,7 +95,7 @@ class GoogleSheetsApi {
     suspend fun getAiSummaryRecords(): List<AiSummaryRecord> {
         return try {
             val config = ConfigManager.getConfig()
-            val range = "AISummaryRecords!A:M"
+            val range = "Summary Trend!A:M"
             val response: SheetsResponse = client.get(
                 "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/$range"
             ) {

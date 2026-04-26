@@ -16,6 +16,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
+import kotlinproject.composeapp.generated.resources.chat_bubble
+import kotlinproject.composeapp.generated.resources.dots
 import kotlinproject.composeapp.generated.resources.levels
 import kotlinx.coroutines.launch
 import org.example.project.ui.ChatScreen
@@ -202,7 +204,11 @@ private fun BottomActionBar(
                         MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
-                Text("💬", fontSize = 16.sp)
+                Icon(
+                    painter = painterResource(Res.drawable.chat_bubble),
+                    contentDescription = "Chat AI",
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             // Test connection button
@@ -221,7 +227,7 @@ private fun BottomActionBar(
                 )
             ) {
                 Icon(
-                    painter = painterResource(Res.drawable.levels),
+                    painter = painterResource(Res.drawable.dots),
                     contentDescription = "Test Connection",
                     modifier = Modifier.size(20.dp)
                 )
