@@ -58,7 +58,7 @@ class GoogleAppsScriptRepository {
     }
 
     suspend fun addTransaction(transaction: Transaction): Boolean {
-        val scriptUrl = ConfigManager.getConfig().scriptUrl
+        val scriptUrl = ConfigManager.getConfig().writeScriptUrl
         println("🚀 [addTransaction] Starting request to: $scriptUrl")
 
         return try {
@@ -109,7 +109,7 @@ class GoogleAppsScriptRepository {
 
     suspend fun testConnection(): String {
         return try {
-            val response = client.get(ConfigManager.getConfig().scriptUrl)
+            val response = client.get(ConfigManager.getConfig().writeScriptUrl)
             val responseBody = response.body<String>()
             println("🔗 [testConnection] Status: ${response.status}, Body: $responseBody")
             "Connection test - Status: ${response.status}, Body: $responseBody"

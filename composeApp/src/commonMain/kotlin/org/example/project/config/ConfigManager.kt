@@ -10,6 +10,8 @@ object ConfigManager {
         val spreadsheetId: String,
         val apiKey: String,
         val scriptUrl: String,
+        val writeSpreadsheetId: String,
+        val writeScriptUrl: String,
         val sheetRange: String = "'Data Dump'!A:H",
         val ollamaUrl: String = "http://localhost:11434",
         val ollamaModel: String = "llama3.1:8b"
@@ -27,6 +29,8 @@ object ConfigManager {
                 spreadsheetId = Environment.getSpreadsheetId(),
                 apiKey = Environment.getApiKey(),
                 scriptUrl = Environment.getScriptUrl(),
+                writeSpreadsheetId = ApiConfig.WRITE_SPREADSHEET_ID,
+                writeScriptUrl = ApiConfig.WRITE_SCRIPT_URL,
                 ollamaUrl = Environment.getOllamaUrl(),
                 ollamaModel = Environment.getOllamaModel()
             )

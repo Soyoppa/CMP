@@ -161,6 +161,8 @@ buildConfig {
     buildConfigField("String", "GOOGLE_API_KEY", "\"${localProperties.getProperty("GOOGLE_API_KEY", "")}\"")
     buildConfigField("String", "SHEET_RANGE", "\"${localProperties.getProperty("SHEET_RANGE", "'Data Dump'!A:H")}\"")
     buildConfigField("String", "SCRIPT_URL", "\"${localProperties.getProperty("SCRIPT_URL", "")}\"")
+    buildConfigField("String", "WRITE_SPREADSHEET_ID", "\"${localProperties.getProperty("WRITE_SPREADSHEET_ID", "")}\"")
+    buildConfigField("String", "WRITE_SCRIPT_URL", "\"${localProperties.getProperty("WRITE_SCRIPT_URL", "")}\"")
     buildConfigField("String", "OLLAMA_URL", "\"${localProperties.getProperty("OLLAMA_URL", "http://localhost:11434")}\"")
     buildConfigField("String", "OLLAMA_MODEL", "\"${localProperties.getProperty("OLLAMA_MODEL", "llama3.1:8b")}\"")
 }
