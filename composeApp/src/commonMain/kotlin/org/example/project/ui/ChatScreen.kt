@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
@@ -30,7 +31,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
-    viewModel: AiViewModel = createAiViewModel()
+    viewModel: AiViewModel = createAiViewModel(),
+    bottomPadding: Dp = 0.dp
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
@@ -103,7 +105,8 @@ fun ChatScreen(
                     viewModel.sendMessage(inputText)
                     inputText = ""
                 }
-            }
+            },
+            bottomPadding = bottomPadding
         )
     }
 }
@@ -244,12 +247,13 @@ private fun ChatInputBar(
     value: String,
     isLoading: Boolean,
     onValueChange: (String) -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    bottomPadding: Dp = 0.dp
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp + bottomPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
