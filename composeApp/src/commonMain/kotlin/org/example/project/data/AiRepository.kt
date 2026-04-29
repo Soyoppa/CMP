@@ -101,8 +101,7 @@ class AiRepository {
     ): String {
         if (transactions.isEmpty() && summaryRecords.isEmpty()) {
             return """
-                You are a personal finance assistant for a Filipino user.
-                No transaction data is loaded yet. Answer general finance questions.
+                No transaction data is loaded yet. Answer general finance questions based on your training.
                 Format amounts in Philippine Peso (₱).
             """.trimIndent()
         }
@@ -169,17 +168,16 @@ class AiRepository {
         } else ""
 
         return """
-            You are a personal finance assistant for a Filipino user.
-            Answer questions based on the transaction data below. Be concise and helpful.
+            The user's financial data is loaded below. Use it to answer questions accurately.
             Format all amounts in Philippine Peso (₱).
 
-            === SUMMARY ===
-            Total Income:  ${FormatUtils.formatPeso(totalInflow)}
-            Total Expenses: ${FormatUtils.formatPeso(totalOutflow)}
-            Net Balance:   ${FormatUtils.formatPeso(net)}
+            === OVERALL SUMMARY ===
+            Total Income:       ${FormatUtils.formatPeso(totalInflow)}
+            Total Expenses:     ${FormatUtils.formatPeso(totalOutflow)}
+            Net Balance:        ${FormatUtils.formatPeso(net)}
             Total Transactions: ${transactions.size}
 
-            === TOP EXPENSE CATEGORIES ===
+            === TOP EXPENSE CATEGORIES (all-time) ===
             $byCategory
 
             === RECENT TRANSACTIONS (last 20) ===

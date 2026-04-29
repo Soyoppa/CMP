@@ -33,7 +33,7 @@ fun TransactionInputScreen(
     viewModel: TransactionViewModel,
     modifier: Modifier = Modifier
 ) {
-    val uiState = viewModel.uiState
+    val uiState by viewModel.uiState.collectAsState()
     val formState = viewModel.formState
     var showDatePicker by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -69,7 +69,7 @@ fun TransactionInputScreen(
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 prefix = { Text("₱") },
-                enabled = !uiState.value.isLoading,
+                enabled = !uiState.isLoading,
                 isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
                 colors = customTextFieldColors(),
                 shape = textFieldCornerShape()
@@ -80,13 +80,10 @@ fun TransactionInputScreen(
                 onValueChange = viewModel::updateDescription,
                 label = { Text("Description") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.value.isLoading,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                enabled = !uiState.isLoading,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(
-                    onDone = {
-                        keyboardController?.hide()
-                        focusManager.clearFocus()
-                    }
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
                 colors = customTextFieldColors(),
                 shape = textFieldCornerShape()
@@ -95,7 +92,7 @@ fun TransactionInputScreen(
             CategoryDropdown(
                 selectedCategory = formState.selectedCategory,
                 isExpanded = formState.showCategoryDropdown,
-                isEnabled = !uiState.value.isLoading,
+                isEnabled = !uiState.isLoading,
                 onExpandedChange = viewModel::toggleCategoryDropdown,
                 onCategorySelected = viewModel::updateCategory
             )
@@ -103,29 +100,29 @@ fun TransactionInputScreen(
             PaymentModeDropdown(
                 selectedMode = formState.selectedPaymentMode,
                 isExpanded = formState.showPaymentDropdown,
-                isEnabled = !uiState.value.isLoading,
+                isEnabled = !uiState.isLoading,
                 onExpandedChange = viewModel::togglePaymentDropdown,
                 onModeSelected = viewModel::updatePaymentMode
             )
 
-            OutlinedTextField(
-                value = formState.selectedDate,
-                onValueChange = {},
-                label = { Text("Date") },
-                placeholder = { Text("3/1/2026") },
-                colors = customTextFieldColors(),
-                shape = textFieldCornerShape(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showDatePicker = true },
-                enabled = true,
-                readOnly = true,
-                trailingIcon = {
-                    IconButton(onClick = { showDatePicker = true }) {
-                        Text("📅")
-                    }
-                },
-            )
+//            OutlinedTextField(
+//                value = formState.selectedDate,
+//                onValueChange = {},
+//                label = { Text("Date") },
+//                placeholder = { Text("3/1/2026") },
+//                colors = customTextFieldColors(),
+//                shape = textFieldCornerShape(),
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .clickable { showDatePicker = true },
+//                enabled = true,
+//                readOnly = true,
+//                trailingIcon = {
+//                    IconButton(onClick = { showDatePicker = true }) {
+//                        Text("📅")
+//                    }
+//                },
+//            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -134,14 +131,14 @@ fun TransactionInputScreen(
                 Checkbox(
                     checked = formState.isPaid,
                     onCheckedChange = viewModel::updateIsPaid,
-                    enabled = !uiState.value.isLoading
+                    enabled = !uiState.isLoading
                 )
                 Text("Paid", modifier = Modifier.padding(start = 8.dp))
             }
 
             TransactionTypeCard(
                 isIncome = formState.isIncome,
-                isEnabled = !uiState.value.isLoading,
+                isEnabled = !uiState.isLoading,
                 onTypeChanged = viewModel::updateIsIncome
             )
         }
@@ -153,7 +150,7 @@ fun TransactionInputScreen(
                 focusManager.clearFocus()
                 viewModel.addTransaction()
             },
-            enabled = formState.isValid && !uiState.value.isLoading,
+            enabled = formState.isValid && !uiState.isLoading,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -161,7 +158,7 @@ fun TransactionInputScreen(
                 .padding(bottom = 80.dp), // sits just above the floating pill
             shape = RoundedCornerShape(12.dp)
         ) {
-            if (uiState.value.isLoading) {
+            if (uiState.isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     strokeWidth = 2.dp,
@@ -175,13 +172,13 @@ fun TransactionInputScreen(
         }
     }
 
-    if (showDatePicker) {
-        DatePickerDialog(
-            currentDate = formState.selectedDate,
-            onDateSelected = viewModel::updateDate,
-            onDismiss = { showDatePicker = false }
-        )
-    }
+//    if (showDatePicker) {
+//        DatePickerDialog(
+//            currentDate = formState.selectedDate,
+//            onDateSelected = viewModel::updateDate,
+//            onDismiss = { showDatePicker = false }
+//        )
+//    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -195,7 +192,7 @@ private fun CategoryDropdown(
 ) {
     ExposedDropdownMenuBox(
         expanded = isExpanded,
-        onExpandedChange = { onExpandedChange() }
+        onExpandedChange = { if (isEnabled) onExpandedChange() }
     ) {
         OutlinedTextField(
             value = selectedCategory,
@@ -218,7 +215,10 @@ private fun CategoryDropdown(
             TransactionCategory.entries.forEach { category ->
                 DropdownMenuItem(
                     text = { Text(category.displayName) },
-                    onClick = { onCategorySelected(category.displayName) }
+                    onClick = {
+                        onCategorySelected(category.displayName)
+                        onExpandedChange()
+                    }
                 )
             }
         }
@@ -236,7 +236,7 @@ private fun PaymentModeDropdown(
 ) {
     ExposedDropdownMenuBox(
         expanded = isExpanded,
-        onExpandedChange = { onExpandedChange() }
+        onExpandedChange = { if (isEnabled) onExpandedChange() }
     ) {
         OutlinedTextField(
             value = selectedMode,
@@ -259,7 +259,10 @@ private fun PaymentModeDropdown(
             PaymentMode.entries.forEach { mode ->
                 DropdownMenuItem(
                     text = { Text(mode.displayName) },
-                    onClick = { onModeSelected(mode.displayName) }
+                    onClick = {
+                        onModeSelected(mode.displayName)
+                        onExpandedChange()
+                    }
                 )
             }
         }
@@ -272,7 +275,7 @@ private fun TransactionTypeCard(
     isEnabled: Boolean,
     onTypeChanged: (Boolean) -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 100.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Transaction Type", style = MaterialTheme.typography.labelMedium)
             Spacer(modifier = Modifier.height(8.dp))
