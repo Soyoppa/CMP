@@ -18,7 +18,7 @@ import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
 import kotlinproject.composeapp.generated.resources.chat_bubble
 import kotlinproject.composeapp.generated.resources.dots
-import kotlinproject.composeapp.generated.resources.levels
+import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.ChatScreen
 import org.example.project.ui.TestConnectionScreen
 import org.example.project.ui.TransactionInputScreen
@@ -36,18 +36,30 @@ private enum class NavTab { CHAT, ADD, DEBUG }
 @Preview
 fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
     FinanceTrackerTheme {
-        val uiState by viewModel.uiState.collectAsState()
         val snackbarHostState = remember { SnackbarHostState() }
         var selectedTab by remember { mutableStateOf(NavTab.ADD) }
         val aiViewModel = createAiViewModel()
 
-        SnackbarHandler(
-            errorMessage = uiState.errorMessage,
-            successMessage = uiState.successMessage.takeIf { uiState.showSuccessMessage },
-            snackbarHostState = snackbarHostState,
-            onErrorCleared = viewModel::clearError,
-            onSuccessCleared = viewModel::clearSuccess
-        )
+        // Handle transaction form effects (success/error)
+        LaunchedEffect(Unit) {
+            viewModel.effects.collect { effect ->
+                when (effect) {
+                    is TransactionFormEffect.ShowSuccess -> {
+                        snackbarHostState.showSnackbar(
+                            message = effect.message,
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+                    is TransactionFormEffect.ShowError -> {
+                        snackbarHostState.showSnackbar(
+                            message = effect.message,
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+                    else -> {}
+                }
+            }
+        }
 
         Scaffold(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -182,24 +194,3 @@ private fun NavPillItem(
     }
 }
 
-@Composable
-private fun SnackbarHandler(
-    errorMessage: String?,
-    successMessage: String?,
-    snackbarHostState: SnackbarHostState,
-    onErrorCleared: () -> Unit,
-    onSuccessCleared: () -> Unit
-) {
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let {
-            snackbarHostState.showSnackbar(message = it, duration = SnackbarDuration.Short)
-            onErrorCleared()
-        }
-    }
-    LaunchedEffect(successMessage) {
-        successMessage?.let {
-            snackbarHostState.showSnackbar(message = it, duration = SnackbarDuration.Short)
-            onSuccessCleared()
-        }
-    }
-}

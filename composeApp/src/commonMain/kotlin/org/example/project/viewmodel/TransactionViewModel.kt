@@ -1,172 +1,57 @@
 package org.example.project.viewmodel
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.example.project.domain.transaction.AddTransactionUseCase
+import org.example.project.domain.transaction.TransactionFormEvent
+import org.example.project.domain.transaction.TransactionFormReducer
+import org.example.project.domain.transaction.TransactionFormEffect
+import org.example.project.domain.transaction.TransactionFormState
 import org.example.project.model.PaymentMode
 import org.example.project.model.Transaction
 import org.example.project.model.TransactionCategory
 import org.example.project.repository.TransactionRepository
-import org.example.project.ui.state.TransactionFormState
 import org.example.project.ui.state.TransactionUiState
 import org.example.project.util.DateUtils
 
 class TransactionViewModel(
-    private val repository: TransactionRepository = TransactionRepository()
+    private val repository: TransactionRepository = TransactionRepository(),
+    private val addTransactionUseCase: AddTransactionUseCase = AddTransactionUseCase()
 ) : ViewModel() {
 
-    // UI State as StateFlow for better compose integration
+    // Form State — StateFlow for immutable state management
+    private val _formState = MutableStateFlow(createInitialFormState())
+    val formState: StateFlow<TransactionFormState> = _formState.asStateFlow()
+
+    // Effects — one-time events for success/error messages
+    private val _effects = MutableSharedFlow<TransactionFormEffect>()
+    val effects: SharedFlow<TransactionFormEffect> = _effects.asSharedFlow()
+
+    // UI State for transactions list and loading
     private val _uiState = MutableStateFlow(TransactionUiState())
     val uiState: StateFlow<TransactionUiState> = _uiState.asStateFlow()
 
-    // Form State - kept as mutableStateOf for immediate UI updates
-    var formState by mutableStateOf(createInitialFormState())
-        private set
-
-    init {
-        // Optionally load transactions on init
-        // loadTransactions()
-    }
-
-    // ========================================
-    // Form State Updates - Grouped by functionality
-    // ========================================
-
-    fun updateAmount(amount: String) {
-        // Only allow valid decimal input
-        if (amount.isEmpty() || amount.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-            formState = formState.copy(amount = amount)
-        }
-    }
-
-    fun updateDescription(description: String) {
-        formState = formState.copy(description = description)
-    }
-
-    fun updateDate(date: String) {
-        formState = formState.copy(selectedDate = date)
-    }
-
-    fun updateCategory(category: String) {
-        formState = formState.copy(
-            selectedCategory = category,
-            showCategoryDropdown = false
-        )
-    }
-
-    fun updatePaymentMode(paymentMode: String) {
-        formState = formState.copy(
-            selectedPaymentMode = paymentMode,
-            showPaymentDropdown = false
-        )
-    }
-
-    fun updateIsIncome(isIncome: Boolean) {
-        formState = formState.copy(isIncome = isIncome)
-    }
-
-    fun updateIsPaid(isPaid: Boolean) {
-        formState = formState.copy(isPaid = isPaid)
-    }
-
-    fun toggleCategoryDropdown() {
-        formState = formState.copy(
-            showCategoryDropdown = !formState.showCategoryDropdown,
-            showPaymentDropdown = false // Close other dropdown
-        )
-    }
-
-    fun togglePaymentDropdown() {
-        formState = formState.copy(
-            showPaymentDropdown = !formState.showPaymentDropdown,
-            showCategoryDropdown = false // Close other dropdown
-        )
-    }
-
-    // ========================================
-    // UI State Management
-    // ========================================
-
-    fun clearError() {
-        _uiState.update { it.copy(errorMessage = null) }
-    }
-
-    fun clearSuccess() {
-        _uiState.update {
-            it.copy(showSuccessMessage = false, successMessage = null)
-        }
-    }
-
-    private fun showError(message: String) {
-        _uiState.update {
-            it.copy(
-                isLoading = false,
-                errorMessage = message
-            )
-        }
-    }
-
-    private fun showSuccess(message: String) {
-        _uiState.update {
-            it.copy(
-                isLoading = false,
-                showSuccessMessage = true,
-                successMessage = message
-            )
-        }
-    }
-
-    private fun setLoading(isLoading: Boolean) {
-        _uiState.update { it.copy(isLoading = isLoading) }
-    }
-
-    // ========================================
-    // Business Logic
-    // ========================================
-
-    fun addTransaction() {
-        // Validate form
-        val validationError = validateForm()
-        if (validationError != null) {
-            showError(validationError)
-            return
-        }
-
-        viewModelScope.launch {
-            setLoading(true)
-            clearError()
-
-            try {
-                val transaction = buildTransaction()
-                val success = repository.addTransaction(transaction)
-
-                if (success) {
-                    showSuccess("Transaction saved successfully!")
-                    clearForm()
-                } else {
-                    showError("Failed to save transaction. Please try again.")
-                }
-            } catch (e: Exception) {
-                showError("Error: ${e.message ?: "Unknown error occurred"}")
-            } finally {
-                // Always reset loading — guards against any uncaught path
-                setLoading(false)
+    // Dispatch events to reduce state
+    fun onEvent(event: TransactionFormEvent) {
+        when (event) {
+            TransactionFormEvent.FormSubmitted -> addTransaction()
+            else -> _formState.update { state ->
+                TransactionFormReducer.reduce(state, event)
             }
         }
     }
 
     fun loadTransactions() {
         viewModelScope.launch {
-            setLoading(true)
-            clearError()
-
+            _uiState.update { it.copy(isLoading = true) }
             try {
                 val transactions = repository.getFromDataDump()
                 _uiState.update {
@@ -176,7 +61,12 @@ class TransactionViewModel(
                     )
                 }
             } catch (e: Exception) {
-                showError("Failed to load transactions: ${e.message}")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to load transactions: ${e.message}"
+                    )
+                }
             }
         }
     }
@@ -184,48 +74,99 @@ class TransactionViewModel(
     fun testConnection(): String {
         var result = ""
         viewModelScope.launch {
-            setLoading(true)
+            _uiState.update { it.copy(isLoading = true) }
             try {
                 result = repository.testScriptConnection()
             } catch (e: Exception) {
                 result = "Connection failed: ${e.message}"
             } finally {
-                setLoading(false)
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
         return result
     }
 
-    // ========================================
-    // Private Helper Methods
-    // ========================================
+    // Private: Business logic for adding transaction
+    private fun addTransaction() {
+        println("🎯 [ViewModel.addTransaction] Triggered")
+        val currentState = _formState.value
+        println("🎯 [ViewModel.addTransaction] Current form state: $currentState")
 
-    private fun validateForm(): String? {
+        // Validate form
+        val validationError = validateForm(currentState)
+        if (validationError != null) {
+            println("⚠️ [ViewModel.addTransaction] Validation failed: $validationError")
+            viewModelScope.launch {
+                _effects.emit(TransactionFormEffect.ShowError(validationError))
+            }
+            return
+        }
+        println("✓ [ViewModel.addTransaction] Validation passed")
+
+        // Update state to loading
+        _formState.update { it.copy(isLoading = true, errorMessage = null) }
+
+        viewModelScope.launch {
+            try {
+                val transaction = buildTransaction(currentState)
+                println("📦 [ViewModel.addTransaction] Built transaction: $transaction")
+                println("🌐 [ViewModel.addTransaction] Calling AddTransactionUseCase (detailed)...")
+
+                val result = addTransactionUseCase.invokeDetailed(transaction)
+
+                // Log full diagnostic from main thread — guaranteed to appear in Logcat
+                println("═══════════════════════════════════════════════════")
+                println("📡 [ViewModel.addTransaction] Repository result:")
+                println("   success       = ${result.success}")
+                println("   httpStatus    = ${result.httpStatus}")
+                println("   urlUsed       = ${result.urlUsed}")
+                println("   exceptionType = ${result.exceptionType}")
+                println("   errorMessage  = ${result.errorMessage}")
+                println("   responseBody  = ${result.responseBody}")
+                println("═══════════════════════════════════════════════════")
+
+                if (result.success) {
+                    println("✅ [ViewModel.addTransaction] SUCCESS")
+                    _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved successfully!"))
+                    _formState.value = createInitialFormState()
+                    _effects.emit(TransactionFormEffect.FormCleared)
+                } else {
+                    println("❌ [ViewModel.addTransaction] FAILED — ${result.errorMessage}")
+                    val userMessage = result.errorMessage ?: "Failed to save transaction."
+                    _effects.emit(TransactionFormEffect.ShowError(userMessage))
+                    _formState.update { it.copy(isLoading = false) }
+                }
+            } catch (e: Exception) {
+                println("💥 [ViewModel.addTransaction] Exception: ${e::class.simpleName} — ${e.message}")
+                e.printStackTrace()
+                _effects.emit(TransactionFormEffect.ShowError("Error: ${e.message ?: "Unknown error occurred"}"))
+                _formState.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
+    private fun validateForm(state: TransactionFormState): String? {
         return when {
-            formState.amount.isEmpty() -> "Please enter an amount"
-            formState.amount.toDoubleOrNull() == null -> "Invalid amount format"
-            formState.amount.toDouble() <= 0 -> "Amount must be greater than 0"
-            formState.description.isBlank() -> "Please enter a description"
-            formState.selectedDate.isEmpty() -> "Please select a date"
+            state.amount.isEmpty() -> "Please enter an amount"
+            state.amount.toDoubleOrNull() == null -> "Invalid amount format"
+            state.amount.toDouble() <= 0 -> "Amount must be greater than 0"
+            state.description.isBlank() -> "Please enter a description"
+            state.selectedDate.isEmpty() -> "Please select a date"
             else -> null
         }
     }
 
-    private fun buildTransaction(): Transaction {
-        val amountValue = formState.amount.toDouble()
+    private fun buildTransaction(state: TransactionFormState): Transaction {
+        val amountValue = state.amount.toDouble()
         return Transaction(
-            date = formState.selectedDate,
-            description = formState.description.trim(),
-            inflow = if (formState.isIncome) amountValue else 0.0,
-            outflow = if (!formState.isIncome) amountValue else 0.0,
-            category = formState.selectedCategory,
-            modeOfPayment = formState.selectedPaymentMode,
-            isPaid = formState.isPaid
+            date = state.selectedDate,
+            description = state.description.trim(),
+            inflow = if (state.isIncome) amountValue else 0.0,
+            outflow = if (!state.isIncome) amountValue else 0.0,
+            category = state.selectedCategory,
+            modeOfPayment = state.selectedPaymentMode,
+            isPaid = state.isPaid
         )
-    }
-
-    private fun clearForm() {
-        formState = createInitialFormState()
     }
 
     private fun createInitialFormState() = TransactionFormState(

@@ -6,32 +6,32 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*
+import io.ktor.client.statement.request
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.Transaction
-import org.example.project.util.FormatUtils
-import org.example.project.util.DateUtils
-
-@Serializable
-data class ScriptTransactionRequest(
-    val date: String,
-    val description: String,
-    val inflow: String,
-    val outflow: String,
-    val category: String,
-    val modeOfPayment: String,
-    val isPaid: String,
-    val remarks: String = ""
-)
 
 @Serializable
 data class ScriptResponse(
     val success: Boolean,
     val message: String? = null,
     val error: String? = null
+)
+
+/**
+ * Rich result type — carries diagnostic info up to the ViewModel
+ * so logs print from main thread (visible in Logcat regardless of filter).
+ */
+data class AddTransactionResult(
+    val success: Boolean,
+    val httpStatus: Int? = null,
+    val responseBody: String? = null,
+    val errorMessage: String? = null,
+    val exceptionType: String? = null,
+    val urlUsed: String? = null
 )
 
 class GoogleAppsScriptRepository {
@@ -58,52 +58,76 @@ class GoogleAppsScriptRepository {
     }
 
     suspend fun addTransaction(transaction: Transaction): Boolean {
+        return addTransactionDetailed(transaction).success
+    }
+
+    /**
+     * Detailed version that returns rich diagnostic info.
+     * Use this when you need to inspect what actually happened.
+     */
+    suspend fun addTransactionDetailed(transaction: Transaction): AddTransactionResult {
         val scriptUrl = ConfigManager.getConfig().writeScriptUrl
-        println("🚀 [addTransaction] Starting request to: $scriptUrl")
+
+        // Validate URL is configured
+        if (scriptUrl.isBlank() || scriptUrl == "BUILD_TIME_SCRIPT_URL") {
+            return AddTransactionResult(
+                success = false,
+                errorMessage = "Script URL not configured: '$scriptUrl'",
+                urlUsed = scriptUrl
+            )
+        }
 
         return try {
-            // Use GET with query params — avoids the POST redirect issue on web (CORS + 302 drops body)
             val response = client.get(scriptUrl) {
                 parameter("date", transaction.date)
                 parameter("description", transaction.description)
-                parameter("inflow", if (transaction.inflow > 0) FormatUtils.formatPeso(transaction.inflow) else "")
-                parameter("outflow", if (transaction.outflow > 0) FormatUtils.formatPeso(transaction.outflow) else "")
+                parameter("inflow", if (transaction.inflow > 0) transaction.inflow.toString() else "")
+                parameter("outflow", if (transaction.outflow > 0) transaction.outflow.toString() else "")
                 parameter("category", transaction.category)
                 parameter("modeOfPayment", transaction.modeOfPayment)
                 parameter("isPaid", if (transaction.isPaid) "TRUE" else "FALSE")
             }
 
-            println("📡 [addTransaction] Response status: ${response.status.value}")
             val responseText = response.body<String>()
-            println("📄 [addTransaction] Response body (first 300 chars): ${responseText.take(300)}")
+            val status = response.status.value
 
-            val success = handleResponse(response, responseText)
-            if (success) {
-                println("✅ [addTransaction] Transaction saved to Google Sheet!")
-            } else {
-                println("❌ [addTransaction] Script returned failure. Check sheet manually.")
+            if (status !in 200..399) {
+                return AddTransactionResult(
+                    success = false,
+                    httpStatus = status,
+                    responseBody = responseText.take(500),
+                    errorMessage = "HTTP error: ${response.status}",
+                    urlUsed = response.request.url.toString()
+                )
             }
-            success
 
-        } catch (e: Exception) {
-            println("💥 [addTransaction] Exception: ${e::class.simpleName} — ${e.message}")
-            false
-        }
-    }
-
-    private fun handleResponse(response: io.ktor.client.statement.HttpResponse, responseText: String): Boolean {
-        return if (response.status.value in 200..399) {
+            // Try to parse as JSON
             try {
                 val jsonResponse = Json.decodeFromString<ScriptResponse>(responseText)
-                println("🔍 [handleResponse] Parsed JSON: $jsonResponse")
-                jsonResponse.success
+                AddTransactionResult(
+                    success = jsonResponse.success,
+                    httpStatus = status,
+                    responseBody = responseText.take(500),
+                    errorMessage = jsonResponse.error,
+                    urlUsed = response.request.url.toString()
+                )
             } catch (parseError: Exception) {
-                println("⚠️ [handleResponse] JSON parse failed (${parseError.message}), treating ${response.status} as success")
-                true
+                AddTransactionResult(
+                    success = false,
+                    httpStatus = status,
+                    responseBody = responseText.take(500),
+                    errorMessage = "JSON parse failed — response is not JSON (likely HTML auth page). Parser: ${parseError.message}",
+                    exceptionType = parseError::class.simpleName,
+                    urlUsed = response.request.url.toString()
+                )
             }
-        } else {
-            println("❌ [handleResponse] HTTP error: ${response.status}")
-            false
+        } catch (e: Exception) {
+            AddTransactionResult(
+                success = false,
+                errorMessage = e.message ?: "Unknown exception",
+                exceptionType = e::class.simpleName,
+                urlUsed = scriptUrl
+            )
         }
     }
 

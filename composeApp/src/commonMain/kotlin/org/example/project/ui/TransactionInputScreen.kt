@@ -1,6 +1,5 @@
 package org.example.project.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -14,34 +13,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import org.example.project.domain.transaction.TransactionFormEvent
+import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.model.PaymentMode
 import org.example.project.model.TransactionCategory
-import org.example.project.ui.components.DatePickerDialog
 import org.example.project.viewmodel.TransactionViewModel
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
-
-// Debounce guard: ignore rapid repeated toggle calls within 300ms (mobile web double-fire fix)
-@OptIn(ExperimentalTime::class)
-@Composable
-private fun rememberDebouncedToggle(onToggle: () -> Unit): () -> Unit {
-    val lastToggleTime = remember { mutableStateOf(0L) }
-    return {
-        val now = Clock.System.now().toEpochMilliseconds()
-        if (now - lastToggleTime.value > 300L) {
-            lastToggleTime.value = now
-            onToggle()
-        }
-    }
-}
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,11 +32,30 @@ fun TransactionInputScreen(
     viewModel: TransactionViewModel,
     modifier: Modifier = Modifier
 ) {
+    val formState by viewModel.formState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    val formState = viewModel.formState
-    var showDatePicker by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        scope.launch {
+            viewModel.effects.collect { effect ->
+                when (effect) {
+                    is TransactionFormEffect.ShowSuccess -> {
+                        // Show success snackbar/toast
+                    }
+                    is TransactionFormEffect.ShowError -> {
+                        // Show error snackbar/toast
+                    }
+                    TransactionFormEffect.FormCleared -> {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                }
+            }
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize().padding(bottom = 20.dp)) {
 
@@ -63,7 +65,7 @@ fun TransactionInputScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
-                .padding(bottom = 80.dp), // clears sticky button + pill
+                .padding(bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
@@ -74,7 +76,9 @@ fun TransactionInputScreen(
 
             OutlinedTextField(
                 value = formState.amount,
-                onValueChange = viewModel::updateAmount,
+                onValueChange = { amount ->
+                    viewModel.onEvent(TransactionFormEvent.AmountChanged(amount))
+                },
                 label = { Text(if (formState.isIncome) "Inflow Amount" else "Outflow Amount") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
@@ -85,7 +89,7 @@ fun TransactionInputScreen(
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 prefix = { Text("₱") },
-                enabled = !uiState.isLoading,
+                enabled = !formState.isLoading,
                 isError = formState.amount.isNotEmpty() && formState.amount.toDoubleOrNull() == null,
                 colors = customTextFieldColors(),
                 shape = textFieldCornerShape()
@@ -93,10 +97,12 @@ fun TransactionInputScreen(
 
             OutlinedTextField(
                 value = formState.description,
-                onValueChange = viewModel::updateDescription,
+                onValueChange = { description ->
+                    viewModel.onEvent(TransactionFormEvent.DescriptionChanged(description))
+                },
                 label = { Text("Description") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !formState.isLoading,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
@@ -108,37 +114,26 @@ fun TransactionInputScreen(
             CategoryDropdown(
                 selectedCategory = formState.selectedCategory,
                 isExpanded = formState.showCategoryDropdown,
-                isEnabled = !uiState.isLoading,
-                onExpandedChange = viewModel::toggleCategoryDropdown,
-                onCategorySelected = viewModel::updateCategory
+                isEnabled = !formState.isLoading,
+                onExpandedChange = {
+                    viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled)
+                },
+                onCategorySelected = { category ->
+                    viewModel.onEvent(TransactionFormEvent.CategorySelected(category))
+                }
             )
 
             PaymentModeDropdown(
                 selectedMode = formState.selectedPaymentMode,
                 isExpanded = formState.showPaymentDropdown,
-                isEnabled = !uiState.isLoading,
-                onExpandedChange = viewModel::togglePaymentDropdown,
-                onModeSelected = viewModel::updatePaymentMode
+                isEnabled = !formState.isLoading,
+                onExpandedChange = {
+                    viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled)
+                },
+                onModeSelected = { mode ->
+                    viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(mode))
+                }
             )
-
-//            OutlinedTextField(
-//                value = formState.selectedDate,
-//                onValueChange = {},
-//                label = { Text("Date") },
-//                placeholder = { Text("3/1/2026") },
-//                colors = customTextFieldColors(),
-//                shape = textFieldCornerShape(),
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .clickable { showDatePicker = true },
-//                enabled = true,
-//                readOnly = true,
-//                trailingIcon = {
-//                    IconButton(onClick = { showDatePicker = true }) {
-//                        Text("📅")
-//                    }
-//                },
-//            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -146,16 +141,20 @@ fun TransactionInputScreen(
             ) {
                 Checkbox(
                     checked = formState.isPaid,
-                    onCheckedChange = viewModel::updateIsPaid,
-                    enabled = !uiState.isLoading
+                    onCheckedChange = { isPaid ->
+                        viewModel.onEvent(TransactionFormEvent.IsPaidChanged(isPaid))
+                    },
+                    enabled = !formState.isLoading
                 )
                 Text("Paid", modifier = Modifier.padding(start = 8.dp))
             }
 
             TransactionTypeCard(
                 isIncome = formState.isIncome,
-                isEnabled = !uiState.isLoading,
-                onTypeChanged = viewModel::updateIsIncome
+                isEnabled = !formState.isLoading,
+                onTypeChanged = { isIncome ->
+                    viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(isIncome))
+                }
             )
         }
 
@@ -164,17 +163,17 @@ fun TransactionInputScreen(
             onClick = {
                 keyboardController?.hide()
                 focusManager.clearFocus()
-                viewModel.addTransaction()
+                viewModel.onEvent(TransactionFormEvent.FormSubmitted)
             },
-            enabled = formState.isValid && !uiState.isLoading,
+            enabled = formState.isValid && !formState.isLoading,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
-                .padding(bottom = 80.dp), // sits just above the floating pill
+                .padding(bottom = 80.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            if (uiState.isLoading) {
+            if (formState.isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     strokeWidth = 2.dp,
@@ -187,14 +186,6 @@ fun TransactionInputScreen(
             }
         }
     }
-
-//    if (showDatePicker) {
-//        DatePickerDialog(
-//            currentDate = formState.selectedDate,
-//            onDateSelected = viewModel::updateDate,
-//            onDismiss = { showDatePicker = false }
-//        )
-//    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -206,19 +197,9 @@ private fun CategoryDropdown(
     onExpandedChange: () -> Unit,
     onCategorySelected: (String) -> Unit
 ) {
-    val debouncedToggle = rememberDebouncedToggle(onExpandedChange)
-
     ExposedDropdownMenuBox(
         expanded = isExpanded,
-        onExpandedChange = { newValue ->
-            if (isEnabled) {
-                if (!newValue || isExpanded) {
-                    debouncedToggle()
-                } else {
-                    debouncedToggle()
-                }
-            }
-        }
+        onExpandedChange = { if (isEnabled) onExpandedChange() }
     ) {
         OutlinedTextField(
             value = selectedCategory,
@@ -236,7 +217,7 @@ private fun CategoryDropdown(
 
         ExposedDropdownMenu(
             expanded = isExpanded,
-            onDismissRequest = { if (isExpanded) debouncedToggle() }
+            onDismissRequest = onExpandedChange
         ) {
             TransactionCategory.entries.forEach { category ->
                 DropdownMenuItem(
@@ -259,19 +240,9 @@ private fun PaymentModeDropdown(
     onExpandedChange: () -> Unit,
     onModeSelected: (String) -> Unit
 ) {
-    val debouncedToggle = rememberDebouncedToggle(onExpandedChange)
-
     ExposedDropdownMenuBox(
         expanded = isExpanded,
-        onExpandedChange = { newValue ->
-            if (isEnabled) {
-                if (!newValue || isExpanded) {
-                    debouncedToggle()
-                } else {
-                    debouncedToggle()
-                }
-            }
-        }
+        onExpandedChange = { if (isEnabled) onExpandedChange() }
     ) {
         OutlinedTextField(
             value = selectedMode,
@@ -289,7 +260,7 @@ private fun PaymentModeDropdown(
 
         ExposedDropdownMenu(
             expanded = isExpanded,
-            onDismissRequest = { if (isExpanded) debouncedToggle() }
+            onDismissRequest = onExpandedChange
         ) {
             PaymentMode.entries.forEach { mode ->
                 DropdownMenuItem(

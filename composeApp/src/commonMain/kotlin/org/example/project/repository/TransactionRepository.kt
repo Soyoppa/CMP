@@ -1,5 +1,6 @@
 package org.example.project.repository
 
+import org.example.project.data.AddTransactionResult
 import org.example.project.data.GoogleAppsScriptRepository
 import org.example.project.data.GoogleSheetsApi
 import org.example.project.model.AiSummaryRecord
@@ -32,6 +33,10 @@ class TransactionRepository {
 
     suspend fun addTransaction(transaction: Transaction): Boolean {
         return scriptRepo.addTransaction(transaction)
+    }
+
+    suspend fun addTransactionDetailed(transaction: Transaction): AddTransactionResult {
+        return scriptRepo.addTransactionDetailed(transaction)
     }
     
     suspend fun testScriptConnection(): String {
