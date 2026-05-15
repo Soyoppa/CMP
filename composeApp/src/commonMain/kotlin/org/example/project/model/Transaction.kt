@@ -46,5 +46,6 @@ enum class PaymentMode(val displayName: String) {
     EASTWEST_GOLD("Eastwest Gold"),
     HEXAGON("Hexagon"),
     RCBC_FLEX("Rcbc Flex"),
+    MARIBANK("Maribank"),
     OTHER("Other")
 }

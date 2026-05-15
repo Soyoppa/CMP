@@ -25,6 +25,22 @@ import org.example.project.model.PaymentMode
 import org.example.project.model.TransactionCategory
 import org.example.project.ui.components.DatePickerDialog
 import org.example.project.viewmodel.TransactionViewModel
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+
+// Debounce guard: ignore rapid repeated toggle calls within 300ms (mobile web double-fire fix)
+@OptIn(ExperimentalTime::class)
+@Composable
+private fun rememberDebouncedToggle(onToggle: () -> Unit): () -> Unit {
+    val lastToggleTime = remember { mutableStateOf(0L) }
+    return {
+        val now = Clock.System.now().toEpochMilliseconds()
+        if (now - lastToggleTime.value > 300L) {
+            lastToggleTime.value = now
+            onToggle()
+        }
+    }
+}
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -190,9 +206,19 @@ private fun CategoryDropdown(
     onExpandedChange: () -> Unit,
     onCategorySelected: (String) -> Unit
 ) {
+    val debouncedToggle = rememberDebouncedToggle(onExpandedChange)
+
     ExposedDropdownMenuBox(
         expanded = isExpanded,
-        onExpandedChange = { if (isEnabled) onExpandedChange() }
+        onExpandedChange = { newValue ->
+            if (isEnabled) {
+                if (!newValue || isExpanded) {
+                    debouncedToggle()
+                } else {
+                    debouncedToggle()
+                }
+            }
+        }
     ) {
         OutlinedTextField(
             value = selectedCategory,
@@ -210,14 +236,13 @@ private fun CategoryDropdown(
 
         ExposedDropdownMenu(
             expanded = isExpanded,
-            onDismissRequest = onExpandedChange
+            onDismissRequest = { if (isExpanded) debouncedToggle() }
         ) {
             TransactionCategory.entries.forEach { category ->
                 DropdownMenuItem(
                     text = { Text(category.displayName) },
                     onClick = {
                         onCategorySelected(category.displayName)
-                        onExpandedChange()
                     }
                 )
             }
@@ -234,9 +259,19 @@ private fun PaymentModeDropdown(
     onExpandedChange: () -> Unit,
     onModeSelected: (String) -> Unit
 ) {
+    val debouncedToggle = rememberDebouncedToggle(onExpandedChange)
+
     ExposedDropdownMenuBox(
         expanded = isExpanded,
-        onExpandedChange = { if (isEnabled) onExpandedChange() }
+        onExpandedChange = { newValue ->
+            if (isEnabled) {
+                if (!newValue || isExpanded) {
+                    debouncedToggle()
+                } else {
+                    debouncedToggle()
+                }
+            }
+        }
     ) {
         OutlinedTextField(
             value = selectedMode,
@@ -254,14 +289,13 @@ private fun PaymentModeDropdown(
 
         ExposedDropdownMenu(
             expanded = isExpanded,
-            onDismissRequest = onExpandedChange
+            onDismissRequest = { if (isExpanded) debouncedToggle() }
         ) {
             PaymentMode.entries.forEach { mode ->
                 DropdownMenuItem(
                     text = { Text(mode.displayName) },
                     onClick = {
                         onModeSelected(mode.displayName)
-                        onExpandedChange()
                     }
                 )
             }

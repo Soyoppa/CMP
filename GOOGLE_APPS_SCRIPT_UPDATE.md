@@ -13,7 +13,6 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     
     // Open the spreadsheet
-    var spreadsheet = SpreadsheetApp.openById('1P7FnOo2Cv-HwfyY3RbWlrr6W1kLURNoEDjxmMj-3NCY');
     var sheet = spreadsheet.getSheetByName('Data Dump');
     
     if (!sheet) {
