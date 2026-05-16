@@ -93,7 +93,10 @@ private val PillItemHeight = 56.dp
 @Composable
 @Preview
 fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
-    FinanceTrackerTheme {
+    var darkThemeOverride by remember { mutableStateOf<Boolean?>(null) }
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val resolvedDark = darkThemeOverride ?: systemDark
+    FinanceTrackerTheme(darkTheme = resolvedDark) {
         val snackbarHostState = remember { SnackbarHostState() }
         var selectedTab by remember { mutableStateOf(NavTab.ADD) }
         val aiViewModel = createAiViewModel()
@@ -146,6 +149,8 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                     )
                     NavTab.DEBUG -> TestConnectionScreen(
                         modifier = Modifier.fillMaxSize(),
+                        isDarkTheme = resolvedDark,
+                        onDarkThemeChange = { darkThemeOverride = it },
                     )
                 }
 
