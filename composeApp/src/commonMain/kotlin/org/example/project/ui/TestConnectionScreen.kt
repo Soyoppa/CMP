@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
+import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.util.DateUtils
 
 @Composable
@@ -32,6 +33,7 @@ fun TestConnectionScreen(
             style = MaterialTheme.typography.headlineMedium
         )
         
+        val readBounce = rememberPressBounce(pressedScale = 0.94f)
         Button(
             onClick = {
                 coroutineScope.launch {
@@ -39,8 +41,8 @@ fun TestConnectionScreen(
                     try {
                         val transactions = repository.getFromDataDump()
                         testResult = "Read Success! Found ${transactions.size} transactions\n" +
-                                   "First few: ${transactions.take(3).joinToString("\n") { 
-                                       "${it.date}: ${it.description} - ${it.category}" 
+                                   "First few: ${transactions.take(3).joinToString("\n") {
+                                       "${it.date}: ${it.description} - ${it.category}"
                                    }}"
                     } catch (e: Exception) {
                         testResult = "Read Error: ${e.message}"
@@ -49,7 +51,9 @@ fun TestConnectionScreen(
                     }
                 }
             },
-            enabled = !isLoading
+            enabled = !isLoading,
+            modifier = readBounce.modifier,
+            interactionSource = readBounce.interactionSource,
         ) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp))
@@ -58,6 +62,7 @@ fun TestConnectionScreen(
             }
         }
         
+        val writeBounce = rememberPressBounce(pressedScale = 0.94f)
         Button(
             onClick = {
                 coroutineScope.launch {
@@ -84,7 +89,9 @@ fun TestConnectionScreen(
                     }
                 }
             },
-            enabled = !isLoading
+            enabled = !isLoading,
+            modifier = writeBounce.modifier,
+            interactionSource = writeBounce.interactionSource,
         ) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp))

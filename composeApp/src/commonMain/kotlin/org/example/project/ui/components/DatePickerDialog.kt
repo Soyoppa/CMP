@@ -1,5 +1,6 @@
 package org.example.project.ui.components
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -12,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
+import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.util.DateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,14 +50,24 @@ fun DatePickerDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { selectedYear-- }) {
+                    val yearPrevBounce = rememberPressBounce(pressedScale = 0.85f)
+                    TextButton(
+                        onClick = { selectedYear-- },
+                        modifier = yearPrevBounce.modifier,
+                        interactionSource = yearPrevBounce.interactionSource,
+                    ) {
                         Text("◀")
                     }
                     Text(
                         text = selectedYear.toString(),
                         style = MaterialTheme.typography.headlineSmall
                     )
-                    TextButton(onClick = { selectedYear++ }) {
+                    val yearNextBounce = rememberPressBounce(pressedScale = 0.85f)
+                    TextButton(
+                        onClick = { selectedYear++ },
+                        modifier = yearNextBounce.modifier,
+                        interactionSource = yearNextBounce.interactionSource,
+                    ) {
                         Text("▶")
                     }
                 }
@@ -68,26 +80,36 @@ fun DatePickerDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { 
-                        if (selectedMonth > 1) selectedMonth-- 
-                        else {
-                            selectedMonth = 12
-                            selectedYear--
-                        }
-                    }) {
+                    val monthPrevBounce = rememberPressBounce(pressedScale = 0.85f)
+                    TextButton(
+                        onClick = {
+                            if (selectedMonth > 1) selectedMonth--
+                            else {
+                                selectedMonth = 12
+                                selectedYear--
+                            }
+                        },
+                        modifier = monthPrevBounce.modifier,
+                        interactionSource = monthPrevBounce.interactionSource,
+                    ) {
                         Text("◀")
                     }
                     Text(
                         text = getMonthName(selectedMonth),
                         style = MaterialTheme.typography.titleLarge
                     )
-                    TextButton(onClick = { 
-                        if (selectedMonth < 12) selectedMonth++ 
-                        else {
-                            selectedMonth = 1
-                            selectedYear++
-                        }
-                    }) {
+                    val monthNextBounce = rememberPressBounce(pressedScale = 0.85f)
+                    TextButton(
+                        onClick = {
+                            if (selectedMonth < 12) selectedMonth++
+                            else {
+                                selectedMonth = 1
+                                selectedYear++
+                            }
+                        },
+                        modifier = monthNextBounce.modifier,
+                        interactionSource = monthNextBounce.interactionSource,
+                    ) {
                         Text("▶")
                     }
                 }
@@ -103,10 +125,15 @@ fun DatePickerDialog(
                 ) {
                     val daysInMonth = getDaysInMonth(selectedYear, selectedMonth)
                     items((1..daysInMonth).toList()) { day ->
+                        val dayBounce = rememberPressBounce(pressedScale = 0.86f)
                         Surface(
                             modifier = Modifier
                                 .aspectRatio(1f)
-                                .clickable { selectedDay = day },
+                                .then(dayBounce.modifier)
+                                .clickable(
+                                    interactionSource = dayBounce.interactionSource,
+                                    indication = LocalIndication.current,
+                                ) { selectedDay = day },
                             color = if (day == selectedDay) 
                                 MaterialTheme.colorScheme.primary 
                             else 
@@ -132,18 +159,26 @@ fun DatePickerDialog(
             }
         },
         confirmButton = {
+            val okBounce = rememberPressBounce(pressedScale = 0.9f)
             TextButton(
                 onClick = {
                     val formattedDate = "$selectedMonth/$selectedDay/$selectedYear"
                     onDateSelected(formattedDate)
                     onDismiss()
-                }
+                },
+                modifier = okBounce.modifier,
+                interactionSource = okBounce.interactionSource,
             ) {
                 Text("OK")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            val cancelBounce = rememberPressBounce(pressedScale = 0.9f)
+            TextButton(
+                onClick = onDismiss,
+                modifier = cancelBounce.modifier,
+                interactionSource = cancelBounce.interactionSource,
+            ) {
                 Text("Cancel")
             }
         }

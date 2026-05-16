@@ -23,6 +23,7 @@ import kotlinproject.composeapp.generated.resources.ai_icon
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
 import org.example.project.model.ChatMessage
+import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.AiViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.jetbrains.compose.resources.painterResource
@@ -143,7 +144,12 @@ private fun ChatHeader(
                 }
             )
         }
-        TextButton(onClick = onClearChat) {
+        val clearBounce = rememberPressBounce(pressedScale = 0.9f)
+        TextButton(
+            onClick = onClearChat,
+            modifier = clearBounce.modifier,
+            interactionSource = clearBounce.interactionSource,
+        ) {
             Text("Clear", fontSize = 13.sp)
         }
     }
@@ -257,23 +263,27 @@ private fun ChatInputBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        val inputBounce = rememberPressBounce(pressedScale = 0.97f)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).then(inputBounce.modifier),
             placeholder = { Text("Ask about your finances...", fontSize = 13.sp) },
             maxLines = 3,
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
             shape = RoundedCornerShape(24.dp),
-            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            interactionSource = inputBounce.interactionSource,
         )
 
+        val sendBounce = rememberPressBounce(pressedScale = 0.85f)
         FilledIconButton(
             onClick = onSend,
             enabled = value.isNotBlank() && !isLoading,
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier.size(44.dp).then(sendBounce.modifier),
+            interactionSource = sendBounce.interactionSource,
         ) {
             if (isLoading) {
                 CircularProgressIndicator(

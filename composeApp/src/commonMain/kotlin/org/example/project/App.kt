@@ -7,9 +7,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -176,24 +176,41 @@ private fun FloatingNavPill(
     val slotWidthDp = with(density) { slotWidthPx.toDp() }
     val horizontalPaddingPx = with(density) { 8.dp.toPx() }
 
+    var pressedTab by remember { mutableStateOf<NavTab?>(null) }
+
     Box(
         modifier = modifier
             .clip(PillCorner)
-            .pointerInput(itemCount, selectedTab, slotWidthPx) {
+            .pointerInput(itemCount, slotWidthPx, horizontalPaddingPx) {
                 if (slotWidthPx <= 0) return@pointerInput
-                fun resolveTab(x: Float) {
+                fun tabAt(x: Float): NavTab {
                     val local = (x - horizontalPaddingPx).coerceAtLeast(0f)
                     val idx = (local / slotWidthPx).toInt().coerceIn(0, itemCount - 1)
-                    val tab = NavItems[idx].tab
-                    if (tab != selectedTab) onTabSelected(tab)
+                    return NavItems[idx].tab
                 }
-                detectHorizontalDragGestures(
-                    onDragStart = { offset -> resolveTab(offset.x) },
-                    onHorizontalDrag = { change, _ ->
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var current = tabAt(down.position.x)
+                    pressedTab = current
+                    onTabSelected(current)
+                    down.consume()
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (!change.pressed) {
+                            pressedTab = null
+                            break
+                        }
+                        val next = tabAt(change.position.x)
+                        if (next != current) {
+                            current = next
+                            onTabSelected(next)
+                        }
+                        pressedTab = current
                         change.consume()
-                        resolveTab(change.position.x)
-                    },
-                )
+                    }
+                }
             }
             // Layered glass: translucent dark base + soft top highlight + edge stroke.
             .background(NavPillBaseColor.copy(alpha = 0.62f))
@@ -245,7 +262,7 @@ private fun FloatingNavPill(
                     iconRes = item.iconRes,
                     contentDescription = item.contentDescription,
                     isSelected = item.tab == selectedTab,
-                    onClick = { onTabSelected(item.tab) },
+                    isPressed = pressedTab == item.tab,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -258,12 +275,9 @@ private fun NavPillItem(
     iconRes: DrawableResource,
     contentDescription: String,
     isSelected: Boolean,
-    onClick: () -> Unit,
+    isPressed: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
     // Spring-physics press feedback — quick squish, bouncy return.
     val pressScale by animateFloatAsState(
         targetValue = if (isPressed) 0.84f else 1f,
@@ -283,13 +297,7 @@ private fun NavPillItem(
     )
 
     Box(
-        modifier = modifier
-            .height(PillItemHeight)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
+        modifier = modifier.height(PillItemHeight),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
