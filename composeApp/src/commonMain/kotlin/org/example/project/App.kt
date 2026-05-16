@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,14 +24,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarVisuals
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,8 +49,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
 import kotlinproject.composeapp.generated.resources.chat_bubble
@@ -95,16 +102,20 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
             viewModel.effects.collect { effect ->
                 when (effect) {
                     is TransactionFormEffect.ShowSuccess ->
-                        snackbarHostState.showSnackbar(effect.message, duration = SnackbarDuration.Short)
+                        snackbarHostState.showSnackbar(
+                            FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
+                        )
                     is TransactionFormEffect.ShowError ->
-                        snackbarHostState.showSnackbar(effect.message, duration = SnackbarDuration.Short)
+                        snackbarHostState.showSnackbar(
+                            FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
+                        )
                     TransactionFormEffect.FormCleared -> Unit
                 }
             }
         }
 
         Scaffold(
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+            snackbarHost = {}
         ) { paddingValues ->
             val focusManager = LocalFocusManager.current
             val keyboardController = LocalSoftwareKeyboardController.current
@@ -145,8 +156,103 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
                 )
+
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 32.dp),
+                ) { data ->
+                    FeedbackSnackbar(data)
+                }
             }
         }
+    }
+}
+
+private enum class FeedbackKind { SUCCESS, ERROR }
+
+private class FeedbackSnackbarVisuals(
+    override val message: String,
+    val kind: FeedbackKind,
+    override val duration: SnackbarDuration = SnackbarDuration.Short,
+    override val actionLabel: String? = null,
+    override val withDismissAction: Boolean = false,
+) : SnackbarVisuals
+
+@Composable
+private fun FeedbackSnackbar(data: SnackbarData) {
+    val visuals = data.visuals as? FeedbackSnackbarVisuals
+    val kind = visuals?.kind ?: FeedbackKind.SUCCESS
+    val accent = when (kind) {
+        FeedbackKind.SUCCESS -> Color(0xFF00C853)
+        FeedbackKind.ERROR -> Color(0xFFE53935)
+    }
+    val glyph = when (kind) {
+        FeedbackKind.SUCCESS -> "✓"
+        FeedbackKind.ERROR -> "!"
+    }
+
+    // Spring-in entrance for emotional weight on success.
+    val visible by produceState(initialValue = false) { value = true }
+    val scale by animateFloatAsState(
+        targetValue = if (visible) 1f else 0.7f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "snackScale",
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "snackAlpha",
+    )
+
+    Row(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
+            }
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(
+                        accent.copy(alpha = 0.55f),
+                        accent.copy(alpha = 0.18f),
+                    )
+                ),
+                shape = RoundedCornerShape(24.dp),
+            )
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(50))
+                .background(accent.copy(alpha = 0.16f))
+                .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(50)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = glyph,
+                color = accent,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+            )
+        }
+        Text(
+            text = data.visuals.message,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

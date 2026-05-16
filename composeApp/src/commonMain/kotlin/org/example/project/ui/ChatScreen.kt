@@ -2,6 +2,7 @@ package org.example.project.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -29,50 +32,52 @@ import org.example.project.viewmodel.createAiViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+private val ChatAccent = Color(0xFF00C853)
+private val BubbleCorner = 18.dp
+private val FieldCorner = RoundedCornerShape(24.dp)
+private val ChipCorner = RoundedCornerShape(14.dp)
+
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
     viewModel: AiViewModel = createAiViewModel(),
-    bottomPadding: Dp = 0.dp
+    bottomPadding: Dp = 0.dp,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
 
-    // Auto-scroll to bottom on new messages
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
             scope.launch { listState.animateScrollToItem(uiState.messages.size - 1) }
         }
     }
 
-    // Show error via snackbar-style
     uiState.error?.let { error ->
         LaunchedEffect(error) { viewModel.clearError() }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
 
-        // ── Header ──
         ChatHeader(
             transactionsLoaded = uiState.transactionsLoaded,
             isLoadingTransactions = uiState.isLoadingTransactions,
-            onClearChat = viewModel::clearChat
+            onClearChat = viewModel::clearChat,
         )
 
-        HorizontalDivider()
-
-        // ── Messages ──
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.messages.isEmpty()) {
-                EmptyState(modifier = Modifier.align(Alignment.Center))
+                EmptyState(
+                    onSuggestionClick = { inputText = it },
+                    modifier = Modifier.align(Alignment.Center),
+                )
             } else {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(uiState.messages, key = { it.id }) { message ->
                         MessageBubble(message = message)
@@ -81,7 +86,6 @@ fun ChatScreen(
             }
         }
 
-        // ── Error banner ──
         uiState.error?.let {
             Text(
                 text = it,
@@ -90,13 +94,10 @@ fun ChatScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
             )
         }
 
-        HorizontalDivider()
-
-        // ── Input bar ──
         ChatInputBar(
             value = inputText,
             isLoading = uiState.isLoading,
@@ -107,7 +108,7 @@ fun ChatScreen(
                     inputText = ""
                 }
             },
-            bottomPadding = bottomPadding
+            bottomPadding = bottomPadding,
         )
     }
 }
@@ -116,42 +117,79 @@ fun ChatScreen(
 private fun ChatHeader(
     transactionsLoaded: Boolean,
     isLoadingTransactions: Boolean,
-    onClearChat: () -> Unit
+    onClearChat: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             Text(
                 text = "AI Finance Assistant",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = when {
-                    isLoadingTransactions -> "Loading your transactions..."
-                    transactionsLoaded -> "Transactions loaded"
-                    else -> "No transaction data"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = when {
-                    isLoadingTransactions -> MaterialTheme.colorScheme.primary
-                    transactionsLoaded -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.outline
-                }
+            StatusPill(
+                isLoading = isLoadingTransactions,
+                isLoaded = transactionsLoaded,
             )
         }
-        val clearBounce = rememberPressBounce(pressedScale = 0.9f)
-        TextButton(
-            onClick = onClearChat,
-            modifier = clearBounce.modifier,
-            interactionSource = clearBounce.interactionSource,
+        val clearBounce = rememberPressBounce(pressedScale = 0.92f)
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .clickable(
+                    interactionSource = clearBounce.interactionSource,
+                    indication = null,
+                    onClick = onClearChat,
+                )
+                .then(clearBounce.modifier)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
         ) {
-            Text("Clear", fontSize = 13.sp)
+            Text(
+                text = "Clear",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+    }
+}
+
+@Composable
+private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
+    val (label, color) = when {
+        isLoading -> "Loading your transactions" to MaterialTheme.colorScheme.primary
+        isLoaded -> "Transactions synced" to ChatAccent
+        else -> "No transaction data" to MaterialTheme.colorScheme.outline
+    }
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
@@ -161,20 +199,24 @@ private fun MessageBubble(message: ChatMessage) {
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
     ) {
         if (!isUser) {
-            // AI avatar
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(32.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
+                    .background(ChatAccent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("AI", fontSize = 9.sp, color = MaterialTheme.colorScheme.onPrimary)
+                Image(
+                    painter = painterResource(Res.drawable.ai_icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(10.dp))
         }
 
         Column(modifier = Modifier.widthIn(max = 300.dp)) {
@@ -182,99 +224,155 @@ private fun MessageBubble(message: ChatMessage) {
                 modifier = Modifier
                     .clip(
                         RoundedCornerShape(
-                            topStart = if (isUser) 16.dp else 4.dp,
-                            topEnd = if (isUser) 4.dp else 16.dp,
-                            bottomStart = 16.dp,
-                            bottomEnd = 16.dp
+                            topStart = BubbleCorner,
+                            topEnd = BubbleCorner,
+                            bottomStart = if (isUser) BubbleCorner else 4.dp,
+                            bottomEnd = if (isUser) 4.dp else BubbleCorner,
                         )
                     )
                     .background(
-                        if (isUser) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
+                        if (isUser) ChatAccent
+                        else MaterialTheme.colorScheme.surfaceContainer
                     )
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 if (message.isStreaming) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(14.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text = "Thinking...",
+                            text = "Thinking…",
                             fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 } else {
                     Text(
                         text = message.content,
                         fontSize = 14.sp,
-                        color = if (isUser) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 20.sp
+                        color = if (isUser) Color.White
+                        else MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 20.sp,
                     )
                 }
             }
         }
 
-        if (isUser) Spacer(Modifier.width(8.dp))
+        if (isUser) Spacer(Modifier.width(10.dp))
     }
 }
 
 @Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
+private fun EmptyState(
+    onSuggestionClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val suggestions = remember {
+        listOf(
+            "How much did I spend on food?",
+            "What's my biggest expense this month?",
+            "Show my recent income.",
+        )
+    }
     Column(
         modifier = modifier.padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(50))
+                .background(ChatAccent.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(Res.drawable.ai_icon),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+            )
+        }
         Text(
             text = "Ask me about your finances",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = "Try: \"How much did I spend on food?\" or \"What's my biggest expense?\"",
+            text = "Try one of these to get started",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.widthIn(max = 260.dp)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        suggestions.forEach { suggestion ->
+            SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
+        }
+    }
+}
+
+@Composable
+private fun SuggestionChip(text: String, onClick: () -> Unit) {
+    val bounce = rememberPressBounce(pressedScale = 0.97f)
+    Box(
+        modifier = Modifier
+            .clip(ChipCorner)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .then(bounce.modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatInputBar(
     value: String,
     isLoading: Boolean,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    bottomPadding: Dp = 0.dp
+    bottomPadding: Dp = 0.dp,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp + bottomPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        val inputBounce = rememberPressBounce(pressedScale = 0.97f)
+        val inputBounce = rememberPressBounce(pressedScale = 0.98f)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f).then(inputBounce.modifier),
-            placeholder = { Text("Ask about your finances...", fontSize = 13.sp) },
+            placeholder = { Text("Ask about your finances…", fontSize = 13.sp) },
             maxLines = 3,
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
-            shape = RoundedCornerShape(24.dp),
+            shape = FieldCorner,
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ChatAccent,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            ),
             interactionSource = inputBounce.interactionSource,
         )
 
@@ -282,26 +380,30 @@ private fun ChatInputBar(
         FilledIconButton(
             onClick = onSend,
             enabled = value.isNotBlank() && !isLoading,
-            modifier = Modifier.size(44.dp).then(sendBounce.modifier),
+            modifier = Modifier.size(48.dp).then(sendBounce.modifier),
+            shape = RoundedCornerShape(50),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = ChatAccent,
+                contentColor = Color.White,
+            ),
             interactionSource = sendBounce.interactionSource,
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
+                    color = Color.White,
                 )
             } else {
-                Icon(painter = painterResource(Res.drawable.send), contentDescription = "send",
-                    modifier = Modifier
-                        .align(Alignment.CenterVertically)
-                        .padding(8.dp))
-
+                Icon(
+                    painter = painterResource(Res.drawable.send),
+                    contentDescription = "Send",
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
     }
 }
-
 
 @Composable
 @Preview
@@ -310,6 +412,6 @@ fun PreviewChatInputBar() {
         value = "",
         isLoading = false,
         onValueChange = {},
-        onSend = {}
+        onSend = {},
     )
 }

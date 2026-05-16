@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -99,83 +100,82 @@ fun TransactionInputScreen(
         label = "accentColor",
     )
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 160.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = "Add Transaction",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = 16.dp, bottom = 104.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = "Add Transaction",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
 
-            // 1. Type decision first — it changes what the amount means.
-            TransactionTypeSegmented(
-                isIncome = formState.isIncome,
-                isEnabled = !formState.isLoading,
-                accentColor = accentColor,
-                onTypeChanged = { isIncome ->
-                    viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(isIncome))
-                },
-            )
+        // 1. Type decision first — it changes what the amount means.
+        TransactionTypeSegmented(
+            isIncome = formState.isIncome,
+            isEnabled = !formState.isLoading,
+            accentColor = accentColor,
+            onTypeChanged = { isIncome ->
+                viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(isIncome))
+            },
+        )
 
-            // 2. Hero amount field — large typography, tinted prefix follows the type.
-            HeroAmountField(
-                amount = formState.amount,
-                isIncome = formState.isIncome,
-                isEnabled = !formState.isLoading,
-                accentColor = accentColor,
-                onAmountChanged = { viewModel.onEvent(TransactionFormEvent.AmountChanged(it)) },
-                onImeNext = { focusManager.moveFocus(FocusDirection.Down) },
-            )
+        // 2. Hero amount field — large typography, tinted prefix follows the type.
+        HeroAmountField(
+            amount = formState.amount,
+            isIncome = formState.isIncome,
+            isEnabled = !formState.isLoading,
+            accentColor = accentColor,
+            onAmountChanged = { viewModel.onEvent(TransactionFormEvent.AmountChanged(it)) },
+            onImeNext = { focusManager.moveFocus(FocusDirection.Down) },
+        )
 
-            val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
-            OutlinedTextField(
-                value = formState.description,
-                onValueChange = { viewModel.onEvent(TransactionFormEvent.DescriptionChanged(it)) },
-                label = { Text("Description") },
-                placeholder = { Text("e.g. Groceries at SM") },
-                modifier = Modifier.fillMaxWidth().then(descriptionBounce.modifier),
-                enabled = !formState.isLoading,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
-                ),
-                colors = fieldColors(),
-                shape = FieldCorner,
-                interactionSource = descriptionBounce.interactionSource,
-                singleLine = true,
-            )
+        val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
+        OutlinedTextField(
+            value = formState.description,
+            onValueChange = { viewModel.onEvent(TransactionFormEvent.DescriptionChanged(it)) },
+            label = { Text("Description") },
+            placeholder = { Text("e.g. Groceries at SM") },
+            modifier = Modifier.fillMaxWidth().then(descriptionBounce.modifier),
+            enabled = !formState.isLoading,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) },
+            ),
+            colors = fieldColors(),
+            shape = FieldCorner,
+            interactionSource = descriptionBounce.interactionSource,
+            singleLine = true,
+        )
 
-            CategoryDropdown(
-                selectedCategory = formState.selectedCategory,
-                isExpanded = formState.showCategoryDropdown,
-                isEnabled = !formState.isLoading,
-                onExpandedChange = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
-                onCategorySelected = { viewModel.onEvent(TransactionFormEvent.CategorySelected(it)) },
-            )
+        CategoryDropdown(
+            selectedCategory = formState.selectedCategory,
+            isExpanded = formState.showCategoryDropdown,
+            isEnabled = !formState.isLoading,
+            onExpandedChange = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
+            onCategorySelected = { viewModel.onEvent(TransactionFormEvent.CategorySelected(it)) },
+        )
 
-            PaymentModeDropdown(
-                selectedMode = formState.selectedPaymentMode,
-                isExpanded = formState.showPaymentDropdown,
-                isEnabled = !formState.isLoading,
-                onExpandedChange = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
-                onModeSelected = { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) },
-            )
+        PaymentModeDropdown(
+            selectedMode = formState.selectedPaymentMode,
+            isExpanded = formState.showPaymentDropdown,
+            isEnabled = !formState.isLoading,
+            onExpandedChange = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
+            onModeSelected = { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) },
+        )
 
-            PaidToggleRow(
-                isPaid = formState.isPaid,
-                isEnabled = !formState.isLoading,
-                accentColor = accentColor,
-                onPaidChanged = { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) },
-            )
-        }
+        PaidToggleRow(
+            isPaid = formState.isPaid,
+            isEnabled = !formState.isLoading,
+            accentColor = accentColor,
+            onPaidChanged = { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) },
+        )
 
         SaveButton(
             isLoading = formState.isLoading,
@@ -186,11 +186,7 @@ fun TransactionInputScreen(
                 focusManager.clearFocus()
                 viewModel.onEvent(TransactionFormEvent.FormSubmitted)
             },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 96.dp),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
