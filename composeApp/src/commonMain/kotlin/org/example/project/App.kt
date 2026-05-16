@@ -3,10 +3,27 @@ package org.example.project
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,11 +43,28 @@ import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.example.project.viewmodel.createTransactionViewModel
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/** Tabs for the bottom nav pill. */
 private enum class NavTab { CHAT, ADD, DEBUG }
+
+@Immutable
+private data class NavItem(
+    val tab: NavTab,
+    val iconRes: DrawableResource,
+    val contentDescription: String,
+)
+
+private val NavItems: List<NavItem> = listOf(
+    NavItem(NavTab.CHAT, Res.drawable.chat_bubble, "Chat"),
+    NavItem(NavTab.ADD, Res.drawable.add, "Add Transaction"),
+    NavItem(NavTab.DEBUG, Res.drawable.dots, "Debug"),
+)
+
+private val NavActiveColor = Color(0xFF00C853)
+private val NavInactiveColor = Color(0xFF9E9E9E)
+private val NavPillBackground = Color(0xFF1A1A1A)
 
 @Composable
 @Preview
@@ -40,23 +74,14 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         var selectedTab by remember { mutableStateOf(NavTab.ADD) }
         val aiViewModel = createAiViewModel()
 
-        // Handle transaction form effects (success/error)
-        LaunchedEffect(Unit) {
+        LaunchedEffect(viewModel) {
             viewModel.effects.collect { effect ->
                 when (effect) {
-                    is TransactionFormEffect.ShowSuccess -> {
-                        snackbarHostState.showSnackbar(
-                            message = effect.message,
-                            duration = SnackbarDuration.Short
-                        )
-                    }
-                    is TransactionFormEffect.ShowError -> {
-                        snackbarHostState.showSnackbar(
-                            message = effect.message,
-                            duration = SnackbarDuration.Short
-                        )
-                    }
-                    else -> {}
+                    is TransactionFormEffect.ShowSuccess ->
+                        snackbarHostState.showSnackbar(effect.message, duration = SnackbarDuration.Short)
+                    is TransactionFormEffect.ShowError ->
+                        snackbarHostState.showSnackbar(effect.message, duration = SnackbarDuration.Short)
+                    TransactionFormEffect.FormCleared -> Unit
                 }
             }
         }
@@ -66,6 +91,7 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         ) { paddingValues ->
             val focusManager = LocalFocusManager.current
             val keyboardController = LocalSoftwareKeyboardController.current
+            val dismissInteractionSource = remember { MutableInteractionSource() }
 
             Box(
                 modifier = Modifier
@@ -73,38 +99,34 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                     .background(MaterialTheme.colorScheme.background)
                     .padding(paddingValues)
                     .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
+                        interactionSource = dismissInteractionSource,
+                        indication = null,
                     ) {
                         focusManager.clearFocus()
                         keyboardController?.hide()
                     }
             ) {
-                // ── Screen content ──
-                Box(modifier = Modifier.fillMaxSize()) {
-                    when (selectedTab) {
-                        NavTab.CHAT -> ChatScreen(
-                            modifier = Modifier.fillMaxSize(),
-                            viewModel = aiViewModel,
-                            bottomPadding = 100.dp // lifts input bar above the floating pill
-                        )
-                        NavTab.ADD -> TransactionInputScreen(
-                            viewModel = viewModel,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        NavTab.DEBUG -> TestConnectionScreen(
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
+                when (selectedTab) {
+                    NavTab.CHAT -> ChatScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        viewModel = aiViewModel,
+                        bottomPadding = 100.dp, // clears the floating nav pill
+                    )
+                    NavTab.ADD -> TransactionInputScreen(
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    NavTab.DEBUG -> TestConnectionScreen(
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
 
-                // ── Floating Maya-style dark pill nav ──
                 FloatingNavPill(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp, start = 50.dp, end = 50.dp)
+                        .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
                 )
             }
         }
@@ -115,82 +137,59 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
 private fun FloatingNavPill(
     selectedTab: NavTab,
     onTabSelected: (NavTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val activeColor = Color(0xFF00C853)   // green accent matching app theme
-    val inactiveColor = Color(0xFF9E9E9E) // muted grey
-    val pillBackground = Color(0xFF1A1A1A) // near-black like Maya
-
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50.dp))
-            .background(pillBackground)
+            .background(NavPillBackground)
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Row(
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            NavPillItem(
-                iconRes = Res.drawable.chat_bubble,
-                contentDescription = "Chat",
-                isSelected = selectedTab == NavTab.CHAT,
-                activeColor = activeColor,
-                inactiveColor = inactiveColor,
-                onClick = { onTabSelected(NavTab.CHAT) }
-            )
-            NavPillItem(
-                iconRes = Res.drawable.add,
-                contentDescription = "Add Transaction",
-                isSelected = selectedTab == NavTab.ADD,
-                activeColor = activeColor,
-                inactiveColor = inactiveColor,
-                onClick = { onTabSelected(NavTab.ADD) }
-            )
-            NavPillItem(
-                iconRes = Res.drawable.dots,
-                contentDescription = "Debug",
-                isSelected = selectedTab == NavTab.DEBUG,
-                activeColor = activeColor,
-                inactiveColor = inactiveColor,
-                onClick = { onTabSelected(NavTab.DEBUG) }
-            )
+            NavItems.forEach { item ->
+                NavPillItem(
+                    iconRes = item.iconRes,
+                    contentDescription = item.contentDescription,
+                    isSelected = selectedTab == item.tab,
+                    onClick = { onTabSelected(item.tab) },
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun NavPillItem(
-    iconRes: org.jetbrains.compose.resources.DrawableResource,
+    iconRes: DrawableResource,
     contentDescription: String,
     isSelected: Boolean,
-    activeColor: Color,
-    inactiveColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .size(56.dp)
             .clip(RoundedCornerShape(50.dp))
             .background(
-                if (isSelected) activeColor.copy(alpha = 0.15f)
-                else Color.Transparent
+                if (isSelected) NavActiveColor.copy(alpha = 0.15f) else Color.Transparent
             )
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick
+                onClick = onClick,
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = contentDescription,
-            tint = if (isSelected) activeColor else inactiveColor,
-            modifier = Modifier.size(22.dp)
+            tint = if (isSelected) NavActiveColor else NavInactiveColor,
+            modifier = Modifier.size(22.dp),
         )
     }
 }
-
