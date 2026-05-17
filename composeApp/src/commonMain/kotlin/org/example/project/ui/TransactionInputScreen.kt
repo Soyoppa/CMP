@@ -2,12 +2,17 @@ package org.example.project.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -28,12 +33,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -50,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
@@ -154,21 +158,47 @@ fun TransactionInputScreen(
             singleLine = true,
         )
 
-        CategoryDropdown(
-            selectedCategory = formState.selectedCategory,
+        ChoiceField(
+            label = "Category",
+            placeholder = "Select a category",
+            selected = formState.selectedCategory,
             isExpanded = formState.showCategoryDropdown,
             isEnabled = !formState.isLoading,
-            onExpandedChange = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
-            onCategorySelected = { viewModel.onEvent(TransactionFormEvent.CategorySelected(it)) },
+            accentColor = accentColor,
+            onToggle = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
         )
 
-        PaymentModeDropdown(
-            selectedMode = formState.selectedPaymentMode,
+        ChoiceField(
+            label = "Mode of Payment",
+            placeholder = "How was it paid?",
+            selected = formState.selectedPaymentMode,
             isExpanded = formState.showPaymentDropdown,
             isEnabled = !formState.isLoading,
-            onExpandedChange = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
-            onModeSelected = { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) },
+            accentColor = accentColor,
+            onToggle = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
         )
+
+        if (formState.showCategoryDropdown) {
+            ChoicePickerSheet(
+                title = "Pick a category",
+                options = TransactionCategory.entries.map { it.displayName },
+                selected = formState.selectedCategory,
+                accentColor = accentColor,
+                onDismiss = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
+                onSelect = { viewModel.onEvent(TransactionFormEvent.CategorySelected(it)) },
+            )
+        }
+
+        if (formState.showPaymentDropdown) {
+            ChoicePickerSheet(
+                title = "Pick a payment mode",
+                options = PaymentMode.entries.map { it.displayName },
+                selected = formState.selectedPaymentMode,
+                accentColor = accentColor,
+                onDismiss = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
+                onSelect = { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) },
+            )
+        }
 
         PaidToggleRow(
             isPaid = formState.isPaid,
@@ -333,87 +363,185 @@ private fun HeroAmountField(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryDropdown(
-    selectedCategory: String,
+private fun ChoiceField(
+    label: String,
+    placeholder: String,
+    selected: String,
     isExpanded: Boolean,
     isEnabled: Boolean,
-    onExpandedChange: () -> Unit,
-    onCategorySelected: (String) -> Unit,
+    accentColor: Color,
+    onToggle: () -> Unit,
 ) {
-    ExposedDropdownMenuBox(
-        expanded = isExpanded,
-        onExpandedChange = { if (isEnabled) onExpandedChange() },
+    val bounce = rememberPressBounce(pressedScale = 0.98f)
+    val hasValue = selected.isNotBlank()
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "chevronRotation",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isExpanded) accentColor else Color.Transparent,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "choiceBorder",
+    )
+    val containerAlpha by animateFloatAsState(
+        targetValue = if (isEnabled) 1f else 0.5f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "choiceAlpha",
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(FieldCorner)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(
+                width = 1.5.dp,
+                color = borderColor,
+                shape = FieldCorner,
+            )
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                enabled = isEnabled,
+                onClick = onToggle,
+            )
+            .then(bounce.modifier)
+            .graphicsLayer { alpha = containerAlpha }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        OutlinedTextField(
-            value = selectedCategory,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Category") },
-            placeholder = { Text("Select a category") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = if (hasValue) selected else placeholder,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (hasValue) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (hasValue) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(50))
+                .background(
+                    if (isExpanded) accentColor.copy(alpha = 0.15f)
+                    else MaterialTheme.colorScheme.surface
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "⌄",
+                color = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.graphicsLayer {
+                    rotationZ = chevronRotation
+                    translationY = -2f
+                },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun ChoicePickerSheet(
+    title: String,
+    options: List<String>,
+    selected: String,
+    accentColor: Color,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-            enabled = isEnabled,
-            colors = fieldColors(),
-            shape = FieldCorner,
-            singleLine = true,
-        )
-        ExposedDropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = onExpandedChange,
+                .padding(horizontal = 20.dp)
+                .padding(top = 4.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TransactionCategory.entries.forEach { category ->
-                DropdownMenuItem(
-                    text = { Text(category.displayName) },
-                    onClick = { onCategorySelected(category.displayName) },
-                )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                options.forEach { option ->
+                    ChoiceChip(
+                        text = option,
+                        isSelected = option == selected,
+                        accentColor = accentColor,
+                        onClick = { onSelect(option) },
+                    )
+                }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PaymentModeDropdown(
-    selectedMode: String,
-    isExpanded: Boolean,
-    isEnabled: Boolean,
-    onExpandedChange: () -> Unit,
-    onModeSelected: (String) -> Unit,
+private fun ChoiceChip(
+    text: String,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
 ) {
-    ExposedDropdownMenuBox(
-        expanded = isExpanded,
-        onExpandedChange = { if (isEnabled) onExpandedChange() },
+    val bounce = rememberPressBounce(pressedScale = 0.92f)
+    val container by animateColorAsState(
+        targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "chipContainer",
+    )
+    val content by animateColorAsState(
+        targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "chipContent",
+    )
+    Box(
+        modifier = Modifier
+            .clip(PillCorner)
+            .background(container)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .then(bounce.modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        OutlinedTextField(
-            value = selectedMode,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Mode of Payment") },
-            placeholder = { Text("How was it paid?") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-            enabled = isEnabled,
-            colors = fieldColors(),
-            shape = FieldCorner,
-            singleLine = true,
+        Text(
+            text = text,
+            color = content,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
         )
-        ExposedDropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = onExpandedChange,
-        ) {
-            PaymentMode.entries.forEach { mode ->
-                DropdownMenuItem(
-                    text = { Text(mode.displayName) },
-                    onClick = { onModeSelected(mode.displayName) },
-                )
-            }
-        }
     }
 }
 
