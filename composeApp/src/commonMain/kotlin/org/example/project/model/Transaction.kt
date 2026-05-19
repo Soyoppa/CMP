@@ -17,35 +17,36 @@ data class Transaction(
 )
 
 enum class TransactionCategory(val displayName: String) {
+    BALAY_KAB("Balay Kab"),
+    CHURCH("Church"),
+    CLOTHING("Clothing"),
+    ELECTRICITY("Electricity"),
+    FOOD("Food"),
+    GRAB("Grab"),
+    GROCERY("Grocery"),
+    HOME("Home"),
+    OTHER("Other"),
+    PERSONAL("Personal"),
+    RENT("Rent"),
     SALARY("Salary"),
     SAVINGS("Savings"),
-    RENT("Rent"),
-    SUBSCRIPTION("Subscription"),
-    BALAY_KAB("Balay Kab"),
     ST_PETER("St Peter"),
-    CHURCH("Church"),
-    HOME("Home"),
-    ELECTRICITY("Electricity"),
-    WET_MARKET("Wet Market"),
-    FOOD("Food"),
-    GROCERY("Grocery"),
-    CLOTHING("Clothing"),
+    SUBSCRIPTION("Subscription"),
     TRAVEL("Travel"),
-    PERSONAL("Personal"),
-    OTHER("Other")
+    WET_MARKET("Wet Market")
 }
 
 enum class PaymentMode(val displayName: String) {
-    MAYA("Maya"),
-    SECURITY_BANK("Security Bank"),
-    CITI_REWARDS("Citi Rewards"),
-    GCASH("Gcash"),
-    CASH("Cash"),
     BPI("BPI"),
-    LANDERS("Landers"),
+    CASH("Cash"),
+    CITI_REWARDS("Citi Rewards"),
     EASTWEST_GOLD("Eastwest Gold"),
+    GCASH("Gcash"),
     HEXAGON("Hexagon"),
-    RCBC_FLEX("Rcbc Flex"),
+    LANDERS("Landers"),
     MARIBANK("Maribank"),
-    OTHER("Other")
+    MAYA("Maya"),
+    OTHER("Other"),
+    RCBC_FLEX("Rcbc Flex"),
+    SECURITY_BANK("Security Bank")
 }
