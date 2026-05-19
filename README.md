@@ -9,7 +9,6 @@ A cross-platform finance tracking application built with Kotlin Compose Multipla
 - ✅ Transaction input with categories and payment modes
 - ✅ Real-time data synchronization
 - ✅ MVVM architecture with proper state management
-- ✅ Secure API key management for production deployments
 
 ## Architecture
 
