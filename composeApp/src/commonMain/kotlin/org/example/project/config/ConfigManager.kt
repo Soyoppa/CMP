@@ -1,61 +1,54 @@
 package org.example.project.config
 
 /**
- * Configuration manager that provides secure access to API keys and URLs
- * Uses environment-based configuration for production deployments
+ * Single source of truth for runtime configuration.
+ *
+ * All values originate in `local.properties` and flow through the
+ * BuildConfig plugin into [ApiConfig]. To add a new key:
+ *   1. add a buildConfigField in composeApp/build.gradle.kts
+ *   2. expose it on [ApiConfig]
+ *   3. surface it here
+ *
+ * See SETUP.md for the full fork-and-deploy checklist.
  */
 object ConfigManager {
-    
+
     data class ApiConfiguration(
         val spreadsheetId: String,
         val apiKey: String,
         val scriptUrl: String,
         val writeSpreadsheetId: String,
         val writeScriptUrl: String,
-        val sheetRange: String = "'Data Dump'!A:H",
-        val ollamaUrl: String = "http://localhost:11434",
-        val ollamaModel: String = "llama3.1:8b"
+        val sheetRange: String,
+        val sheetSchema: String,
+        val ollamaUrl: String,
+        val ollamaModel: String,
     )
-    
-    private var _config: ApiConfiguration? = null
-    
-    /**
-     * Get the current API configuration
-     * This will use environment variables in production or fallback to development config
-     */
-    fun getConfig(): ApiConfiguration {
-        if (_config == null) {
-            _config = ApiConfiguration(
-                spreadsheetId = Environment.getSpreadsheetId(),
-                apiKey = Environment.getApiKey(),
-                scriptUrl = Environment.getScriptUrl(),
-                writeSpreadsheetId = ApiConfig.WRITE_SPREADSHEET_ID,
-                writeScriptUrl = ApiConfig.WRITE_SCRIPT_URL,
-                ollamaUrl = Environment.getOllamaUrl(),
-                ollamaModel = Environment.getOllamaModel()
-            )
-        }
-        return _config!!
+
+    private var override: ApiConfiguration? = null
+
+    fun getConfig(): ApiConfiguration = override ?: defaultConfig
+
+    private val defaultConfig: ApiConfiguration by lazy {
+        ApiConfiguration(
+            spreadsheetId = ApiConfig.SPREADSHEET_ID,
+            apiKey = ApiConfig.API_KEY,
+            scriptUrl = ApiConfig.SCRIPT_URL,
+            writeSpreadsheetId = ApiConfig.WRITE_SPREADSHEET_ID,
+            writeScriptUrl = ApiConfig.WRITE_SCRIPT_URL,
+            sheetRange = ApiConfig.SHEET_RANGE,
+            sheetSchema = ApiConfig.SHEET_SCHEMA,
+            ollamaUrl = ApiConfig.OLLAMA_URL,
+            ollamaModel = ApiConfig.OLLAMA_MODEL,
+        )
     }
-    
-    /**
-     * Override configuration (useful for testing)
-     */
+
+    /** Test-only hook to swap in a fixture configuration. */
     fun setConfig(config: ApiConfiguration) {
-        _config = config
+        override = config
     }
 
     fun reset() {
-        _config = null
-    }
-    
-    /**
-     * Check if we're running with production configuration
-     */
-    fun isProductionConfig(): Boolean {
-        val config = getConfig()
-        return config.spreadsheetId != ApiConfig.SPREADSHEET_ID ||
-               config.apiKey != ApiConfig.API_KEY ||
-               config.scriptUrl != ApiConfig.SCRIPT_URL
+        override = null
     }
 }

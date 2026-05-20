@@ -1,45 +1,39 @@
 package org.example.project.repository
 
 import org.example.project.data.AddTransactionResult
-import org.example.project.data.GoogleAppsScriptRepository
-import org.example.project.data.GoogleSheetsApi
+import org.example.project.data.SheetRepository
+import org.example.project.data.SheetRepositoryFactory
 import org.example.project.model.AiSummaryRecord
 import org.example.project.model.BudgetExpenseRecord
 import org.example.project.model.Transaction
 
-class TransactionRepository {
-    private val sheetsApi = GoogleSheetsApi()
-    private val scriptRepo = GoogleAppsScriptRepository()
-    
-    suspend fun getFromDataDump(): List<Transaction> {
-        return sheetsApi.getFromDataDump()
-    }
+/**
+ * Thin facade the rest of the app talks to. Read+write both flow through
+ * the [SheetRepository] picked by [SheetRepositoryFactory] for this fork's
+ * `SHEET_SCHEMA` setting.
+ */
+class TransactionRepository(
+    private val sheet: SheetRepository = SheetRepositoryFactory.create(),
+) {
+    suspend fun getFromDataDump(): List<Transaction> = sheet.getFromDataDump()
 
     /**
-     * Fetches the monthly category summary records from the AISummaryRecords sheet.
-     * Used to give the AI richer context for financial analysis.
+     * Fetches the monthly category summary records (tracker_1 only;
+     * other schemas return an empty list).
      */
-    suspend fun getAiSummaryRecords(): List<AiSummaryRecord> {
-        return sheetsApi.getAiSummaryRecords()
-    }
-    
+    suspend fun getAiSummaryRecords(): List<AiSummaryRecord> = sheet.getAiSummaryRecords()
+
     /**
-     * Fetches budget vs actual expense records from the "Budget vs Expense" sheet tab.
-     * Used to give the AI context on per-category budget allocations and spending.
+     * Fetches budget vs actual expense records (tracker_1 only;
+     * other schemas return an empty list).
      */
-    suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> {
-        return sheetsApi.getFromBudgetExpense()
-    }
+    suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> = sheet.getFromBudgetExpense()
 
-    suspend fun addTransaction(transaction: Transaction): Boolean {
-        return scriptRepo.addTransaction(transaction)
-    }
+    suspend fun addTransaction(transaction: Transaction): Boolean =
+        sheet.addTransaction(transaction).success
 
-    suspend fun addTransactionDetailed(transaction: Transaction): AddTransactionResult {
-        return scriptRepo.addTransactionDetailed(transaction)
-    }
-    
-    suspend fun testScriptConnection(): String {
-        return scriptRepo.testConnection()
-    }
+    suspend fun addTransactionDetailed(transaction: Transaction): AddTransactionResult =
+        sheet.addTransaction(transaction)
+
+    suspend fun testScriptConnection(): String = sheet.testWriteConnection()
 }

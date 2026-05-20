@@ -18,10 +18,20 @@ build:
   stage: build
   image: openjdk:17-jdk
   script:
-    # Inject API configuration from GitLab CI/CD variables
-    - sed -i "s/BUILD_TIME_SPREADSHEET_ID/$SPREADSHEET_ID/g" composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
-    - sed -i "s/BUILD_TIME_API_KEY/$API_KEY/g" composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
-    - sed -i "s|BUILD_TIME_SCRIPT_URL|$SCRIPT_URL|g" composeApp/src/commonMain/kotlin/org/example/project/config/Environment.kt
+    # Inject API configuration from GitLab CI/CD variables into local.properties.
+    # BuildConfig (composeApp/build.gradle.kts) reads these at build time.
+    - |
+      cat > local.properties <<EOF
+      SHEET_SCHEMA=${SHEET_SCHEMA:?SHEET_SCHEMA CI variable is required}
+      SPREADSHEET_ID=${SPREADSHEET_ID}
+      GOOGLE_API_KEY=${API_KEY}
+      SHEET_RANGE=${SHEET_RANGE:-'Data Dump'!A:H}
+      SCRIPT_URL=${SCRIPT_URL}
+      WRITE_SPREADSHEET_ID=${WRITE_SPREADSHEET_ID}
+      WRITE_SCRIPT_URL=${WRITE_SCRIPT_URL}
+      OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
+      OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      EOF
     
     # Build the web distribution
     - ./gradlew :composeApp:jsBrowserDistribution

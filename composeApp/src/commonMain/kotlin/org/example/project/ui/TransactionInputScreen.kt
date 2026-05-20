@@ -66,10 +66,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.example.project.config.SchemaFeatures
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.model.PaymentMode
-import org.example.project.model.TransactionCategory
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.TransactionViewModel
 
@@ -85,6 +85,7 @@ fun TransactionInputScreen(
     modifier: Modifier = Modifier,
 ) {
     val formState by viewModel.formState.collectAsState()
+    val schemaFeatures = remember { SchemaFeatures.current() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -121,14 +122,16 @@ fun TransactionInputScreen(
         )
 
         // 1. Type decision first — it changes what the amount means.
-        TransactionTypeSegmented(
-            isIncome = formState.isIncome,
-            isEnabled = !formState.isLoading,
-            accentColor = accentColor,
-            onTypeChanged = { isIncome ->
-                viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(isIncome))
-            },
-        )
+        if (schemaFeatures.showIncomeOption) {
+            TransactionTypeSegmented(
+                isIncome = formState.isIncome,
+                isEnabled = !formState.isLoading,
+                accentColor = accentColor,
+                onTypeChanged = { isIncome ->
+                    viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(isIncome))
+                },
+            )
+        }
 
         // 2. Hero amount field — large typography, tinted prefix follows the type.
         HeroAmountField(
@@ -159,8 +162,8 @@ fun TransactionInputScreen(
         )
 
         ChoiceField(
-            label = "Category",
-            placeholder = "Select a category",
+            label = schemaFeatures.categoryLabel,
+            placeholder = "Select ${schemaFeatures.categoryLabel.lowercase()}",
             selected = formState.selectedCategory,
             isExpanded = formState.showCategoryDropdown,
             isEnabled = !formState.isLoading,
@@ -180,8 +183,8 @@ fun TransactionInputScreen(
 
         if (formState.showCategoryDropdown) {
             ChoicePickerSheet(
-                title = "Pick a category",
-                options = TransactionCategory.entries.map { it.displayName },
+                title = schemaFeatures.categoryPickerTitle,
+                options = schemaFeatures.categoryOptions,
                 selected = formState.selectedCategory,
                 accentColor = accentColor,
                 onDismiss = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
@@ -200,12 +203,14 @@ fun TransactionInputScreen(
             )
         }
 
-        PaidToggleRow(
-            isPaid = formState.isPaid,
-            isEnabled = !formState.isLoading,
-            accentColor = accentColor,
-            onPaidChanged = { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) },
-        )
+        if (schemaFeatures.showPaidToggle) {
+            PaidToggleRow(
+                isPaid = formState.isPaid,
+                isEnabled = !formState.isLoading,
+                accentColor = accentColor,
+                onPaidChanged = { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) },
+            )
+        }
 
         SaveButton(
             isLoading = formState.isLoading,

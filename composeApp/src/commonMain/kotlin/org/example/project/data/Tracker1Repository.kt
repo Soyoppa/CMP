@@ -13,7 +13,6 @@ import org.example.project.config.ConfigManager
 import org.example.project.model.AiSummaryRecord
 import org.example.project.model.BudgetExpenseRecord
 import org.example.project.model.Transaction
-import org.example.project.util.FormatUtils
 
 @Serializable
 data class SheetsResponse(
@@ -25,7 +24,20 @@ data class SheetsRequest(
     val values: List<List<String>>
 )
 
-class GoogleSheetsApi {
+/**
+ * Sheet #1 schema implementation (`tracker_1`).
+ *
+ * Backing tab layout:
+ *   'Data Dump'!A:H        -> Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks
+ *   Summary Trend!A:M      -> per-category monthly totals
+ *   'Budget vs Expense'!A:M -> per-category budget + monthly actuals
+ *
+ * Writes go through a Google Apps Script web app (see GoogleAppsScriptRepository
+ * and apps-script/tracker_1.gs).
+ */
+class Tracker1Repository(
+    private val scriptRepo: GoogleAppsScriptRepository = GoogleAppsScriptRepository(),
+) : SheetRepository {
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(Json {
@@ -37,8 +49,8 @@ class GoogleSheetsApi {
             level = LogLevel.INFO
         }
     }
-    
-    suspend fun getFromDataDump(): List<Transaction> {
+
+    override suspend fun getFromDataDump(): List<Transaction> {
         return try {
             val config = ConfigManager.getConfig()
             val response: SheetsResponse = client.get(
@@ -89,10 +101,8 @@ class GoogleSheetsApi {
      *
      * Each row is a parent category (BILLS, FOOD, etc.) with amounts per month.
      * The TOTAL row is excluded — it can be derived from the records themselves.
-     *
-     * @return List of [AiSummaryRecord], one per parent category.
      */
-    suspend fun getAiSummaryRecords(): List<AiSummaryRecord> {
+    override suspend fun getAiSummaryRecords(): List<AiSummaryRecord> {
         return try {
             val config = ConfigManager.getConfig()
             val range = "Summary Trend!A:M"
@@ -137,10 +147,8 @@ class GoogleSheetsApi {
      *
      * Each row is a sub-category with a fixed monthly budget and actual spend per month.
      * Summary rows (Total Budgeted, Income - Budget) and blank rows are skipped.
-     *
-     * @return List of [BudgetExpenseRecord], one per sub-category.
      */
-    suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> {
+    override suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> {
         return try {
             val config = ConfigManager.getConfig()
             val range = "'Budget vs Expense'!A:M"
@@ -204,52 +212,8 @@ class GoogleSheetsApi {
         }
     }
 
-    suspend fun addTransaction(transaction: Transaction): Boolean {
-        return try {
-            val config = ConfigManager.getConfig()
-            val values = listOf(
-                listOf(
-                    transaction.date.toString(), // Will be in YYYY-MM-DD format
-                    transaction.description,
-                    if (transaction.inflow > 0) FormatUtils.formatPeso(transaction.inflow) else "",
-                    if (transaction.outflow > 0) FormatUtils.formatPeso(transaction.outflow) else "",
-                    transaction.category,
-                    transaction.modeOfPayment,
-                    if (transaction.isPaid) "TRUE" else "FALSE",
-                    "" // Remarks column (empty for now)
-                )
-            )
-            
-            val url = "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}:append"
-            println("Attempting to write to: $url")
-            println("Data to write: $values")
-            println("Request body: ${SheetsRequest(values)}")
-            
-            val response = client.post(url) {
-                parameter("key", config.apiKey)
-                parameter("valueInputOption", "RAW")
-                parameter("insertDataOption", "INSERT_ROWS")
-                contentType(ContentType.Application.Json)
-                setBody(SheetsRequest(values))
-            }
-            
-            val responseBody = response.body<String>()
-            println("API Response Status: ${response.status}")
-            println("API Response Headers: ${response.headers}")
-            println("API Response Body: $responseBody")
-            
-            if (!response.status.isSuccess()) {
-                println("Write failed with status: ${response.status.value} - ${response.status.description}")
-                return false
-            }
-            
-            true
-        } catch (e: Exception) {
-            println("Detailed error adding transaction: ${e.message}")
-            println("Error type: ${e::class.simpleName}")
-            println("Stack trace:")
-            e.printStackTrace()
-            false
-        }
-    }
+    override suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
+        scriptRepo.addTransactionDetailed(transaction)
+
+    override suspend fun testWriteConnection(): String = scriptRepo.testConnection()
 }

@@ -95,9 +95,9 @@ class GoogleAppsScriptRepository {
                 return AddTransactionResult(
                     success = false,
                     httpStatus = status,
-                    responseBody = responseText.take(500),
+                    responseBody = responseText.take(2000),
                     errorMessage = "HTTP error: ${response.status}",
-                    urlUsed = response.request.url.toString()
+                    urlUsed = finalUrl
                 )
             }
 
@@ -107,9 +107,9 @@ class GoogleAppsScriptRepository {
                 AddTransactionResult(
                     success = jsonResponse.success,
                     httpStatus = status,
-                    responseBody = responseText.take(500),
+                    responseBody = responseText.take(2000),
                     errorMessage = jsonResponse.error,
-                    urlUsed = response.request.url.toString()
+                    urlUsed = finalUrl
                 )
             } catch (parseError: Exception) {
                 AddTransactionResult(
@@ -118,7 +118,7 @@ class GoogleAppsScriptRepository {
                     responseBody = responseText.take(500),
                     errorMessage = "JSON parse failed — response is not JSON (likely HTML auth page). Parser: ${parseError.message}",
                     exceptionType = parseError::class.simpleName,
-                    urlUsed = response.request.url.toString()
+                    urlUsed = finalUrl
                 )
             }
         } catch (e: Exception) {

@@ -5,6 +5,8 @@
 xcuserdata
 !src/**/build/
 local.properties
+composeApp/google-services.json
+composeApp/src/iosMain/GoogleService-Info.plist
 .idea
 .DS_Store
 captures
@@ -17,3 +19,6 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+.firebase/
+.claude/settings.local.json
+.claude/skills/

@@ -156,13 +156,38 @@ compose.desktop {
 
 buildConfig {
     packageName("org.example.project.config")
-    
-    buildConfigField("String", "SPREADSHEET_ID", "\"${localProperties.getProperty("SPREADSHEET_ID", "")}\"")
-    buildConfigField("String", "GOOGLE_API_KEY", "\"${localProperties.getProperty("GOOGLE_API_KEY", "")}\"")
-    buildConfigField("String", "SHEET_RANGE", "\"${localProperties.getProperty("SHEET_RANGE", "'Data Dump'!A:H")}\"")
-    buildConfigField("String", "SCRIPT_URL", "\"${localProperties.getProperty("SCRIPT_URL", "")}\"")
-    buildConfigField("String", "WRITE_SPREADSHEET_ID", "\"${localProperties.getProperty("WRITE_SPREADSHEET_ID", "")}\"")
-    buildConfigField("String", "WRITE_SCRIPT_URL", "\"${localProperties.getProperty("WRITE_SCRIPT_URL", "")}\"")
-    buildConfigField("String", "OLLAMA_URL", "\"${localProperties.getProperty("OLLAMA_URL", "http://localhost:11434")}\"")
-    buildConfigField("String", "OLLAMA_MODEL", "\"${localProperties.getProperty("OLLAMA_MODEL", "llama3.1:8b")}\"")
+
+    // Active schema. local.properties stores schema-specific values under
+    // a `<schema>.<KEY>` prefix so both schemas' configs can coexist and
+    // you flip with a single line.
+    val activeSchema = localProperties.getProperty("SHEET_SCHEMA")
+        ?: error("SHEET_SCHEMA missing from local.properties — see local.properties.example")
+
+    // Look up `<activeSchema>.<key>` first, fall back to bare `<key>` for
+    // back-compat with the pre-namespaced layout.
+    fun schemaProp(key: String, default: String = ""): String {
+        return localProperties.getProperty("$activeSchema.$key")
+            ?: localProperties.getProperty(key, default)
+    }
+
+    fun escape(value: String): String =
+        value.replace("\\", "\\\\").replace("\"", "\\\"")
+
+    fun field(name: String, value: String) {
+        buildConfigField("String", name, "\"${escape(value)}\"")
+    }
+
+    field("SHEET_SCHEMA", activeSchema)
+
+    // Schema-specific (resolved via `<schema>.KEY`)
+    field("SPREADSHEET_ID", schemaProp("SPREADSHEET_ID"))
+    field("SHEET_RANGE", schemaProp("SHEET_RANGE", "'Data Dump'!A:H"))
+    field("SCRIPT_URL", schemaProp("SCRIPT_URL"))
+    field("WRITE_SPREADSHEET_ID", schemaProp("WRITE_SPREADSHEET_ID"))
+    field("WRITE_SCRIPT_URL", schemaProp("WRITE_SCRIPT_URL"))
+
+    // Shared across schemas
+    field("GOOGLE_API_KEY", localProperties.getProperty("GOOGLE_API_KEY", ""))
+    field("OLLAMA_URL", localProperties.getProperty("OLLAMA_URL", "http://localhost:11434"))
+    field("OLLAMA_MODEL", localProperties.getProperty("OLLAMA_MODEL", "llama3.1:8b"))
 }
