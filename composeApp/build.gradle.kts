@@ -182,6 +182,7 @@ buildConfig {
     // Schema-specific (resolved via `<schema>.KEY`)
     field("SPREADSHEET_ID", schemaProp("SPREADSHEET_ID"))
     field("SHEET_RANGE", schemaProp("SHEET_RANGE", "'Data Dump'!A:H"))
+    field("BUDGET_RANGE", schemaProp("BUDGET_RANGE", "'Bugdet vs Expense'!A:N"))
     field("SCRIPT_URL", schemaProp("SCRIPT_URL"))
     field("WRITE_SPREADSHEET_ID", schemaProp("WRITE_SPREADSHEET_ID"))
     field("WRITE_SCRIPT_URL", schemaProp("WRITE_SCRIPT_URL"))
