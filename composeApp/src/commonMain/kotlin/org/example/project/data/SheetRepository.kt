@@ -1,7 +1,6 @@
 package org.example.project.data
 
-import org.example.project.model.AiSummaryRecord
-import org.example.project.model.BudgetExpenseRecord
+import org.example.project.model.BudgetCategory
 import org.example.project.model.Transaction
 
 /**
@@ -10,14 +9,14 @@ import org.example.project.model.Transaction
  * Each fork picks one implementation via [SheetRepositoryFactory], driven by
  * the build-time `SHEET_SCHEMA` value in `local.properties`.
  *
- * Schema-specific tabs (AI summary, budget vs expense) may return empty lists
- * on schemas that do not expose them.
+ * Schema-specific tabs (e.g. budget vs expense) return an empty list on
+ * schemas that do not expose them.
  */
 interface SheetRepository {
+
     // Read
-    suspend fun getFromDataDump(): List<Transaction>
-    suspend fun getAiSummaryRecords(): List<AiSummaryRecord>
-    suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord>
+    /** Per-category budget + monthly actual spend. Empty on schemas without a budget tab. */
+    suspend fun getBudget(): List<BudgetCategory>
 
     // Write
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult

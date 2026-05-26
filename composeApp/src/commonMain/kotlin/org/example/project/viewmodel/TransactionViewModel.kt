@@ -49,26 +49,10 @@ class TransactionViewModel(
         }
     }
 
+    // TODO: rebuild the transaction read path. getFromDataDump() was removed for a
+    // fresh start, so the list loads empty until a new data source is wired in.
     fun loadTransactions() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            try {
-                val transactions = repository.getFromDataDump()
-                _uiState.update {
-                    it.copy(
-                        transactions = transactions,
-                        isLoading = false
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load transactions: ${e.message}"
-                    )
-                }
-            }
-        }
+        _uiState.update { it.copy(transactions = emptyList(), isLoading = false) }
     }
 
     fun testConnection(): String {

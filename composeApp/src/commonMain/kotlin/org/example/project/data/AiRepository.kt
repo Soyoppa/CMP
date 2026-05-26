@@ -5,13 +5,13 @@ import io.ktor.client.call.*
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*
 import io.ktor.http.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlin.time.ExperimentalTime
 import org.example.project.config.ConfigManager
-import org.example.project.model.AiSummaryRecord
-import org.example.project.model.BudgetExpenseRecord
-import org.example.project.model.CATEGORY_GROUP_MAP
-import org.example.project.model.Transaction
+import org.example.project.model.BudgetCategory
 import org.example.project.util.FormatUtils
 
 @Serializable
@@ -44,14 +44,12 @@ class AiRepository {
 
     suspend fun chat(
         userMessage: String,
-        transactions: List<Transaction>,
-        summaryRecords: List<AiSummaryRecord> = emptyList(),
-        budgetExpenseRecords: List<BudgetExpenseRecord> = emptyList(),
+        budget: List<BudgetCategory> = emptyList(),
         history: List<OllamaMessage> = emptyList()
     ): String {
         val baseUrl = ConfigManager.getConfig().ollamaUrl
         val model = ConfigManager.getConfig().ollamaModel
-        val systemPrompt = buildSystemPrompt(transactions, summaryRecords, budgetExpenseRecords)
+        val systemPrompt = buildSystemPrompt(budget)
 
         val messages = buildList {
             add(OllamaMessage("system", systemPrompt))
@@ -94,96 +92,60 @@ class AiRepository {
         }
     }
 
-    private fun buildSystemPrompt(
-        transactions: List<Transaction>,
-        summaryRecords: List<AiSummaryRecord> = emptyList(),
-        budgetExpenseRecords: List<BudgetExpenseRecord> = emptyList()
-    ): String {
-        if (transactions.isEmpty() && summaryRecords.isEmpty()) {
+    private fun buildSystemPrompt(budget: List<BudgetCategory>): String {
+        if (budget.isEmpty()) {
             return """
-                No transaction data is loaded yet. Answer general finance questions based on your training.
-                Format amounts in Philippine Peso (₱).
+                You are a personal finance assistant. No budget data is loaded yet —
+                answer general finance questions based on your training.
+                Format all amounts in Philippine Peso (₱).
             """.trimIndent()
         }
 
-        val totalInflow = transactions.sumOf { it.inflow }
-        val totalOutflow = transactions.sumOf { it.outflow }
-        val net = totalInflow - totalOutflow
+        val currentMonth = currentMonthName()
 
-        val byCategory = transactions
-            .filter { it.outflow > 0 }
-            .groupBy { it.category }
-            .mapValues { (_, txns) -> txns.sumOf { it.outflow } }
-            .entries.sortedByDescending { it.value }
-            .take(10)
-            .joinToString("\n") { (cat, amt) -> "  - $cat: ${FormatUtils.formatPeso(amt)}" }
-
-        val recentRows = transactions.takeLast(20).joinToString("\n") { t ->
-            val amount = if (t.inflow > 0) "+${FormatUtils.formatPeso(t.inflow)}" else "-${FormatUtils.formatPeso(t.outflow)}"
-            "  ${t.date} | ${t.description} | $amount | ${t.category} | ${t.modeOfPayment}"
+        // Per-category view for THIS month: budget, spent, remaining.
+        // This is what powers questions like "can we still spend more on food?".
+        val thisMonthTable = budget.joinToString("\n") { c ->
+            val spent = c.spentIn(currentMonth)
+            val remaining = c.remainingIn(currentMonth)
+            val status = when {
+                c.monthlyBudget <= 0.0 -> "no budget set"
+                remaining < 0 -> "OVER by ₱${FormatUtils.formatPeso(-remaining)}"
+                else -> "₱${FormatUtils.formatPeso(remaining)} left"
+            }
+            "  ${c.category}: budget ₱${FormatUtils.formatPeso(c.monthlyBudget)}/mo | " +
+                "spent ₱${FormatUtils.formatPeso(spent)} | $status"
         }
 
-        // Build monthly summary table from AISummaryRecords
-        val summarySection = if (summaryRecords.isNotEmpty()) {
-            val categoryGrouping = CATEGORY_GROUP_MAP.entries.joinToString("\n") { (parent, subs) ->
-                "  $parent → ${subs.joinToString(", ")}"
-            }
-
-            val monthlyTable = summaryRecords.joinToString("\n") { record ->
-                val months = record.monthlyAmounts.entries
-                    .filter { it.value > 0 }
-                    .joinToString(" | ") { (month, amt) -> "$month: ${FormatUtils.formatPeso(amt)}" }
-                "  ${record.category}: $months  [Year Total: ${FormatUtils.formatPeso(record.yearTotal)}]"
-            }
-
-            """
-
-            === CATEGORY GROUPS (sub-categories roll up to parent) ===
-            $categoryGrouping
-
-            === MONTHLY EXPENSE SUMMARY BY PARENT CATEGORY ===
-            $monthlyTable
-            """.trimIndent()
-        } else ""
-
-        // Build budget vs expense section
-        val budgetSection = if (budgetExpenseRecords.isNotEmpty()) {
-            val rows = budgetExpenseRecords.joinToString("\n") { r ->
-                val activeMonths = r.monthlyActual.entries
-                    .filter { it.value > 0 }
-                    .joinToString(" | ") { (month, amt) -> "$month: ${FormatUtils.formatPeso(amt)}" }
-                val status = when {
-                    r.variance > 0 -> "OVER by ${FormatUtils.formatPeso(r.variance)}"
-                    r.variance < 0 -> "UNDER by ${FormatUtils.formatPeso(-r.variance)}"
-                    else -> "ON BUDGET"
-                }
-                "  ${r.category}: budget=${FormatUtils.formatPeso(r.budget)}/mo | $activeMonths | $status"
-            }
-            """
-
-            === BUDGET VS ACTUAL EXPENSE (per sub-category) ===
-            Format: category: budget/mo | monthly actuals | variance status
-            $rows
-            """.trimIndent()
-        } else ""
+        // Year-to-date totals give the model trend context across months.
+        val ytdTable = budget.joinToString("\n") { c ->
+            "  ${c.category}: ₱${FormatUtils.formatPeso(c.totalSpent)} spent year-to-date"
+        }
 
         return """
-            The user's financial data is loaded below. Use it to answer questions accurately.
-            Format all amounts in Philippine Peso (₱).
+            You are a personal finance assistant for a monthly household budget.
+            Use the data below to answer accurately. Format all amounts in Philippine Peso (₱).
+            The current month is $currentMonth.
 
-            === OVERALL SUMMARY ===
-            Total Income:       ${FormatUtils.formatPeso(totalInflow)}
-            Total Expenses:     ${FormatUtils.formatPeso(totalOutflow)}
-            Net Balance:        ${FormatUtils.formatPeso(net)}
-            Total Transactions: ${transactions.size}
+            When asked whether there is room to spend more in a category, compare that
+            category's monthly budget against what has already been spent THIS month
+            ($currentMonth) and report the remaining amount. If already over budget, say so.
 
-            === TOP EXPENSE CATEGORIES (all-time) ===
-            $byCategory
+            === $currentMonth — BUDGET vs SPENT (per category) ===
+            Format: category: monthly budget | spent this month | status
+            $thisMonthTable
 
-            === RECENT TRANSACTIONS (last 20) ===
-            $recentRows
-            $summarySection
-            $budgetSection
+            === YEAR-TO-DATE SPEND (per category) ===
+            $ytdTable
         """.trimIndent()
+    }
+
+    /** Full English month name matching the sheet headers (e.g. "May"). */
+    @OptIn(ExperimentalTime::class)
+    private fun currentMonthName(): String {
+        val month = kotlin.time.Clock.System
+            .todayIn(TimeZone.currentSystemDefault())
+            .month.name
+        return month.lowercase().replaceFirstChar { it.uppercase() }
     }
 }

@@ -97,22 +97,12 @@ fun TestConnectionScreen(
                 isLoading = isLoading,
                 modifier = Modifier.weight(1f),
                 onClick = {
-                    coroutineScope.launch {
-                        isLoading = true
-                        result = try {
-                            val transactions = repository.getFromDataDump()
-                            val preview = transactions.take(3).joinToString("\n") {
-                                "${it.date}: ${it.description} — ${it.category}"
-                            }
-                            TestResult(
-                                ResultKind.SUCCESS,
-                                "Found ${transactions.size} transactions.\n$preview",
-                            )
-                        } catch (e: Exception) {
-                            TestResult(ResultKind.ERROR, "Read failed: ${e.message}")
-                        }
-                        isLoading = false
-                    }
+                    // TODO: rewire Test Read once the new read path lands.
+                    // getFromDataDump() was removed for a fresh start.
+                    result = TestResult(
+                        ResultKind.ERROR,
+                        "Read path removed — no data source wired in yet.",
+                    )
                 },
             )
             TestActionButton(

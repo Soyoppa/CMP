@@ -10,8 +10,7 @@ import io.ktor.client.statement.request
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
-import org.example.project.model.AiSummaryRecord
-import org.example.project.model.BudgetExpenseRecord
+import org.example.project.model.BudgetCategory
 import org.example.project.model.CareofCatagory
 import org.example.project.model.Transaction
 
@@ -53,24 +52,8 @@ class Tracker2Repository : SheetRepository {
         followRedirects = true
     }
 
-    override suspend fun getFromDataDump(): List<Transaction> {
-        return try {
-            val config = ConfigManager.getConfig()
-            val response: SheetsResponse = client.get(
-                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
-            ) {
-                parameter("key", config.apiKey)
-            }.body()
-
-            response.values?.drop(1)?.mapNotNull { row -> parseRow(row) } ?: emptyList()
-        } catch (e: Exception) {
-            println("💳 [Tracker2] Error fetching transactions: ${e.message}")
-            emptyList()
-        }
-    }
-
-    override suspend fun getAiSummaryRecords(): List<AiSummaryRecord> = emptyList()
-    override suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> = emptyList()
+    // tracker_2 has no budget tab.
+    override suspend fun getBudget(): List<BudgetCategory> = emptyList()
 
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult {
         val scriptUrl = ConfigManager.getConfig().writeScriptUrl
@@ -175,38 +158,5 @@ class Tracker2Repository : SheetRepository {
         } catch (e: Exception) {
             "Connection failed: ${e.message}"
         }
-    }
-
-    private fun parseRow(row: List<String>): Transaction? {
-        if (row.size < 3) return null
-        val dateStr = row.getOrNull(0)?.trim().orEmpty()
-        val description = row.getOrNull(1)?.trim().orEmpty()
-        val amountStr = row.getOrNull(2)?.trim().orEmpty()
-        if (dateStr.isEmpty() || description.isEmpty() || amountStr.isEmpty()) return null
-
-        val parsedAmount = parseAmount(amountStr) ?: run {
-            println("💳 [Tracker2] Could not parse amount '$amountStr' in row: ${row.joinToString(" | ")}")
-            return null
-        }
-
-        val creditCard = row.getOrNull(3)?.trim().orEmpty()
-        val careOfRaw = row.getOrNull(4)?.trim().orEmpty()
-        val category = CareofCatagory.fromDisplayName(careOfRaw)?.displayName ?: careOfRaw
-
-        return Transaction(
-            date = dateStr,
-            description = description,
-            inflow = if (parsedAmount < 0.0) -parsedAmount else 0.0,
-            outflow = if (parsedAmount >= 0.0) parsedAmount else 0.0,
-            category = category,
-            modeOfPayment = creditCard,
-            isPaid = false,
-        )
-    }
-
-    private fun parseAmount(raw: String): Double? {
-        val cleaned = raw.replace("₱", "").replace(",", "").replace(" ", "").trim()
-        if (cleaned.isEmpty()) return null
-        return cleaned.toDoubleOrNull()
     }
 }

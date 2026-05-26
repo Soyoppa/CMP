@@ -10,8 +10,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
-import org.example.project.model.AiSummaryRecord
-import org.example.project.model.BudgetExpenseRecord
+import org.example.project.model.BudgetCategory
 import org.example.project.model.Transaction
 
 @Serializable
@@ -29,8 +28,8 @@ data class SheetsRequest(
  *
  * Backing tab layout:
  *   'Data Dump'!A:H        -> Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks
- *   Summary Trend!A:M      -> per-category monthly totals
- *   'Budget vs Expense'!A:M -> per-category budget + monthly actuals
+ *   'Bugdet vs Expense'!A:N -> Category | Budget | January … December (monthly actuals)
+ *     (tab name is misspelled in the live sheet — kept as-is intentionally)
  *
  * Writes go through a Google Apps Script web app (see GoogleAppsScriptRepository
  * and apps-script/tracker_1.gs).
@@ -50,64 +49,19 @@ class Tracker1Repository(
         }
     }
 
-    override suspend fun getFromDataDump(): List<Transaction> {
-        return try {
-            val config = ConfigManager.getConfig()
-            val response: SheetsResponse = client.get(
-                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
-            ) {
-                parameter("key", config.apiKey)
-            }.body()
-
-            response.values?.drop(1)?.mapNotNull { row ->
-                if (row.size >= 5 && row[0].isNotEmpty() && row[1].isNotEmpty()) {
-                    try {
-                        // Parse date - handle formats like " January 15" or "January 15"
-                        val dateStr = row[0].trim()
-                        val parsedDate = if (dateStr.contains(" ")) {
-                            // Convert "January 15" to "2026-01-15" format
-                            kotlinx.datetime.LocalDate.parse("2026-01-15") // Default for now
-                        } else {
-                            kotlinx.datetime.LocalDate.parse(dateStr)
-                        }
-
-                        // Parse amounts - remove ₱ symbol and commas
-                        val inflowStr = if (row.size > 2) row[2].replace("₱", "").replace(",", "").trim() else ""
-                        val outflowStr = if (row.size > 3) row[3].replace("₱", "").replace(",", "").trim() else ""
-
-                        Transaction(
-                            date = parsedDate.toString(),
-                            description = row[1].trim(),
-                            inflow = if (inflowStr.isNotEmpty()) inflowStr.toDoubleOrNull() ?: 0.0 else 0.0,
-                            outflow = if (outflowStr.isNotEmpty()) outflowStr.toDoubleOrNull() ?: 0.0 else 0.0,
-                            category = if (row.size > 4) row[4].trim() else "",
-                            modeOfPayment = if (row.size > 5) row[5].trim() else "",
-                            isPaid = if (row.size > 6) row[6].equals("TRUE", ignoreCase = true) else false
-                        )
-                    } catch (e: Exception) {
-                        println("Error parsing row: ${row.joinToString(", ")} - ${e.message}")
-                        null // Skip invalid rows
-                    }
-                } else null
-            }?.filter { it.description.isNotEmpty() } ?: emptyList()
-        } catch (e: Exception) {
-            println("Error fetching transactions: ${e.message}")
-            emptyList()
-        }
-    }
-
     /**
-     * Fetches monthly expense summary records from the AISummaryRecords sheet tab.
+     * Fetches per-category budget + monthly actual spend from the
+     * 'Budget vs Expense' tab.
      *
-     * Each row is a parent category (BILLS, FOOD, etc.) with amounts per month.
-     * The TOTAL row is excluded — it can be derived from the records themselves.
+     * Layout: Category | Budget | January … December. Summary rows
+     * (Total Budgeted, Monthly Income, Income - Budget) and blank rows
+     * are skipped — only real categories are returned.
      */
-    override suspend fun getAiSummaryRecords(): List<AiSummaryRecord> {
+    override suspend fun getBudget(): List<BudgetCategory> {
         return try {
             val config = ConfigManager.getConfig()
-            val range = "Summary Trend!A:M"
             val response: SheetsResponse = client.get(
-                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/$range"
+                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.budgetRange}"
             ) {
                 parameter("key", config.apiKey)
             }.body()
@@ -115,102 +69,43 @@ class Tracker1Repository(
             val rows = response.values ?: return emptyList()
             if (rows.isEmpty()) return emptyList()
 
-            // First row is the header: Category, January, February, ... December
-            val headers = rows[0]
-            val monthHeaders = headers.drop(1) // skip "Category" column
+            // Header: Category, Budget, January, February, … December
+            val monthHeaders = rows[0].drop(2).map { it.trim() }
+
+            // The budget block is the contiguous category rows at the top of the
+            // tab. It ends at the first blank row or summary row (Monthly Income,
+            // Total Budgeted, Income - Budget) — below that the tab holds unrelated
+            // tables (credit cards, salary vs savings, fixed/variable lists) that
+            // must NOT be read as categories. takeWhile stops at that boundary.
+            val stopPrefixes = listOf("total", "income", "monthly income")
 
             rows.drop(1)
-                .filter { row ->
-                    row.isNotEmpty() &&
-                    row[0].isNotBlank() &&
-                    row[0].trim().uppercase() != "TOTAL" // skip the total row
-                }
-                .map { row ->
-                    val category = row[0].trim().uppercase()
-                    val monthlyAmounts = monthHeaders.mapIndexed { index, month ->
-                        val amount = row.getOrNull(index + 1)
-                            ?.replace(",", "")
-                            ?.trim()
-                            ?.toDoubleOrNull() ?: 0.0
-                        month to amount
-                    }.toMap()
-                    AiSummaryRecord(category = category, monthlyAmounts = monthlyAmounts)
-                }
-        } catch (e: Exception) {
-            println("Error fetching AI summary records: ${e.message}")
-            emptyList()
-        }
-    }
-
-    /**
-     * Fetches budget vs actual expense records from the "Budget vs Expense" sheet tab.
-     *
-     * Each row is a sub-category with a fixed monthly budget and actual spend per month.
-     * Summary rows (Total Budgeted, Income - Budget) and blank rows are skipped.
-     */
-    override suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> {
-        return try {
-            val config = ConfigManager.getConfig()
-            val range = "'Budget vs Expense'!A:M"
-            println("💰 [BudgetExpense] Fetching from spreadsheet: ${config.spreadsheetId}, range: $range")
-
-            val response: SheetsResponse = client.get(
-                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/$range"
-            ) {
-                parameter("key", config.apiKey)
-            }.body()
-
-            val rows = response.values ?: run {
-                println("💰 [BudgetExpense] No values returned from sheet")
-                return emptyList()
-            }
-            if (rows.isEmpty()) {
-                println("💰 [BudgetExpense] Sheet returned empty rows")
-                return emptyList()
-            }
-
-            println("💰 [BudgetExpense] Total rows (including header): ${rows.size}")
-
-            val headers = rows[0]
-            println("💰 [BudgetExpense] Headers: ${headers.joinToString(", ")}")
-            val monthHeaders = headers.drop(2)
-
-            val skipPrefixes = listOf("total", "income")
-
-            val records = rows.drop(1)
-                .filter { row ->
-                    row.isNotEmpty() &&
-                    row[0].isNotBlank() &&
-                    skipPrefixes.none { row[0].trim().lowercase().startsWith(it) }
+                .takeWhile { row ->
+                    val name = row.getOrNull(0)?.trim().orEmpty()
+                    name.isNotBlank() &&
+                        stopPrefixes.none { name.lowercase().startsWith(it) }
                 }
                 .map { row ->
                     val category = row[0].trim()
-                    val budget = row.getOrNull(1)
-                        ?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
+                    val budget = parseAmount(row.getOrNull(1))
                     val monthlyActual = monthHeaders.mapIndexed { index, month ->
-                        val amount = row.getOrNull(index + 2)
-                            ?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
-                        month to amount
+                        month to parseAmount(row.getOrNull(index + 2))
                     }.toMap()
-                    BudgetExpenseRecord(
+                    BudgetCategory(
                         category = category,
-                        budget = budget,
-                        monthlyActual = monthlyActual
+                        monthlyBudget = budget,
+                        monthlyActual = monthlyActual,
                     )
                 }
-
-            println("💰 [BudgetExpense] Parsed ${records.size} category records")
-            records.forEach { r ->
-                val activeMonths = r.monthlyActual.entries.filter { it.value > 0 }.size
-                println("  - ${r.category}: budget=₱${r.budget}, active months=$activeMonths, total=₱${r.totalActual}")
-            }
-
-            records
+                .also { println("💰 [Tracker1] Parsed ${it.size} budget categories") }
         } catch (e: Exception) {
-            println("💥 [BudgetExpense] Error fetching records: ${e::class.simpleName} — ${e.message}")
+            println("💥 [Tracker1] getBudget failed: ${e::class.simpleName} — ${e.message}")
             emptyList()
         }
     }
+
+    private fun parseAmount(raw: String?): Double =
+        raw?.replace("₱", "")?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
 
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
         scriptRepo.addTransactionDetailed(transaction)

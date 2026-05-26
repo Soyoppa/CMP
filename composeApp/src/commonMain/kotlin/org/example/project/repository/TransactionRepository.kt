@@ -3,8 +3,7 @@ package org.example.project.repository
 import org.example.project.data.AddTransactionResult
 import org.example.project.data.SheetRepository
 import org.example.project.data.SheetRepositoryFactory
-import org.example.project.model.AiSummaryRecord
-import org.example.project.model.BudgetExpenseRecord
+import org.example.project.model.BudgetCategory
 import org.example.project.model.Transaction
 
 /**
@@ -15,19 +14,9 @@ import org.example.project.model.Transaction
 class TransactionRepository(
     private val sheet: SheetRepository = SheetRepositoryFactory.create(),
 ) {
-    suspend fun getFromDataDump(): List<Transaction> = sheet.getFromDataDump()
 
-    /**
-     * Fetches the monthly category summary records (tracker_1 only;
-     * other schemas return an empty list).
-     */
-    suspend fun getAiSummaryRecords(): List<AiSummaryRecord> = sheet.getAiSummaryRecords()
-
-    /**
-     * Fetches budget vs actual expense records (tracker_1 only;
-     * other schemas return an empty list).
-     */
-    suspend fun getFromBudgetExpense(): List<BudgetExpenseRecord> = sheet.getFromBudgetExpense()
+    /** Per-category budget + monthly actual spend (for AI budget context). */
+    suspend fun getBudget(): List<BudgetCategory> = sheet.getBudget()
 
     suspend fun addTransaction(transaction: Transaction): Boolean =
         sheet.addTransaction(transaction).success
