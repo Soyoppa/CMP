@@ -7,7 +7,6 @@ import io.ktor.client.plugins.logging.*
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*
 import io.ktor.client.statement.request
-import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -90,6 +89,7 @@ class GoogleAppsScriptRepository {
 
             val responseText = response.body<String>()
             val status = response.status.value
+            val finalUrl = response.request.url.toString()
 
             if (status !in 200..399) {
                 return AddTransactionResult(
@@ -117,7 +117,7 @@ class GoogleAppsScriptRepository {
                     httpStatus = status,
                     responseBody = responseText.take(500),
                     errorMessage = "JSON parse failed — response is not JSON (likely HTML auth page). Parser: ${parseError.message}",
-                    exceptionType = parseError::class.simpleName,
+                    exceptionType    = parseError::class.simpleName,
                     urlUsed = finalUrl
                 )
             }

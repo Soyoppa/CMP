@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -55,8 +56,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
+import kotlinproject.composeapp.generated.resources.ai_icon
 import kotlinproject.composeapp.generated.resources.chat_bubble
 import kotlinproject.composeapp.generated.resources.dots
+import kotlinproject.composeapp.generated.resources.failed
+import kotlinproject.composeapp.generated.resources.success
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.ChatScreen
 import org.example.project.ui.TestConnectionScreen
@@ -193,9 +197,9 @@ private fun FeedbackSnackbar(data: SnackbarData) {
         FeedbackKind.SUCCESS -> Color(0xFF00C853)
         FeedbackKind.ERROR -> Color(0xFFE53935)
     }
-    val glyph = when (kind) {
-        FeedbackKind.SUCCESS -> "✓"
-        FeedbackKind.ERROR -> "!"
+    val iconRes = when (kind) {
+        FeedbackKind.SUCCESS -> Res.drawable.success
+        FeedbackKind.ERROR -> Res.drawable.failed
     }
 
     // Spring-in entrance for emotional weight on success.
@@ -245,11 +249,10 @@ private fun FeedbackSnackbar(data: SnackbarData) {
                 .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(50)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = glyph,
-                color = accent,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
+            Image(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
             )
         }
         Text(
