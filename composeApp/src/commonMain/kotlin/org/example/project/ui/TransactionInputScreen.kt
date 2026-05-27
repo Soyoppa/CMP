@@ -58,11 +58,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -85,15 +85,13 @@ import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.model.PaymentMode
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.ExpenseTerracotta
+import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import org.jetbrains.compose.resources.painterResource
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.peso
 
-// Semantic income/expense accents, tuned to sit on the earthy brand palette:
-// a forest-leaning positive green for inflow, a warm terracotta for outflow.
-private val IncomeColor = Color(0xFF2E7D52)
-private val ExpenseColor = Color(0xFFC0492B)
 private val PillCorner = RoundedCornerShape(50.dp)
 private val FieldCorner = RoundedCornerShape(14.dp)
 
@@ -119,10 +117,37 @@ fun TransactionInputScreen(
 
     // Emotional anchor color — drives the amount tint, segmented indicator, save CTA.
     val accentColor by animateColorAsState(
-        targetValue = if (formState.isIncome) IncomeColor else ExpenseColor,
+        targetValue = if (formState.isIncome) IncomeGreen else ExpenseTerracotta,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "accentColor",
     )
+
+    // Stable event handlers: hoisted so child composables don't recompose on every keystroke.
+    val onTypeChanged: (Boolean) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(it)) } }
+    val onAmountChanged: (String) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.AmountChanged(it)) } }
+    val onDescriptionChanged: (String) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.DescriptionChanged(it)) } }
+    val onCategoryToggle: () -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) } }
+    val onPaymentToggle: () -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) } }
+    val onCategorySelect: (String) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.CategorySelected(it)) } }
+    val onPaymentSelect: (String) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) } }
+    val onPaidChanged: (Boolean) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) } }
+    val onImeNext: () -> Unit =
+        remember(focusManager) { { focusManager.moveFocus(FocusDirection.Down) } }
+    val onSubmit: () -> Unit = remember(viewModel, focusManager, keyboardController) {
+        {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            viewModel.onEvent(TransactionFormEvent.FormSubmitted)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -146,9 +171,7 @@ fun TransactionInputScreen(
                 isIncome = formState.isIncome,
                 isEnabled = !formState.isLoading,
                 accentColor = accentColor,
-                onTypeChanged = { isIncome ->
-                    viewModel.onEvent(TransactionFormEvent.TransactionTypeChanged(isIncome))
-                },
+                onTypeChanged = onTypeChanged,
             )
         }
 
@@ -158,22 +181,20 @@ fun TransactionInputScreen(
             isIncome = formState.isIncome,
             isEnabled = !formState.isLoading,
             accentColor = accentColor,
-            onAmountChanged = { viewModel.onEvent(TransactionFormEvent.AmountChanged(it)) },
-            onImeNext = { focusManager.moveFocus(FocusDirection.Down) },
+            onAmountChanged = onAmountChanged,
+            onImeNext = onImeNext,
         )
 
         val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
         OutlinedTextField(
             value = formState.description,
-            onValueChange = { viewModel.onEvent(TransactionFormEvent.DescriptionChanged(it)) },
+            onValueChange = onDescriptionChanged,
             label = { Text("Description") },
             placeholder = { Text("e.g. Groceries at SM") },
             modifier = Modifier.fillMaxWidth().then(descriptionBounce.modifier),
             enabled = !formState.isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) },
-            ),
+            keyboardActions = KeyboardActions(onNext = { onImeNext() }),
             colors = fieldColors(),
             shape = FieldCorner,
             interactionSource = descriptionBounce.interactionSource,
@@ -186,6 +207,7 @@ fun TransactionInputScreen(
             if (useIncomeCategories) schemaFeatures.incomeCategoryPickerTitle else schemaFeatures.categoryPickerTitle
         val categoryOptions =
             if (useIncomeCategories) schemaFeatures.incomeCategoryOptions else schemaFeatures.categoryOptions
+        val paymentOptions = remember { PaymentMode.entries.map { it.displayName } }
 
         ChoiceField(
             label = schemaFeatures.categoryLabel,
@@ -194,7 +216,7 @@ fun TransactionInputScreen(
             isExpanded = formState.showCategoryDropdown,
             isEnabled = !formState.isLoading,
             accentColor = accentColor,
-            onToggle = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
+            onToggle = onCategoryToggle,
         )
 
         ChoiceField(
@@ -204,7 +226,7 @@ fun TransactionInputScreen(
             isExpanded = formState.showPaymentDropdown,
             isEnabled = !formState.isLoading,
             accentColor = accentColor,
-            onToggle = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
+            onToggle = onPaymentToggle,
         )
 
         if (formState.showCategoryDropdown) {
@@ -213,19 +235,19 @@ fun TransactionInputScreen(
                 options = categoryOptions,
                 selected = formState.selectedCategory,
                 accentColor = accentColor,
-                onDismiss = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
-                onSelect = { viewModel.onEvent(TransactionFormEvent.CategorySelected(it)) },
+                onDismiss = onCategoryToggle,
+                onSelect = onCategorySelect,
             )
         }
 
         if (formState.showPaymentDropdown) {
             ChoicePickerSheet(
                 title = "Pick a payment mode",
-                options = PaymentMode.entries.map { it.displayName },
+                options = paymentOptions,
                 selected = formState.selectedPaymentMode,
                 accentColor = accentColor,
-                onDismiss = { viewModel.onEvent(TransactionFormEvent.PaymentDropdownToggled) },
-                onSelect = { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) },
+                onDismiss = onPaymentToggle,
+                onSelect = onPaymentSelect,
             )
         }
 
@@ -234,18 +256,14 @@ fun TransactionInputScreen(
                 isPaid = formState.isPaid,
                 isEnabled = !formState.isLoading,
                 accentColor = accentColor,
-                onPaidChanged = { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) },
+                onPaidChanged = onPaidChanged,
             )
         }
 
         SaveButton(
             isLoading = formState.isLoading,
             isEnabled = formState.isValid && !formState.isLoading,
-            onClick = {
-                keyboardController?.hide()
-                focusManager.clearFocus()
-                viewModel.onEvent(TransactionFormEvent.FormSubmitted)
-            },
+            onClick = onSubmit,
             modifier = Modifier.fillMaxWidth(),
         )
     }
