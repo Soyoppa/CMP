@@ -37,6 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -61,9 +62,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -87,6 +86,9 @@ import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.model.PaymentMode
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.TransactionViewModel
+import org.jetbrains.compose.resources.painterResource
+import kotlinproject.composeapp.generated.resources.Res
+import kotlinproject.composeapp.generated.resources.peso
 
 // Semantic income/expense accents, tuned to sit on the earthy brand palette:
 // a forest-leaning positive green for inflow, a warm terracotta for outflow.
@@ -400,10 +402,12 @@ private fun HeroAmountField(
         label = { Text(if (isIncome) "Inflow Amount" else "Outflow Amount") },
         placeholder = { Text("0.00", style = LocalTextStyle.current.copy(fontSize = 28.sp)) },
         prefix = {
-            // No bundled font ships the ₱ glyph (renders as "no glyph" on web), so draw it.
-            PesoGlyph(
-                color = accentColor,
-                modifier = Modifier.padding(end = 2.dp),
+            // No bundled font ships the ₱ glyph (renders as "no glyph" on web), so use a vector asset.
+            Icon(
+                painter = painterResource(Res.drawable.peso),
+                contentDescription = "Peso",
+                tint = accentColor,
+                modifier = Modifier.padding(end = 2.dp).size(26.dp),
             )
         },
         keyboardOptions = KeyboardOptions(
@@ -426,29 +430,6 @@ private fun HeroAmountField(
         shape = FieldCorner,
         interactionSource = bounce.interactionSource,
     )
-}
-
-/** Hand-drawn peso sign (₱). No bundled font carries U+20B1, so we vector it for cross-platform parity. */
-@Composable
-private fun PesoGlyph(color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(width = 17.dp, height = 24.dp)) {
-        val w = size.width
-        val h = size.height
-        val stemW = 2.4.dp.toPx()
-        val barW = 2.0.dp.toPx()
-        val stemX = w * 0.24f
-        // Vertical stem of the "P".
-        drawLine(color, Offset(stemX, h * 0.08f), Offset(stemX, h * 0.92f), stemW, cap = StrokeCap.Round)
-        // Upper bowl.
-        val bowl = Path().apply {
-            moveTo(stemX, h * 0.08f)
-            cubicTo(w * 1.02f, h * 0.02f, w * 1.02f, h * 0.56f, stemX, h * 0.50f)
-        }
-        drawPath(bowl, color, style = Stroke(width = stemW, cap = StrokeCap.Round))
-        // The two horizontal bars that distinguish ₱ from P.
-        drawLine(color, Offset(w * 0.02f, h * 0.28f), Offset(w * 0.66f, h * 0.28f), barW, cap = StrokeCap.Round)
-        drawLine(color, Offset(w * 0.02f, h * 0.46f), Offset(w * 0.66f, h * 0.46f), barW, cap = StrokeCap.Round)
-    }
 }
 
 @Composable
