@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.data.AiRepository
 import org.example.project.data.OllamaMessage
+import org.example.project.data.ai.AiUsageTracker
 import org.example.project.model.BudgetCategory
 import org.example.project.model.ChatMessage
 import org.example.project.repository.TransactionRepository
@@ -82,23 +83,28 @@ class AiViewModel(
 
         viewModelScope.launch {
             try {
-                val response = aiRepository.chat(
+                val result = aiRepository.chat(
                     userMessage = userInput.trim(),
                     budget = budget,
                     history = conversationHistory.toList()
                 )
 
+                // Record session usage (powers the CHAT chip + DEBUG usage card). Skip failures.
+                if (!result.isError) AiUsageTracker.record(result)
+
                 // Update conversation history
                 conversationHistory.add(OllamaMessage("user", userInput.trim()))
-                conversationHistory.add(OllamaMessage("assistant", response))
+                conversationHistory.add(OllamaMessage("assistant", result.text))
 
                 // Replace thinking bubble with real response
                 _uiState.update { state ->
                     val updatedMessages = state.messages.dropLast(1) + ChatMessage(
                         id = thinkingMsg.id,
                         role = ChatMessage.Role.ASSISTANT,
-                        content = response,
-                        isStreaming = false
+                        content = result.text,
+                        isStreaming = false,
+                        model = result.model,
+                        totalTokens = result.totalTokens,
                     )
                     state.copy(messages = updatedMessages, isLoading = false)
                 }

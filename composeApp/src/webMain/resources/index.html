@@ -17,6 +17,61 @@
     <meta name="theme-color" content="#112432" media="(prefers-color-scheme: dark)">
 
     <link type="text/css" rel="stylesheet" href="styles.css">
+
+    <!--
+      Firebase AI Logic bridge for the Kotlin/wasmJs app.
+      Exposes window.__financeAi.{init, generate}; called from FirebaseAiProvider (wasmJsMain).
+      Uses the Gemini Developer API backend (free tier). The Gemini key stays server-side —
+      only the non-secret Firebase web config is passed in from the app at runtime.
+    -->
+    <script type="module">
+      const SDK = "https://www.gstatic.com/firebasejs/12.13.0";
+      window.__financeAi = {
+        _ai: null,
+        _lib: null,
+        _ready: null,
+        /** Lazily loads firebase/app + firebase/ai and initialises the AI Logic backend. */
+        init(configJson) {
+          if (this._ready) return this._ready;
+          const config = JSON.parse(configJson);
+          this._ready = (async () => {
+            const appMod = await import(`${SDK}/firebase-app.js`);
+            const aiMod = await import(`${SDK}/firebase-ai.js`);
+            this._lib = aiMod;
+            const app = appMod.initializeApp(config);
+            this._ai = aiMod.getAI(app, { backend: new aiMod.GoogleAIBackend() });
+            console.log("[financeAi] Firebase AI Logic ready (Gemini Developer API)");
+            return true;
+          })().catch((e) => {
+            console.error("[financeAi] init failed", e);
+            this._ready = null; // allow a later retry
+            throw e;
+          });
+          return this._ready;
+        },
+        /** One budget-aware chat turn. Returns JSON: { text, promptTokens, responseTokens, totalTokens }. */
+        async generate(model, systemPrompt, historyJson, userMessage) {
+          if (!this._ready) throw new Error("financeAi not initialized");
+          await this._ready;
+          const history = JSON.parse(historyJson);
+          const genModel = this._lib.getGenerativeModel(this._ai, {
+            model: model,
+            systemInstruction: systemPrompt,
+          });
+          const chat = genModel.startChat({ history: history });
+          const result = await chat.sendMessage(userMessage);
+          const resp = result.response;
+          const usage = (resp && resp.usageMetadata) || {};
+          return JSON.stringify({
+            text: resp.text(),
+            promptTokens: usage.promptTokenCount || 0,
+            responseTokens: usage.candidatesTokenCount || 0,
+            totalTokens: usage.totalTokenCount || 0,
+          });
+        },
+      };
+    </script>
+
     <script type="application/javascript" src="composeApp.js"></script>
 </head>
 <body>

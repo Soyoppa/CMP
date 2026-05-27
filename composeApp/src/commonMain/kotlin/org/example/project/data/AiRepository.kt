@@ -1,94 +1,119 @@
 package org.example.project.data
 
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.request.*
-import io.ktor.http.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlin.time.ExperimentalTime
 import org.example.project.config.ConfigManager
+import org.example.project.data.ai.AiPrefs
+import org.example.project.data.ai.AiProvider
+import org.example.project.data.ai.AiProviderId
+import org.example.project.data.ai.AiProviderMode
+import org.example.project.data.ai.AiResult
+import org.example.project.data.ai.OllamaProvider
+import org.example.project.data.ai.geminiProviderOrNull
 import org.example.project.model.BudgetCategory
 import org.example.project.util.FormatUtils
 
+/**
+ * A single chat turn in the shared (provider-agnostic) format. Roles are "system" | "user" |
+ * "assistant". Kept in this package for source compatibility with existing callers.
+ */
 @Serializable
 data class OllamaMessage(val role: String, val content: String)
 
-@Serializable
-data class OllamaChatRequest(
-    val model: String,
-    val messages: List<OllamaMessage>,
-    val stream: Boolean = false
-)
+/**
+ * Orchestrates the AI chat feature across providers.
+ *
+ * **Firebase AI Logic (Gemini) is primary**; Ollama is the fallback. The repository owns
+ * budget→prompt construction so every provider receives an identical, already-built system
+ * instruction. On any Gemini failure (unconfigured platform, network, quota) it transparently
+ * retries through Ollama.
+ */
+class AiRepository(
+    private val gemini: AiProvider? = geminiProviderOrNull(),
+    private val ollama: AiProvider = OllamaProvider(),
+) {
 
-@Serializable
-data class OllamaChatResponse(
-    val message: OllamaMessage? = null,
-    val done: Boolean = false,
-    val error: String? = null
-)
-
-class AiRepository {
-
-    // No ContentNegotiation — we handle raw string parsing manually
-    // because Ollama returns application/x-ndjson regardless of stream:false
-    private val client = HttpClient {
-        install(HttpTimeout) {
-            requestTimeoutMillis = 120_000
-            connectTimeoutMillis = 15_000
-        }
-    }
+    /** Whether the Gemini (Firebase AI Logic) path can be used on this build + config. */
+    val isGeminiAvailable: Boolean
+        get() = gemini != null && ConfigManager.getConfig().isFirebaseAiConfigured
 
     suspend fun chat(
         userMessage: String,
         budget: List<BudgetCategory> = emptyList(),
-        history: List<OllamaMessage> = emptyList()
-    ): String {
-        val baseUrl = ConfigManager.getConfig().ollamaUrl
-        val model = ConfigManager.getConfig().ollamaModel
+        history: List<OllamaMessage> = emptyList(),
+    ): AiResult {
         val systemPrompt = buildSystemPrompt(budget)
 
-        val messages = buildList {
-            add(OllamaMessage("system", systemPrompt))
-            addAll(history.takeLast(10))
-            add(OllamaMessage("user", userMessage))
+        return when (AiPrefs.providerMode.value) {
+            // Forced Gemini: attempt only Gemini; surface failure (no silent fallback).
+            AiProviderMode.GEMINI -> runGemini(systemPrompt, history, userMessage)
+            // Forced Ollama.
+            AiProviderMode.OLLAMA -> runOllama(systemPrompt, history, userMessage)
+            // Auto: Gemini primary → Ollama fallback.
+            AiProviderMode.AUTO -> {
+                val g = gemini
+                if (g != null && ConfigManager.getConfig().isFirebaseAiConfigured) {
+                    try {
+                        println("🤖 [AI] Auto: trying ${g.name}")
+                        val reply = g.chat(systemPrompt, history, userMessage)
+                        if (reply.text.isNotBlank()) return reply
+                        println("⚠️ [AI] ${g.name} returned blank — falling back to ${ollama.name}")
+                    } catch (e: Exception) {
+                        println("⚠️ [AI] ${g.name} failed (${e::class.simpleName}: ${e.message}) — falling back to ${ollama.name}")
+                    }
+                }
+                runOllama(systemPrompt, history, userMessage)
+            }
         }
+    }
 
+    private suspend fun runGemini(
+        systemPrompt: String,
+        history: List<OllamaMessage>,
+        userMessage: String,
+    ): AiResult {
+        val model = ConfigManager.getConfig().geminiModel
+        if (!isGeminiAvailable) {
+            return AiResult(
+                text = "Firebase AI isn't available on this build/config.",
+                provider = AiProviderId.GEMINI,
+                model = model,
+                isError = true,
+            )
+        }
         return try {
-            println("🤖 [AI] POST $baseUrl/api/chat | model=$model | msgs=${messages.size}")
-
-            // Read as ByteArray to force full response buffering on JS/Wasm engine
-            val rawBytes = client.post("$baseUrl/api/chat") {
-                contentType(ContentType.Application.Json)
-                setBody(Json.encodeToString(
-                    OllamaChatRequest.serializer(),
-                    OllamaChatRequest(model = model, messages = messages, stream = false)
-                ))
-            }.body<ByteArray>()
-
-            val rawResponse = rawBytes.decodeToString()
-            println("🤖 [AI] Response length: ${rawResponse.length}")
-
-            val json = Json { ignoreUnknownKeys = true; isLenient = true }
-
-            // Ollama returns ndjson — each line is one token chunk
-            // Concatenate all content fields (skip done:true line which has empty content)
-            val fullContent = rawResponse
-                .lines()
-                .mapNotNull { runCatching { json.decodeFromString<OllamaChatResponse>(it) }.getOrNull() }
-                .mapNotNull { it.message?.content }
-                .filter { it.isNotEmpty() }
-                .joinToString("")
-
-            println("🤖 [AI] Full content (${fullContent.length} chars): ${fullContent.take(200)}")
-
-            fullContent.ifBlank { "No response received." }
+            val reply = gemini!!.chat(systemPrompt, history, userMessage)
+            if (reply.text.isBlank()) reply.copy(text = "Firebase AI returned an empty response.", isError = true)
+            else reply
         } catch (e: Exception) {
-            println("💥 [AI] ${e::class.simpleName}: ${e.message}")
-            "Could not reach AI server: ${e.message}"
+            println("💥 [AI] Gemini (forced) failed: ${e::class.simpleName}: ${e.message}")
+            AiResult(
+                text = "Firebase AI error: ${e.message}",
+                provider = AiProviderId.GEMINI,
+                model = model,
+                isError = true,
+            )
+        }
+    }
+
+    private suspend fun runOllama(
+        systemPrompt: String,
+        history: List<OllamaMessage>,
+        userMessage: String,
+    ): AiResult {
+        return try {
+            val reply = ollama.chat(systemPrompt, history, userMessage)
+            if (reply.text.isBlank()) reply.copy(text = "No response received.", isError = true) else reply
+        } catch (e: Exception) {
+            println("💥 [AI] ${ollama.name} failed: ${e::class.simpleName}: ${e.message}")
+            AiResult(
+                text = "Could not reach Ollama: ${e.message}",
+                provider = AiProviderId.OLLAMA,
+                model = ConfigManager.getConfig().ollamaModel,
+                isError = true,
+            )
         }
     }
 

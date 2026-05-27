@@ -2,9 +2,11 @@ package org.example.project.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,10 +44,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import org.example.project.data.AiRepository
+import org.example.project.data.ai.AiPrefs
+import org.example.project.data.ai.AiProviderId
+import org.example.project.data.ai.AiProviderMode
+import org.example.project.data.ai.AiUsageTracker
+import org.example.project.data.ai.ProviderUsage
+import org.example.project.data.ai.SessionUsage
 import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.util.DateUtils
+import kotlin.time.TimeSource
 
 private val CardCorner = RoundedCornerShape(20.dp)
 private val FieldCorner = RoundedCornerShape(14.dp)
@@ -64,9 +75,14 @@ fun TestConnectionScreen(
     onDarkThemeChange: (Boolean) -> Unit = {},
 ) {
     val repository = remember { TransactionRepository() }
+    val aiRepository = remember { AiRepository() }
     val coroutineScope = rememberCoroutineScope()
     var result by remember { mutableStateOf(TestResult.Idle) }
     var isLoading by remember { mutableStateOf(false) }
+    val usage by AiUsageTracker.state.collectAsState()
+    val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
+    val providerMode by AiPrefs.providerMode.collectAsState()
+    var switchStatus by remember { mutableStateOf<AiSwitchStatus>(AiSwitchStatus.Idle) }
 
     Column(
         modifier = modifier
@@ -146,7 +162,465 @@ fun TestConnectionScreen(
 
         ResultCard(result = result)
 
+        AiProviderCard(
+            selectedMode = providerMode,
+            geminiAvailable = aiRepository.isGeminiAvailable,
+            status = switchStatus,
+            onSelect = { mode ->
+                AiPrefs.setProviderMode(mode)
+                switchStatus = AiSwitchStatus.Checking(mode)
+                coroutineScope.launch {
+                    val mark = TimeSource.Monotonic.markNow()
+                    val reply = aiRepository.chat("Reply with the single word: OK.")
+                    val ms = mark.elapsedNow().inWholeMilliseconds
+                    switchStatus = if (reply.isError) {
+                        AiSwitchStatus.Failed(reply.text)
+                    } else {
+                        AiSwitchStatus.Ok(reply.provider, reply.model, ms)
+                    }
+                }
+            },
+        )
+
+        AiUsageCard(usage = usage, onReset = AiUsageTracker::reset)
+
+        PerMessageTokensToggleRow(
+            enabled = showPerMessageTokens,
+            onEnabledChange = AiPrefs::setShowPerMessageTokens,
+        )
+
         InstructionsCard()
+    }
+}
+
+/** Session AI usage ledger — requests, tokens, prompt/response split, and per-provider breakdown. */
+@Composable
+private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit) {
+    val accent = Color(0xFF00C853)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CardCorner)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.18f)),
+                ),
+                shape = CardCorner,
+            )
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "AI Usage · this session",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (!usage.isEmpty) ResetChip(onReset = onReset)
+        }
+
+        if (usage.isEmpty) {
+            Text(
+                text = "No requests yet this session.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                StatColumn(
+                    value = animatedCount(usage.totalRequests).toString(),
+                    label = "requests",
+                    modifier = Modifier.weight(1f),
+                )
+                StatColumn(
+                    value = groupThousands(animatedCount(usage.totalTokens)),
+                    label = "total tokens",
+                    modifier = Modifier.weight(1f),
+                )
+                StatColumn(
+                    value = usage.lastModel?.removePrefix("gemini-") ?: "—",
+                    label = "active model",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            TokenSplitBar(
+                promptTokens = usage.totalPromptTokens,
+                responseTokens = usage.totalResponseTokens,
+                accent = accent,
+            )
+
+            Text(
+                text = "Provider split",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            ProviderSplitRow(
+                color = accent,
+                label = "Gemini",
+                usage = usage.gemini,
+            )
+            ProviderSplitRow(
+                color = Color(0xFFFFB300),
+                label = "Ollama",
+                usage = usage.ollama,
+                suffix = " (fallback)",
+            )
+        }
+
+        Text(
+            text = "Session totals only — for daily quota & billing, see the Google Cloud console.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun StatColumn(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Thin rounded bar showing prompt vs response token share. */
+@Composable
+private fun TokenSplitBar(promptTokens: Int, responseTokens: Int, accent: Color) {
+    val total = (promptTokens + responseTokens).coerceAtLeast(1)
+    val promptFraction = promptTokens.toFloat() / total
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(accent.copy(alpha = 0.18f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(promptFraction)
+                    .height(6.dp)
+                    .background(accent),
+            )
+        }
+        Text(
+            text = "prompt ${groupThousands(promptTokens)} · reply ${groupThousands(responseTokens)}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ProviderSplitRow(
+    color: Color,
+    label: String,
+    usage: ProviderUsage,
+    suffix: String = "",
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color),
+        )
+        Text(
+            text = "$label$suffix",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "${usage.requests} reqs · ${groupThousands(usage.totalTokens)} tok",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ResetChip(onReset: () -> Unit) {
+    val bounce = rememberPressBounce(pressedScale = 0.92f)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onClick = onReset,
+            )
+            .then(bounce.modifier)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = "Reset",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PerMessageTokensToggleRow(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+) {
+    val bounce = rememberPressBounce(pressedScale = 0.97f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(FieldCorner)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .toggleable(
+                value = enabled,
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onValueChange = onEnabledChange,
+            )
+            .then(bounce.modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Show per-message tokens",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = "Adds a faint model · token count under each AI reply in chat.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedThumbColor = Color.White,
+            ),
+        )
+    }
+}
+
+/** Springy roll-up for a counter value. */
+@Composable
+private fun animatedCount(target: Int): Int {
+    val value by animateIntAsState(
+        targetValue = target,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "usageCount",
+    )
+    return value
+}
+
+/** 11480 → "11,480". */
+private fun groupThousands(n: Int): String {
+    val s = n.toString()
+    val sb = StringBuilder()
+    val len = s.length
+    for (i in 0 until len) {
+        if (i > 0 && (len - i) % 3 == 0) sb.append(',')
+        sb.append(s[i])
+    }
+    return sb.toString()
+}
+
+/** Outcome of a manual provider switch + verification probe. */
+private sealed interface AiSwitchStatus {
+    data object Idle : AiSwitchStatus
+    data class Checking(val mode: AiProviderMode) : AiSwitchStatus
+    data class Ok(val provider: AiProviderId, val model: String, val ms: Long) : AiSwitchStatus
+    data class Failed(val message: String) : AiSwitchStatus
+}
+
+/** Manual AI provider selector + live "did it switch?" verification. */
+@Composable
+private fun AiProviderCard(
+    selectedMode: AiProviderMode,
+    geminiAvailable: Boolean,
+    status: AiSwitchStatus,
+    onSelect: (AiProviderMode) -> Unit,
+) {
+    val accent = Color(0xFF00C853)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CardCorner)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.18f)),
+                ),
+                shape = CardCorner,
+            )
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "AI Provider",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Pick which assistant answers. Auto uses Firebase AI, then Ollama if it fails.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AiProviderMode.entries.forEach { mode ->
+                val enabled = mode != AiProviderMode.GEMINI || geminiAvailable
+                ProviderModeChip(
+                    label = mode.label,
+                    selected = selectedMode == mode,
+                    enabled = enabled,
+                    onClick = { onSelect(mode) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        if (!geminiAvailable) {
+            Text(
+                text = "Firebase AI is unavailable on this build/config.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFFFFB300),
+            )
+        }
+        SwitchStatusRow(status = status)
+    }
+}
+
+@Composable
+private fun ProviderModeChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val accent = Color(0xFF00C853)
+    val bg by animateColorAsState(
+        targetValue = if (selected) accent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "chipBg",
+    )
+    val borderColor = if (selected) accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
+    val textColor = when {
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        selected -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val bounce = rememberPressBounce(pressedScale = 0.96f)
+    Box(
+        modifier = modifier
+            .clip(FieldCorner)
+            .background(bg)
+            .border(1.dp, borderColor, FieldCorner)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            )
+            .then(bounce.modifier)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = textColor,
+        )
+    }
+}
+
+@Composable
+private fun SwitchStatusRow(status: AiSwitchStatus) {
+    when (status) {
+        AiSwitchStatus.Idle -> Text(
+            text = "Tap a provider to switch and verify it responds.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        is AiSwitchStatus.Checking -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "Checking ${status.mode.label}…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        is AiSwitchStatus.Ok -> SwitchStatusLine(
+            color = Color(0xFF00C853),
+            text = "Switched to ${status.provider.displayName} · ${status.model.removePrefix("gemini-")} · ${status.ms} ms",
+        )
+
+        is AiSwitchStatus.Failed -> SwitchStatusLine(
+            color = Color(0xFFE53935),
+            text = status.message,
+        )
+    }
+}
+
+@Composable
+private fun SwitchStatusLine(color: Color, text: String) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .size(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color),
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

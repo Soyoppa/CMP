@@ -1,31 +1,64 @@
 {
-  "hosting": {
-    "public": "composeApp/build/dist/wasmJs/productionExecutable",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(wasm|js)",
-        "headers": [
-          {
-            "key": "Cross-Origin-Embedder-Policy",
-            "value": "require-corp"
-          },
-          {
-            "key": "Cross-Origin-Opener-Policy",
-            "value": "same-origin"
-          }
-        ]
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "tracker1",
+      "public": "composeApp/build/dist/wasmJs/productionExecutable",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(wasm|js)",
+          "headers": [
+            {
+              "key": "Cross-Origin-Embedder-Policy",
+              "value": "require-corp"
+            },
+            {
+              "key": "Cross-Origin-Opener-Policy",
+              "value": "same-origin"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "tracker2",
+      "public": "composeApp/build/dist/wasmJs/productionExecutable",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(wasm|js)",
+          "headers": [
+            {
+              "key": "Cross-Origin-Embedder-Policy",
+              "value": "require-corp"
+            },
+            {
+              "key": "Cross-Origin-Opener-Policy",
+              "value": "same-origin"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

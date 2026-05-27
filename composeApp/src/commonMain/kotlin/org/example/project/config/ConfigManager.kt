@@ -24,7 +24,24 @@ object ConfigManager {
         val sheetSchema: String,
         val ollamaUrl: String,
         val ollamaModel: String,
-    )
+        // Firebase AI Logic (primary AI provider on web)
+        val firebaseApiKey: String,
+        val firebaseAuthDomain: String,
+        val firebaseProjectId: String,
+        val firebaseStorageBucket: String,
+        val firebaseMessagingSenderId: String,
+        val firebaseAppId: String,
+        val geminiModel: String,
+    ) {
+        /**
+         * Firebase AI Logic is usable only when the core web-app identifiers are present.
+         * When false, the app skips the Gemini path and uses Ollama directly.
+         */
+        val isFirebaseAiConfigured: Boolean
+            get() = firebaseApiKey.isNotBlank() &&
+                firebaseProjectId.isNotBlank() &&
+                firebaseAppId.isNotBlank()
+    }
 
     private var override: ApiConfiguration? = null
 
@@ -42,6 +59,13 @@ object ConfigManager {
             sheetSchema = ApiConfig.SHEET_SCHEMA,
             ollamaUrl = ApiConfig.OLLAMA_URL,
             ollamaModel = ApiConfig.OLLAMA_MODEL,
+            firebaseApiKey = ApiConfig.FIREBASE_API_KEY,
+            firebaseAuthDomain = ApiConfig.FIREBASE_AUTH_DOMAIN,
+            firebaseProjectId = ApiConfig.FIREBASE_PROJECT_ID,
+            firebaseStorageBucket = ApiConfig.FIREBASE_STORAGE_BUCKET,
+            firebaseMessagingSenderId = ApiConfig.FIREBASE_MESSAGING_SENDER_ID,
+            firebaseAppId = ApiConfig.FIREBASE_APP_ID,
+            geminiModel = ApiConfig.GEMINI_MODEL,
         )
     }
 

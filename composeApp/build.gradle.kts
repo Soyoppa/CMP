@@ -191,4 +191,16 @@ buildConfig {
     field("GOOGLE_API_KEY", localProperties.getProperty("GOOGLE_API_KEY", ""))
     field("OLLAMA_URL", localProperties.getProperty("OLLAMA_URL", "http://localhost:11434"))
     field("OLLAMA_MODEL", localProperties.getProperty("OLLAMA_MODEL", "llama3.1:8b"))
+
+    // Firebase AI Logic (primary AI provider on web; Gemini Developer API / free tier).
+    // These come from the Firebase console Web app `firebaseConfig` — none are secret
+    // (the Firebase web apiKey is an identifier, not the Gemini key, which Firebase AI
+    // Logic keeps server-side). Empty values disable the Gemini path → Ollama fallback.
+    field("FIREBASE_API_KEY", localProperties.getProperty("FIREBASE_API_KEY", ""))
+    field("FIREBASE_AUTH_DOMAIN", localProperties.getProperty("FIREBASE_AUTH_DOMAIN", ""))
+    field("FIREBASE_PROJECT_ID", localProperties.getProperty("FIREBASE_PROJECT_ID", ""))
+    field("FIREBASE_STORAGE_BUCKET", localProperties.getProperty("FIREBASE_STORAGE_BUCKET", ""))
+    field("FIREBASE_MESSAGING_SENDER_ID", localProperties.getProperty("FIREBASE_MESSAGING_SENDER_ID", ""))
+    field("FIREBASE_APP_ID", localProperties.getProperty("FIREBASE_APP_ID", ""))
+    field("GEMINI_MODEL", localProperties.getProperty("GEMINI_MODEL", "gemini-2.0-flash"))
 }

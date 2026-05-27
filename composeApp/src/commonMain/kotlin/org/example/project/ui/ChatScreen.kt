@@ -1,5 +1,9 @@
 package org.example.project.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
@@ -25,6 +30,9 @@ import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.ai_icon
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
+import org.example.project.data.ai.AiPrefs
+import org.example.project.data.ai.AiProviderId
+import org.example.project.data.ai.AiUsageTracker
 import org.example.project.model.ChatMessage
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.AiViewModel
@@ -44,6 +52,8 @@ fun ChatScreen(
     bottomPadding: Dp = 0.dp,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val usage by AiUsageTracker.state.collectAsState()
+    val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
@@ -63,6 +73,8 @@ fun ChatScreen(
         ChatHeader(
             transactionsLoaded = uiState.transactionsLoaded,
             isLoadingTransactions = uiState.isLoadingTransactions,
+            provider = usage.lastProvider,
+            model = usage.lastModel,
             onClearChat = viewModel::clearChat,
         )
 
@@ -80,7 +92,7 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(uiState.messages, key = { it.id }) { message ->
-                        MessageBubble(message = message)
+                        MessageBubble(message = message, showTokens = showPerMessageTokens)
                     }
                 }
             }
@@ -117,6 +129,8 @@ fun ChatScreen(
 private fun ChatHeader(
     transactionsLoaded: Boolean,
     isLoadingTransactions: Boolean,
+    provider: AiProviderId?,
+    model: String?,
     onClearChat: () -> Unit,
 ) {
     Row(
@@ -139,6 +153,10 @@ private fun ChatHeader(
                 isLoading = isLoadingTransactions,
                 isLoaded = transactionsLoaded,
             )
+            // Appears once the first reply lands; cross-fades green↔amber on provider change.
+            if (provider != null) {
+                ProviderPill(provider = provider, model = model)
+            }
         }
         val clearBounce = rememberPressBounce(pressedScale = 0.92f)
         Box(
@@ -193,8 +211,69 @@ private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
     }
 }
 
+/** Which AI backend answered last — green for Gemini, amber for the Ollama fallback. */
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun ProviderPill(provider: AiProviderId, model: String?) {
+    val targetColor = when (provider) {
+        AiProviderId.GEMINI -> ChatAccent
+        AiProviderId.OLLAMA -> Color(0xFFFFB300)
+    }
+    val color by animateColorAsState(
+        targetValue = targetColor,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "providerColor",
+    )
+    val label = when (provider) {
+        AiProviderId.GEMINI -> "Gemini" + (model?.let { " · ${shortModel(it)}" } ?: "")
+        AiProviderId.OLLAMA -> "Ollama · fallback"
+    }
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** "gemini-2.5-flash" → "2.5-flash"; leaves non-Gemini model ids untouched. */
+private fun shortModel(model: String): String = model.removePrefix("gemini-")
+
+/** Faint per-message usage line under an assistant bubble; fades in after the bubble settles. */
+@Composable
+private fun TokenFootnote(model: String, tokens: Int) {
+    val visible by produceState(false) { value = true }
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tokenFade",
+    )
+    Text(
+        text = "${shortModel(model)} · $tokens tok",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = 4.dp, start = 6.dp)
+            .graphicsLayer { this.alpha = alpha },
+    )
+}
+
+@Composable
+private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
     val isUser = message.role == ChatMessage.Role.USER
 
     Row(
@@ -261,6 +340,10 @@ private fun MessageBubble(message: ChatMessage) {
                         lineHeight = 20.sp,
                     )
                 }
+            }
+
+            if (!isUser && !message.isStreaming && showTokens && message.model != null) {
+                TokenFootnote(model = message.model, tokens = message.totalTokens ?: 0)
             }
         }
 
