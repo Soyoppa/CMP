@@ -72,6 +72,7 @@ fun FinanceTrackerTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = appTypography(),
         content = content
     )
 }

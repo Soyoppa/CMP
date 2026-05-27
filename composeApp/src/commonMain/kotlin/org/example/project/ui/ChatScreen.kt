@@ -30,6 +30,9 @@ import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.ai_icon
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
+import org.example.project.auth.AuthState
+import org.example.project.auth.Session
+import org.example.project.auth.aiCharLimit
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
 import org.example.project.data.ai.AiUsageTracker
@@ -50,10 +53,15 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
     viewModel: AiViewModel = createAiViewModel(),
     bottomPadding: Dp = 0.dp,
+    onRequestSignUp: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
+    val authState by Session.state.collectAsState()
+    val authUser = (authState as? AuthState.Authenticated)?.user
+    val isGuest = authUser?.isGuest == true
+    val charLimit = authUser?.aiCharLimit ?: Int.MAX_VALUE
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
@@ -110,18 +118,62 @@ fun ChatScreen(
             )
         }
 
-        ChatInputBar(
-            value = inputText,
-            isLoading = uiState.isLoading,
-            onValueChange = { inputText = it },
-            onSend = {
-                if (inputText.isNotBlank()) {
-                    viewModel.sendMessage(inputText)
-                    inputText = ""
-                }
-            },
-            bottomPadding = bottomPadding,
+        if (isGuest && uiState.guestLocked) {
+            GuestChatUpsell(onSignUp = onRequestSignUp, bottomPadding = bottomPadding)
+        } else {
+            ChatInputBar(
+                value = inputText,
+                isLoading = uiState.isLoading,
+                onValueChange = { if (it.length <= charLimit) inputText = it },
+                onSend = {
+                    if (inputText.isNotBlank()) {
+                        viewModel.sendMessage(inputText)
+                        inputText = ""
+                    }
+                },
+                bottomPadding = bottomPadding,
+                hint = if (isGuest) "Guest preview · up to $charLimit characters" else "Ask about your finances…",
+            )
+        }
+    }
+}
+
+/** Replaces the composer once a guest has used their free message. */
+@Composable
+private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
+    val bounce = rememberPressBounce(pressedScale = 0.97f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp + bottomPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "You've used your free guest message.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
         )
+        Box(
+            modifier = Modifier
+                .clip(ChipCorner)
+                .background(ChatAccent)
+                .clickable(
+                    interactionSource = bounce.interactionSource,
+                    indication = null,
+                    onClick = onSignUp,
+                )
+                .then(bounce.modifier)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(
+                text = "Sign up to keep chatting",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+            )
+        }
     }
 }
 
@@ -430,6 +482,7 @@ private fun ChatInputBar(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     bottomPadding: Dp = 0.dp,
+    hint: String = "Ask about your finances…",
 ) {
     Row(
         modifier = Modifier
@@ -443,7 +496,7 @@ private fun ChatInputBar(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f).then(inputBounce.modifier),
-            placeholder = { Text("Ask about your finances…", fontSize = 13.sp) },
+            placeholder = { Text(hint, fontSize = 13.sp) },
             maxLines = 3,
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),

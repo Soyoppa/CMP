@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import org.example.project.auth.AuthState
+import org.example.project.auth.Session
 import org.example.project.data.AiRepository
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
@@ -73,6 +75,8 @@ fun TestConnectionScreen(
     modifier: Modifier = Modifier,
     isDarkTheme: Boolean = false,
     onDarkThemeChange: (Boolean) -> Unit = {},
+    accountEmail: String? = null,
+    onSignOut: () -> Unit = {},
 ) {
     val repository = remember { TransactionRepository() }
     val aiRepository = remember { AiRepository() }
@@ -83,6 +87,8 @@ fun TestConnectionScreen(
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
     val providerMode by AiPrefs.providerMode.collectAsState()
     var switchStatus by remember { mutableStateOf<AiSwitchStatus>(AiSwitchStatus.Idle) }
+    val authState by Session.state.collectAsState()
+    val isGuest = (authState as? AuthState.Authenticated)?.user?.isGuest == true
 
     Column(
         modifier = modifier
@@ -99,10 +105,24 @@ fun TestConnectionScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 
+        AccountRow(
+            email = accountEmail,
+            isGuest = isGuest,
+            onSignOut = onSignOut,
+        )
+
         DarkModeToggleRow(
             isDarkTheme = isDarkTheme,
             onDarkThemeChange = onDarkThemeChange,
         )
+
+        if (isGuest) {
+            Text(
+                text = "Guest mode — diagnostics are read-only. Sign in to enable them.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFFFB300),
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -111,6 +131,7 @@ fun TestConnectionScreen(
             TestActionButton(
                 label = "Test Read",
                 isLoading = isLoading,
+                enabled = !isGuest,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     // TODO: rewire Test Read once the new read path lands.
@@ -124,6 +145,7 @@ fun TestConnectionScreen(
             TestActionButton(
                 label = "Test Write",
                 isLoading = isLoading,
+                enabled = !isGuest,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     coroutineScope.launch {
@@ -165,6 +187,7 @@ fun TestConnectionScreen(
         AiProviderCard(
             selectedMode = providerMode,
             geminiAvailable = aiRepository.isGeminiAvailable,
+            interactive = !isGuest,
             status = switchStatus,
             onSelect = { mode ->
                 AiPrefs.setProviderMode(mode)
@@ -182,20 +205,67 @@ fun TestConnectionScreen(
             },
         )
 
-        AiUsageCard(usage = usage, onReset = AiUsageTracker::reset)
+        AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
 
         PerMessageTokensToggleRow(
-            enabled = showPerMessageTokens,
-            onEnabledChange = AiPrefs::setShowPerMessageTokens,
+            checked = showPerMessageTokens,
+            enabled = !isGuest,
+            onCheckedChange = AiPrefs::setShowPerMessageTokens,
         )
 
         InstructionsCard()
     }
 }
 
+/** Account status + sign-out (or "Exit guest"). */
+@Composable
+private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) {
+    val bounce = rememberPressBounce(pressedScale = 0.95f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(FieldCorner)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (isGuest) "Guest mode" else "Signed in",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = email ?: if (isGuest) "Browsing without an account" else "Not signed in",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable(
+                    interactionSource = bounce.interactionSource,
+                    indication = null,
+                    onClick = onSignOut,
+                )
+                .then(bounce.modifier)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = if (isGuest) "Exit guest" else "Sign out",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 /** Session AI usage ledger — requests, tokens, prompt/response split, and per-provider breakdown. */
 @Composable
-private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit) {
+private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit, canReset: Boolean = true) {
     val accent = Color(0xFF00C853)
     Column(
         modifier = Modifier
@@ -220,7 +290,7 @@ private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            if (!usage.isEmpty) ResetChip(onReset = onReset)
+            if (!usage.isEmpty && canReset) ResetChip(onReset = onReset)
         }
 
         if (usage.isEmpty) {
@@ -387,8 +457,9 @@ private fun ResetChip(onReset: () -> Unit) {
 
 @Composable
 private fun PerMessageTokensToggleRow(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
     val bounce = rememberPressBounce(pressedScale = 0.97f)
     Row(
@@ -397,10 +468,11 @@ private fun PerMessageTokensToggleRow(
             .clip(FieldCorner)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .toggleable(
-                value = enabled,
+                value = checked,
+                enabled = enabled,
                 interactionSource = bounce.interactionSource,
                 indication = null,
-                onValueChange = onEnabledChange,
+                onValueChange = onCheckedChange,
             )
             .then(bounce.modifier)
             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -419,8 +491,9 @@ private fun PerMessageTokensToggleRow(
             )
         }
         Switch(
-            checked = enabled,
+            checked = checked,
             onCheckedChange = null,
+            enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
                 checkedThumbColor = Color.White,
@@ -467,6 +540,7 @@ private fun AiProviderCard(
     geminiAvailable: Boolean,
     status: AiSwitchStatus,
     onSelect: (AiProviderMode) -> Unit,
+    interactive: Boolean = true,
 ) {
     val accent = Color(0xFF00C853)
     Column(
@@ -500,7 +574,7 @@ private fun AiProviderCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AiProviderMode.entries.forEach { mode ->
-                val enabled = mode != AiProviderMode.GEMINI || geminiAvailable
+                val enabled = interactive && (mode != AiProviderMode.GEMINI || geminiAvailable)
                 ProviderModeChip(
                     label = mode.label,
                     selected = selectedMode == mode,
@@ -674,11 +748,12 @@ private fun TestActionButton(
     isLoading: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val bounce = rememberPressBounce(pressedScale = 0.96f)
     Button(
         onClick = onClick,
-        enabled = !isLoading,
+        enabled = enabled && !isLoading,
         modifier = modifier
             .height(56.dp)
             .then(bounce.modifier),

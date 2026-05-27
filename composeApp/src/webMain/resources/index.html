@@ -38,7 +38,8 @@
             const appMod = await import(`${SDK}/firebase-app.js`);
             const aiMod = await import(`${SDK}/firebase-ai.js`);
             this._lib = aiMod;
-            const app = appMod.initializeApp(config);
+            // Share a single Firebase app instance with the auth bridge.
+            const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
             this._ai = aiMod.getAI(app, { backend: new aiMod.GoogleAIBackend() });
             console.log("[financeAi] Firebase AI Logic ready (Gemini Developer API)");
             return true;
@@ -68,6 +69,91 @@
             responseTokens: usage.candidatesTokenCount || 0,
             totalTokens: usage.totalTokenCount || 0,
           });
+        },
+      };
+    </script>
+
+    <!--
+      Firebase Auth bridge. Exposes window.__financeAuth.{init, signIn, signUp, guest, signOut};
+      called from FirebaseAuthRepository (wasmJsMain). Email/Password + Anonymous (guest) providers,
+      with browserLocalPersistence so sessions survive restarts until explicit sign-out.
+    -->
+    <script type="module">
+      const SDK = "https://www.gstatic.com/firebasejs/12.13.0";
+      window.__financeAuth = {
+        _auth: null,
+        _lib: null,
+        _ready: null,
+        _ensure(configJson) {
+          if (this._ready) return this._ready;
+          const config = JSON.parse(configJson);
+          this._ready = (async () => {
+            const appMod = await import(`${SDK}/firebase-app.js`);
+            const authMod = await import(`${SDK}/firebase-auth.js`);
+            this._lib = authMod;
+            const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
+            this._auth = authMod.getAuth(app);
+            try { await authMod.setPersistence(this._auth, authMod.browserLocalPersistence); } catch (e) {}
+            return true;
+          })();
+          return this._ready;
+        },
+        _user(u) {
+          return JSON.stringify({
+            signedIn: !!u,
+            email: (u && u.email) || null,
+            isGuest: !!(u && u.isAnonymous),
+          });
+        },
+        _friendly(e) {
+          const code = (e && e.code) || "";
+          const map = {
+            "auth/invalid-credential": "Wrong email or password.",
+            "auth/invalid-email": "That email looks invalid.",
+            "auth/user-not-found": "No account with that email.",
+            "auth/wrong-password": "Wrong email or password.",
+            "auth/email-already-in-use": "That email is already registered.",
+            "auth/weak-password": "Password must be at least 6 characters.",
+            "auth/too-many-requests": "Too many attempts — try again later.",
+            "auth/operation-not-allowed": "Email/Password sign-in isn't enabled in Firebase.",
+            "auth/admin-restricted-operation": "Guest mode (Anonymous auth) isn't enabled in Firebase.",
+          };
+          return map[code] || (e && e.message) || "Authentication failed.";
+        },
+        // Resolves once the persisted auth state is known (first onAuthStateChanged emission).
+        async init(configJson) {
+          await this._ensure(configJson);
+          const authMod = this._lib, auth = this._auth;
+          const user = await new Promise((resolve) => {
+            const unsub = authMod.onAuthStateChanged(auth, (u) => { unsub(); resolve(u); });
+          });
+          return this._user(user);
+        },
+        async signIn(email, password) {
+          await this._ready;
+          try {
+            const cred = await this._lib.signInWithEmailAndPassword(this._auth, email, password);
+            return this._user(cred.user);
+          } catch (e) { throw new Error(this._friendly(e)); }
+        },
+        async signUp(email, password) {
+          await this._ready;
+          try {
+            const cred = await this._lib.createUserWithEmailAndPassword(this._auth, email, password);
+            return this._user(cred.user);
+          } catch (e) { throw new Error(this._friendly(e)); }
+        },
+        async guest() {
+          await this._ready;
+          try {
+            const cred = await this._lib.signInAnonymously(this._auth);
+            return this._user(cred.user);
+          } catch (e) { throw new Error(this._friendly(e)); }
+        },
+        async signOut() {
+          await this._ready;
+          await this._lib.signOut(this._auth);
+          return "ok";
         },
       };
     </script>

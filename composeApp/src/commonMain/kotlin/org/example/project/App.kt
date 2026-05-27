@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -34,7 +36,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -61,14 +65,20 @@ import kotlinproject.composeapp.generated.resources.chat_bubble
 import kotlinproject.composeapp.generated.resources.dots
 import kotlinproject.composeapp.generated.resources.failed
 import kotlinproject.composeapp.generated.resources.success
+import org.example.project.auth.AuthState
+import org.example.project.auth.Session
+import org.example.project.auth.createAuthRepository
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.ChatScreen
+import org.example.project.ui.LoginScreen
 import org.example.project.ui.TestConnectionScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
+import org.example.project.viewmodel.AuthViewModel
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.example.project.viewmodel.createTransactionViewModel
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -105,6 +115,25 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         var selectedTab by remember { mutableStateOf(NavTab.ADD) }
         val aiViewModel = createAiViewModel()
 
+        val authRepository = remember { createAuthRepository() }
+        val authViewModel = remember { AuthViewModel(authRepository) }
+        val authState by Session.state.collectAsState()
+        val scope = rememberCoroutineScope()
+
+        // Restore any persisted session once at startup.
+        LaunchedEffect(Unit) { authRepository.restoreSession() }
+
+        // Guest → "Create account": flip to sign-up, sign the guest out so the gate shows Login.
+        val requestSignUp: () -> Unit = {
+            authViewModel.setMode(AuthViewModel.Mode.SIGN_UP)
+            scope.launch { authRepository.signOut() }
+            Unit
+        }
+        val signOut: () -> Unit = {
+            scope.launch { authRepository.signOut() }
+            Unit
+        }
+
         LaunchedEffect(viewModel) {
             viewModel.effects.collect { effect ->
                 when (effect) {
@@ -121,60 +150,125 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
             }
         }
 
-        Scaffold(
-            snackbarHost = {}
-        ) { paddingValues ->
-            val focusManager = LocalFocusManager.current
-            val keyboardController = LocalSoftwareKeyboardController.current
-            val dismissInteractionSource = remember { MutableInteractionSource() }
+        when (val auth = authState) {
+            AuthState.Loading -> AuthSplash()
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(paddingValues)
-                    .clickable(
-                        interactionSource = dismissInteractionSource,
-                        indication = null,
-                    ) {
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
+            AuthState.SignedOut -> LoginScreen(
+                viewModel = authViewModel,
+                modifier = Modifier.fillMaxSize(),
+            )
+
+            is AuthState.Authenticated -> Scaffold(
+                snackbarHost = {}
+            ) { paddingValues ->
+                val focusManager = LocalFocusManager.current
+                val keyboardController = LocalSoftwareKeyboardController.current
+                val dismissInteractionSource = remember { MutableInteractionSource() }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(paddingValues)
+                        .clickable(
+                            interactionSource = dismissInteractionSource,
+                            indication = null,
+                        ) {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (auth.user.isGuest) {
+                            GuestBanner(onCreateAccount = requestSignUp)
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            when (selectedTab) {
+                                NavTab.CHAT -> ChatScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    viewModel = aiViewModel,
+                                    bottomPadding = 100.dp, // clears the floating nav pill
+                                    onRequestSignUp = requestSignUp,
+                                )
+                                NavTab.ADD -> TransactionInputScreen(
+                                    viewModel = viewModel,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                NavTab.DEBUG -> TestConnectionScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    isDarkTheme = resolvedDark,
+                                    onDarkThemeChange = { darkThemeOverride = it },
+                                    accountEmail = auth.user.email,
+                                    onSignOut = signOut,
+                                )
+                            }
+                        }
                     }
-            ) {
-                when (selectedTab) {
-                    NavTab.CHAT -> ChatScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        viewModel = aiViewModel,
-                        bottomPadding = 100.dp, // clears the floating nav pill
-                    )
-                    NavTab.ADD -> TransactionInputScreen(
-                        viewModel = viewModel,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    NavTab.DEBUG -> TestConnectionScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        isDarkTheme = resolvedDark,
-                        onDarkThemeChange = { darkThemeOverride = it },
-                    )
-                }
 
-                FloatingNavPill(
-                    selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
-                )
+                    FloatingNavPill(
+                        selectedTab = selectedTab,
+                        onTabSelected = { selectedTab = it },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
+                    )
 
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 32.dp),
-                ) { data ->
-                    FeedbackSnackbar(data)
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(horizontal = 32.dp),
+                    ) { data ->
+                        FeedbackSnackbar(data)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AuthSplash() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(color = Color(0xFF00C853))
+    }
+}
+
+@Composable
+private fun GuestBanner(onCreateAccount: () -> Unit) {
+    val accent = Color(0xFF00C853)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(accent.copy(alpha = 0.12f))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Exploring as guest",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(accent)
+                .clickable(onClick = onCreateAccount)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = "Create account",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+            )
         }
     }
 }

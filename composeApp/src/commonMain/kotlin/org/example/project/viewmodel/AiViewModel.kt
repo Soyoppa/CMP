@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.example.project.auth.Session
+import org.example.project.auth.aiMessageLimit
 import org.example.project.data.AiRepository
 import org.example.project.data.OllamaMessage
 import org.example.project.data.ai.AiUsageTracker
@@ -21,7 +23,9 @@ data class AiUiState(
     val isLoading: Boolean = false,
     val isLoadingTransactions: Boolean = false,
     val error: String? = null,
-    val transactionsLoaded: Boolean = false
+    val transactionsLoaded: Boolean = false,
+    /** True once a guest has used up their free message allowance. */
+    val guestLocked: Boolean = false,
 )
 
 class AiViewModel(
@@ -37,6 +41,9 @@ class AiViewModel(
 
     // Budget context fed to the model so it can answer "can we still spend on X?".
     private var budget: List<BudgetCategory> = emptyList()
+
+    // Guest allowance tracking.
+    private var guestMessagesSent = 0
 
     init {
         ConfigManager.reset()
@@ -59,6 +66,15 @@ class AiViewModel(
     fun sendMessage(userInput: String) {
         if (userInput.isBlank() || _uiState.value.isLoading) return
 
+        // Guest allowance: cap total messages; lock the composer once exhausted.
+        val user = Session.currentUser
+        val limit = user?.aiMessageLimit ?: Int.MAX_VALUE
+        if (user?.isGuest == true && guestMessagesSent >= limit) {
+            _uiState.update { it.copy(guestLocked = true) }
+            return
+        }
+        if (user?.isGuest == true) guestMessagesSent++
+
         val userMsg = ChatMessage(
             id = generateId(),
             role = ChatMessage.Role.USER,
@@ -77,7 +93,8 @@ class AiViewModel(
             it.copy(
                 messages = it.messages + userMsg + thinkingMsg,
                 isLoading = true,
-                error = null
+                error = null,
+                guestLocked = user?.isGuest == true && guestMessagesSent >= limit,
             )
         }
 
