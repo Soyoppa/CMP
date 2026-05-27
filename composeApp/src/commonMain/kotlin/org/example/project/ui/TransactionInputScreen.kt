@@ -9,6 +9,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +52,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,11 +61,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -76,8 +88,10 @@ import org.example.project.model.PaymentMode
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.TransactionViewModel
 
-private val IncomeColor = Color(0xFF00C853)
-private val ExpenseColor = Color(0xFFE53935)
+// Semantic income/expense accents, tuned to sit on the earthy brand palette:
+// a forest-leaning positive green for inflow, a warm terracotta for outflow.
+private val IncomeColor = Color(0xFF2E7D52)
+private val ExpenseColor = Color(0xFFC0492B)
 private val PillCorner = RoundedCornerShape(50.dp)
 private val FieldCorner = RoundedCornerShape(14.dp)
 
@@ -164,6 +178,13 @@ fun TransactionInputScreen(
             singleLine = true,
         )
 
+        // Income uses its own short source list (e.g. Renz/Gen); expense uses the full category set.
+        val useIncomeCategories = schemaFeatures.showIncomeOption && formState.isIncome
+        val categoryPickerTitle =
+            if (useIncomeCategories) schemaFeatures.incomeCategoryPickerTitle else schemaFeatures.categoryPickerTitle
+        val categoryOptions =
+            if (useIncomeCategories) schemaFeatures.incomeCategoryOptions else schemaFeatures.categoryOptions
+
         ChoiceField(
             label = schemaFeatures.categoryLabel,
             placeholder = "Select ${schemaFeatures.categoryLabel.lowercase()}",
@@ -186,8 +207,8 @@ fun TransactionInputScreen(
 
         if (formState.showCategoryDropdown) {
             ChoicePickerSheet(
-                title = schemaFeatures.categoryPickerTitle,
-                options = schemaFeatures.categoryOptions,
+                title = categoryPickerTitle,
+                options = categoryOptions,
                 selected = formState.selectedCategory,
                 accentColor = accentColor,
                 onDismiss = { viewModel.onEvent(TransactionFormEvent.CategoryDropdownToggled) },
@@ -218,7 +239,6 @@ fun TransactionInputScreen(
         SaveButton(
             isLoading = formState.isLoading,
             isEnabled = formState.isValid && !formState.isLoading,
-            accentColor = accentColor,
             onClick = {
                 keyboardController?.hide()
                 focusManager.clearFocus()
@@ -247,8 +267,21 @@ private fun TransactionTypeSegmented(
         ),
         label = "segmentOffset",
     )
+    // Squish the thumb while a finger is down — mirrors the nav pill's press feedback.
+    var pressed by remember { mutableStateOf(false) }
+    val thumbScale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "segmentThumbScale",
+    )
     val density = LocalDensity.current
     val slotWidthDp = with(density) { slotPx.toDp() }
+
+    // Read the latest type inside the long-lived gesture loop without restarting it mid-drag.
+    val currentIsIncome by rememberUpdatedState(isIncome)
 
     Box(
         modifier = Modifier
@@ -256,7 +289,44 @@ private fun TransactionTypeSegmented(
             .height(52.dp)
             .clip(PillCorner)
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .onSizeChanged { widthPx = it.width },
+            .onSizeChanged { widthPx = it.width }
+            .semantics(mergeDescendants = true) {
+                role = Role.Switch
+                contentDescription = "Transaction type"
+                stateDescription = if (currentIsIncome) "Income" else "Expense"
+                onClick(label = "Switch between expense and income") {
+                    onTypeChanged(!currentIsIncome); true
+                }
+            }
+            // Press-and-drag like the nav bar: whichever half the finger is over wins,
+            // and crossing the midpoint mid-drag flips the type.
+            .pointerInput(isEnabled) {
+                if (!isEnabled) return@pointerInput
+                awaitEachGesture {
+                    val half = size.width / 2f
+                    if (half <= 0f) return@awaitEachGesture
+                    fun incomeAt(x: Float) = x >= half
+
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    pressed = true
+                    var current = currentIsIncome
+                    incomeAt(down.position.x).let { if (it != current) { current = it; onTypeChanged(it) } }
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (!change.pressed) break
+                        val next = incomeAt(change.position.x)
+                        if (next != current) {
+                            current = next
+                            onTypeChanged(next)
+                        }
+                        change.consume()
+                    }
+                    pressed = false
+                }
+            },
     ) {
         if (slotPx > 0) {
             Box(
@@ -265,6 +335,10 @@ private fun TransactionTypeSegmented(
                     .width(slotWidthDp)
                     .fillMaxHeight()
                     .padding(4.dp)
+                    .graphicsLayer {
+                        scaleX = thumbScale
+                        scaleY = thumbScale
+                    }
                     .clip(PillCorner)
                     .background(accentColor),
             )
@@ -273,15 +347,11 @@ private fun TransactionTypeSegmented(
             SegmentLabel(
                 text = "Expense",
                 isSelected = !isIncome,
-                isEnabled = isEnabled,
-                onClick = { onTypeChanged(false) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             SegmentLabel(
                 text = "Income",
                 isSelected = isIncome,
-                isEnabled = isEnabled,
-                onClick = { onTypeChanged(true) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
@@ -292,27 +362,15 @@ private fun TransactionTypeSegmented(
 private fun SegmentLabel(
     text: String,
     isSelected: Boolean,
-    isEnabled: Boolean,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bounce = rememberPressBounce(pressedScale = 0.95f)
     val textColor by animateColorAsState(
         targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "segmentTextColor",
     )
     Box(
-        modifier = modifier
-            .clip(PillCorner)
-            .toggleable(
-                value = isSelected,
-                enabled = isEnabled,
-                interactionSource = bounce.interactionSource,
-                indication = null,
-                onValueChange = { if (it) onClick() },
-            )
-            .then(bounce.modifier),
+        modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -342,11 +400,10 @@ private fun HeroAmountField(
         label = { Text(if (isIncome) "Inflow Amount" else "Outflow Amount") },
         placeholder = { Text("0.00", style = LocalTextStyle.current.copy(fontSize = 28.sp)) },
         prefix = {
-            Text(
-                text = "₱",
+            // No bundled font ships the ₱ glyph (renders as "no glyph" on web), so draw it.
+            PesoGlyph(
                 color = accentColor,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 28.sp,
+                modifier = Modifier.padding(end = 2.dp),
             )
         },
         keyboardOptions = KeyboardOptions(
@@ -369,6 +426,29 @@ private fun HeroAmountField(
         shape = FieldCorner,
         interactionSource = bounce.interactionSource,
     )
+}
+
+/** Hand-drawn peso sign (₱). No bundled font carries U+20B1, so we vector it for cross-platform parity. */
+@Composable
+private fun PesoGlyph(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(width = 17.dp, height = 24.dp)) {
+        val w = size.width
+        val h = size.height
+        val stemW = 2.4.dp.toPx()
+        val barW = 2.0.dp.toPx()
+        val stemX = w * 0.24f
+        // Vertical stem of the "P".
+        drawLine(color, Offset(stemX, h * 0.08f), Offset(stemX, h * 0.92f), stemW, cap = StrokeCap.Round)
+        // Upper bowl.
+        val bowl = Path().apply {
+            moveTo(stemX, h * 0.08f)
+            cubicTo(w * 1.02f, h * 0.02f, w * 1.02f, h * 0.56f, stemX, h * 0.50f)
+        }
+        drawPath(bowl, color, style = Stroke(width = stemW, cap = StrokeCap.Round))
+        // The two horizontal bars that distinguish ₱ from P.
+        drawLine(color, Offset(w * 0.02f, h * 0.28f), Offset(w * 0.66f, h * 0.28f), barW, cap = StrokeCap.Round)
+        drawLine(color, Offset(w * 0.02f, h * 0.46f), Offset(w * 0.66f, h * 0.46f), barW, cap = StrokeCap.Round)
+    }
 }
 
 @Composable
@@ -621,16 +701,11 @@ private fun PaidToggleRow(
 private fun SaveButton(
     isLoading: Boolean,
     isEnabled: Boolean,
-    accentColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val bounce = rememberPressBounce(pressedScale = 0.96f)
-    val containerColor by animateColorAsState(
-        targetValue = accentColor,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "saveContainer",
-    )
+    // The submit CTA is always the brand golden — predictable regardless of income/expense.
     Button(
         onClick = onClick,
         enabled = isEnabled,
@@ -639,8 +714,8 @@ private fun SaveButton(
             .then(bounce.modifier),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
-            contentColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         interactionSource = bounce.interactionSource,
     ) {
@@ -648,7 +723,7 @@ private fun SaveButton(
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
             Spacer(Modifier.width(10.dp))
             Text("Saving…", fontWeight = FontWeight.SemiBold)

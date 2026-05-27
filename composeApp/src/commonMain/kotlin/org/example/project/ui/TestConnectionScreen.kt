@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
+import org.example.project.config.SchemaFeatures
 import org.example.project.data.AiRepository
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
@@ -145,7 +146,7 @@ fun TestConnectionScreen(
             TestActionButton(
                 label = "Test Write",
                 isLoading = isLoading,
-                enabled = !isGuest,
+                enabled = false,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     coroutineScope.launch {
@@ -204,16 +205,12 @@ fun TestConnectionScreen(
                 }
             },
         )
-
-        AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
-
         PerMessageTokensToggleRow(
             checked = showPerMessageTokens,
             enabled = !isGuest,
             onCheckedChange = AiPrefs::setShowPerMessageTokens,
         )
-
-        InstructionsCard()
+        AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
     }
 }
 
@@ -266,7 +263,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
 /** Session AI usage ledger — requests, tokens, prompt/response split, and per-provider breakdown. */
 @Composable
 private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit, canReset: Boolean = true) {
-    val accent = Color(0xFF00C853)
+    val accent = MaterialTheme.colorScheme.primary
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -542,7 +539,7 @@ private fun AiProviderCard(
     onSelect: (AiProviderMode) -> Unit,
     interactive: Boolean = true,
 ) {
-    val accent = Color(0xFF00C853)
+    val accent = MaterialTheme.colorScheme.primary
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -603,7 +600,7 @@ private fun ProviderModeChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = Color(0xFF00C853)
+    val accent = MaterialTheme.colorScheme.primary
     val bg by animateColorAsState(
         targetValue = if (selected) accent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -760,7 +757,7 @@ private fun TestActionButton(
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         interactionSource = bounce.interactionSource,
     ) {
@@ -768,7 +765,7 @@ private fun TestActionButton(
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
             Spacer(Modifier.width(10.dp))
             Text("Testing…", fontWeight = FontWeight.SemiBold)
@@ -857,44 +854,5 @@ private fun ResultCard(result: TestResult) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
-    }
-}
-
-@Composable
-private fun InstructionsCard() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(CardCorner)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = "Setup checklist",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        listOf(
-            "Use the spreadsheet ID from the edit URL (not the published one).",
-            "Share the sheet as “Anyone with link can EDIT”.",
-            "Columns: Date, Description, Inflow, Outflow, Category, Mode of Payment, Paid.",
-            "Sheet structure should match the documented format.",
-        ).forEachIndexed { index, line ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "${index + 1}.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
     }
 }

@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
-import kotlinproject.composeapp.generated.resources.ai_icon
+import kotlinproject.composeapp.generated.resources.app_logo
 import kotlinproject.composeapp.generated.resources.chat_bubble
 import kotlinproject.composeapp.generated.resources.dots
 import kotlinproject.composeapp.generated.resources.failed
@@ -98,9 +98,11 @@ private val NavItems: List<NavItem> = listOf(
     NavItem(NavTab.DEBUG, Res.drawable.dots, "Debug"),
 )
 
-private val NavActiveColor = Color(0xFF00C853)
-private val NavInactiveColor = Color(0xFFB8B8B8)
-private val NavPillBaseColor = Color(0xFF0E0E0E)
+// The floating nav pill is a fixed dark-forest glass element in both themes,
+// with golden marking the active tab (brand highlight).
+private val NavActiveColor = Color(0xFFFFBA00)   // golden
+private val NavInactiveColor = Color(0xFFB8C2BB)  // muted sage-grey
+private val NavPillBaseColor = Color(0xFF0C3B2E)  // dark forest glass
 private val PillCorner = RoundedCornerShape(50.dp)
 private val PillItemHeight = 56.dp
 
@@ -229,19 +231,25 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
 
 @Composable
 private fun AuthSplash() {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
     ) {
-        CircularProgressIndicator(color = Color(0xFF00C853))
+        Image(
+            painter = painterResource(Res.drawable.app_logo),
+            contentDescription = "App logo",
+            modifier = Modifier.size(96.dp),
+        )
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
 }
 
 @Composable
 private fun GuestBanner(onCreateAccount: () -> Unit) {
-    val accent = Color(0xFF00C853)
+    val accent = MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -267,7 +275,7 @@ private fun GuestBanner(onCreateAccount: () -> Unit) {
                 text = "Create account",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }

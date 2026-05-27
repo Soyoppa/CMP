@@ -17,6 +17,7 @@ import org.example.project.model.ChatMessage
 import org.example.project.repository.TransactionRepository
 import kotlinx.datetime.Clock
 import org.example.project.config.ConfigManager
+import org.example.project.config.SchemaFeatures
 
 data class AiUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -47,7 +48,8 @@ class AiViewModel(
 
     init {
         ConfigManager.reset()
-        loadData()
+        // Skip the budget fetch when this schema has no analysis data — the UI shows "coming soon".
+        if (SchemaFeatures.current().aiAnalysisAvailable) loadData()
     }
 
     private fun loadData() {

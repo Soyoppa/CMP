@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.example.project.auth.Session
 import org.example.project.domain.transaction.AddTransactionUseCase
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.TransactionFormReducer
@@ -86,6 +87,16 @@ class TransactionViewModel(
             return
         }
         println("✓ [ViewModel.addTransaction] Validation passed")
+
+        // Guest/demo mode: never write to the sheet, but show an honest success.
+        if (Session.isGuest) {
+            viewModelScope.launch {
+                _effects.emit(TransactionFormEffect.ShowSuccess("Demo mode — transaction not saved."))
+                _formState.value = createInitialFormState()
+                _effects.emit(TransactionFormEffect.FormCleared)
+            }
+            return
+        }
 
         // Update state to loading
         _formState.update { it.copy(isLoading = true, errorMessage = null) }

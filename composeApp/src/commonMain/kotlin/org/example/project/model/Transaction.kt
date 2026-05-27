@@ -36,6 +36,13 @@ enum class TransactionCategory(val displayName: String) {
     WET_MARKET("Wet Market")
 }
 
+/** Income sources for the tracker_1 schema — shown only when the Income type is selected. */
+enum class IncomeCategory(val displayName: String) {
+    RENZ_INCOME("Renz Income"),
+    GEN_INCOME("Gen Income"),
+    OTHER("Other")
+}
+
 enum class PaymentMode(val displayName: String) {
     BPI("BPI"),
     CASH("Cash"),

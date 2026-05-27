@@ -11,7 +11,7 @@ body {
     overflow: hidden;
     /* Notch/home-indicator gutter color — matches the app's background so the
        inset blends with the Compose canvas. */
-    background-color: #FFFBFE;
+    background-color: #FCFAF6;
     /* Safe-area insets live on <body>, NOT on #root. The Compose canvas sizes
        itself to #root's clientHeight; padding #root would inflate that height
        and push the canvas (and the bottom nav pill) off-screen. Padding body
@@ -24,7 +24,7 @@ body {
 
 @media (prefers-color-scheme: dark) {
     body {
-        background-color: #112432; /* DarkBackground (DarkBlue) */
+        background-color: #0C3B2E; /* DarkBackground (Dark forest) */
     }
 }
 

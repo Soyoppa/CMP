@@ -26,7 +26,9 @@ object TransactionFormReducer {
                     showPaymentDropdown = false
                 )
             is TransactionFormEvent.TransactionTypeChanged ->
-                state.copy(isIncome = event.isIncome)
+                // Income and expense have different category lists; reset to "Other"
+                // (valid in both) so a stale selection can't leak across types.
+                state.copy(isIncome = event.isIncome, selectedCategory = "Other")
             is TransactionFormEvent.IsPaidChanged ->
                 state.copy(isPaid = event.isPaid)
             TransactionFormEvent.CategoryDropdownToggled ->

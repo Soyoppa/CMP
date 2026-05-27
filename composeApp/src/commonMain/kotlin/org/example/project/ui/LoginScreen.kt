@@ -1,5 +1,6 @@
 package org.example.project.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,7 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,12 +47,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
-import kotlinproject.composeapp.generated.resources.ai_icon
+import kotlinproject.composeapp.generated.resources.app_logo
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.AuthViewModel
 import org.jetbrains.compose.resources.painterResource
 
-private val Accent = Color(0xFF00C853)
 private val CardCorner = RoundedCornerShape(24.dp)
 private val FieldCorner = RoundedCornerShape(14.dp)
 
@@ -79,11 +84,11 @@ fun LoginScreen(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(Accent.copy(alpha = 0.14f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(Res.drawable.ai_icon),
+                    painter = painterResource(Res.drawable.app_logo),
                     contentDescription = null,
                     modifier = Modifier.size(34.dp),
                 )
@@ -120,14 +125,10 @@ fun LoginScreen(
                 enabled = !state.isSubmitting,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailing = {
-                    Text(
-                        text = if (passwordVisible) "Hide" else "Show",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .clickable { passwordVisible = !passwordVisible }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    PasswordVisibilityToggle(
+                        visible = passwordVisible,
+                        enabled = !state.isSubmitting,
+                        onToggle = { passwordVisible = !passwordVisible },
                     )
                 },
             )
@@ -161,7 +162,7 @@ fun LoginScreen(
                     text = if (isSignUp) "Sign in" else "Sign up",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Accent,
+                    color = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
@@ -205,12 +206,67 @@ private fun AuthField(
         shape = FieldCorner,
         textStyle = LocalTextStyle.current.copy(fontSize = 15.sp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Accent,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
         ),
     )
+}
+
+/**
+ * Eye affordance for the password field. Open eye = password visible (tap to hide);
+ * closed eye with lashes = password hidden (tap to reveal). Drawn as a vector so it needs no asset.
+ */
+@Composable
+private fun PasswordVisibilityToggle(
+    visible: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    val tint = if (enabled) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+    }
+    val description = if (visible) "Hide password" else "Show password"
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(50))
+            .clickable(enabled = enabled, onClick = onToggle)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(22.dp)) {
+            val w = size.width
+            val h = size.height
+            val cy = h / 2f
+            val strokeWidthPx = 1.8.dp.toPx()
+            val stroke = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+            if (visible) {
+                // Open eye: almond outline (top + bottom lid) with a pupil.
+                val eye = Path().apply {
+                    moveTo(w * 0.08f, cy)
+                    quadraticBezierTo(w * 0.5f, h * 0.10f, w * 0.92f, cy)
+                    quadraticBezierTo(w * 0.5f, h * 0.90f, w * 0.08f, cy)
+                    close()
+                }
+                drawPath(eye, color = tint, style = stroke)
+                drawCircle(color = tint, radius = w * 0.15f, center = Offset(w * 0.5f, cy), style = stroke)
+            } else {
+                // Closed eye: a single downward-bowing lid with three short lashes.
+                val lid = Path().apply {
+                    moveTo(w * 0.10f, h * 0.42f)
+                    quadraticBezierTo(w * 0.5f, h * 0.80f, w * 0.90f, h * 0.42f)
+                }
+                drawPath(lid, color = tint, style = stroke)
+                drawLine(tint, Offset(w * 0.28f, h * 0.60f), Offset(w * 0.22f, h * 0.74f), strokeWidthPx, cap = StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.5f, h * 0.66f), Offset(w * 0.5f, h * 0.82f), strokeWidthPx, cap = StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.72f, h * 0.60f), Offset(w * 0.78f, h * 0.74f), strokeWidthPx, cap = StrokeCap.Round)
+            }
+        }
+    }
 }
 
 @Composable
@@ -221,7 +277,8 @@ private fun PrimaryButton(
     onClick: () -> Unit,
 ) {
     val bounce = rememberPressBounce(pressedScale = 0.97f)
-    val bg = if (enabled) Accent else Accent.copy(alpha = 0.4f)
+    val primary = MaterialTheme.colorScheme.primary
+    val bg = if (enabled) primary else primary.copy(alpha = 0.4f)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,9 +295,9 @@ private fun PrimaryButton(
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
         } else {
-            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimary)
         }
     }
 }

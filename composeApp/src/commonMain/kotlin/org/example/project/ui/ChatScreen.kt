@@ -19,20 +19,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
-import kotlinproject.composeapp.generated.resources.ai_icon
+import kotlinproject.composeapp.generated.resources.app_logo
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
-import org.example.project.auth.aiCharLimit
+import org.example.project.config.SchemaFeatures
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
 import org.example.project.data.ai.AiUsageTracker
@@ -43,7 +43,6 @@ import org.example.project.viewmodel.createAiViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private val ChatAccent = Color(0xFF00C853)
 private val BubbleCorner = 18.dp
 private val FieldCorner = RoundedCornerShape(24.dp)
 private val ChipCorner = RoundedCornerShape(14.dp)
@@ -55,13 +54,19 @@ fun ChatScreen(
     bottomPadding: Dp = 0.dp,
     onRequestSignUp: () -> Unit = {},
 ) {
+    // Some schemas (e.g. Tracker 2) have no analysis sheets yet — show a "coming soon" state.
+    val aiAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
+    if (!aiAvailable) {
+        AiComingSoon(modifier = modifier.fillMaxSize(), bottomPadding = bottomPadding)
+        return
+    }
+
     val uiState by viewModel.uiState.collectAsState()
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
     val authState by Session.state.collectAsState()
     val authUser = (authState as? AuthState.Authenticated)?.user
     val isGuest = authUser?.isGuest == true
-    val charLimit = authUser?.aiCharLimit ?: Int.MAX_VALUE
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
@@ -89,7 +94,10 @@ fun ChatScreen(
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.messages.isEmpty()) {
                 EmptyState(
-                    onSuggestionClick = { inputText = it },
+                    // Guests can't type — tapping a suggestion sends it straight away.
+                    onSuggestionClick = { suggestion ->
+                        if (isGuest) viewModel.sendMessage(suggestion) else inputText = suggestion
+                    },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
@@ -118,13 +126,18 @@ fun ChatScreen(
             )
         }
 
-        if (isGuest && uiState.guestLocked) {
-            GuestChatUpsell(onSignUp = onRequestSignUp, bottomPadding = bottomPadding)
-        } else {
-            ChatInputBar(
+        when {
+            isGuest && uiState.guestLocked ->
+                GuestChatUpsell(onSignUp = onRequestSignUp, bottomPadding = bottomPadding)
+
+            // Guests interact by tapping suggestions only — no free-text composer.
+            isGuest ->
+                GuestSuggestHint(bottomPadding = bottomPadding)
+
+            else -> ChatInputBar(
                 value = inputText,
                 isLoading = uiState.isLoading,
-                onValueChange = { if (it.length <= charLimit) inputText = it },
+                onValueChange = { inputText = it },
                 onSend = {
                     if (inputText.isNotBlank()) {
                         viewModel.sendMessage(inputText)
@@ -132,7 +145,32 @@ fun ChatScreen(
                     }
                 },
                 bottomPadding = bottomPadding,
-                hint = if (isGuest) "Guest preview · up to $charLimit characters" else "Ask about your finances…",
+                hint = "Ask about your finances…",
+            )
+        }
+    }
+}
+
+/** Replaces the composer for guests before they spend their message — they can only tap a suggestion. */
+@Composable
+private fun GuestSuggestHint(bottomPadding: Dp) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp + bottomPadding),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(ChipCorner)
+                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Text(
+                text = "Guest preview · tap a suggested question above to try the assistant",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -158,7 +196,7 @@ private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
         Box(
             modifier = Modifier
                 .clip(ChipCorner)
-                .background(ChatAccent)
+                .background(MaterialTheme.colorScheme.primary)
                 .clickable(
                     interactionSource = bounce.interactionSource,
                     indication = null,
@@ -171,7 +209,7 @@ private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
                 text = "Sign up to keep chatting",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }
@@ -205,7 +243,7 @@ private fun ChatHeader(
                 isLoading = isLoadingTransactions,
                 isLoaded = transactionsLoaded,
             )
-            // Appears once the first reply lands; cross-fades green↔amber on provider change.
+            // Appears once the first reply lands; cross-fades sage↔amber on provider change.
             if (provider != null) {
                 ProviderPill(provider = provider, model = model)
             }
@@ -237,7 +275,7 @@ private fun ChatHeader(
 private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
     val (label, color) = when {
         isLoading -> "Loading your transactions" to MaterialTheme.colorScheme.primary
-        isLoaded -> "Transactions synced" to ChatAccent
+        isLoaded -> "Transactions synced" to MaterialTheme.colorScheme.secondary
         else -> "No transaction data" to MaterialTheme.colorScheme.outline
     }
     Row(
@@ -263,12 +301,12 @@ private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
     }
 }
 
-/** Which AI backend answered last — green for Gemini, amber for the Ollama fallback. */
+/** Which AI backend answered last — sage for Gemini, amber for the Ollama fallback. */
 @Composable
 private fun ProviderPill(provider: AiProviderId, model: String?) {
     val targetColor = when (provider) {
-        AiProviderId.GEMINI -> ChatAccent
-        AiProviderId.OLLAMA -> Color(0xFFFFB300)
+        AiProviderId.GEMINI -> MaterialTheme.colorScheme.secondary
+        AiProviderId.OLLAMA -> MaterialTheme.colorScheme.tertiary
     }
     val color by animateColorAsState(
         targetValue = targetColor,
@@ -338,11 +376,11 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
                 modifier = Modifier
                     .size(32.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(ChatAccent.copy(alpha = 0.16f)),
+                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(Res.drawable.ai_icon),
+                    painter = painterResource(Res.drawable.app_logo),
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                 )
@@ -362,7 +400,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
                         )
                     )
                     .background(
-                        if (isUser) ChatAccent
+                        if (isUser) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceContainer
                     )
                     .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -387,7 +425,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
                     Text(
                         text = message.content,
                         fontSize = 14.sp,
-                        color = if (isUser) Color.White
+                        color = if (isUser) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.onSurface,
                         lineHeight = 20.sp,
                     )
@@ -400,6 +438,62 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
         }
 
         if (isUser) Spacer(Modifier.width(10.dp))
+    }
+}
+
+/** Shown instead of the chat when the active schema has no analysis data yet. */
+@Composable
+private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 40.dp)
+                .padding(bottom = bottomPadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(88.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.app_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(46.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = 14.dp, vertical = 5.dp),
+            ) {
+                Text(
+                    text = "SOON",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    letterSpacing = 1.5.sp,
+                )
+            }
+            Text(
+                text = "AI analysis is coming soon",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "We're still wiring up the analysis data for this tracker. " +
+                    "The assistant will light up here once its sheets are ready.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -424,11 +518,11 @@ private fun EmptyState(
             modifier = Modifier
                 .size(72.dp)
                 .clip(RoundedCornerShape(50))
-                .background(ChatAccent.copy(alpha = 0.14f)),
+                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(Res.drawable.ai_icon),
+                painter = painterResource(Res.drawable.app_logo),
                 contentDescription = null,
                 modifier = Modifier.size(40.dp),
             )
@@ -504,7 +598,7 @@ private fun ChatInputBar(
             shape = FieldCorner,
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ChatAccent,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -519,8 +613,8 @@ private fun ChatInputBar(
             modifier = Modifier.size(48.dp).then(sendBounce.modifier),
             shape = RoundedCornerShape(50),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = ChatAccent,
-                contentColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
             interactionSource = sendBounce.interactionSource,
         ) {
@@ -528,7 +622,7 @@ private fun ChatInputBar(
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
                 Icon(
