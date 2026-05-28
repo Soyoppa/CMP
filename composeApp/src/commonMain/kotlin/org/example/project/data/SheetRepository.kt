@@ -4,6 +4,16 @@ import org.example.project.model.BudgetCategory
 import org.example.project.model.Transaction
 
 /**
+ * A single recent entry, reduced to what the read diagnostic needs: a label and a
+ * magnitude. [isInflow] distinguishes income/refunds (+) from expenses/charges (−).
+ */
+data class RecentTransaction(
+    val description: String,
+    val amount: Double,
+    val isInflow: Boolean,
+)
+
+/**
  * Schema-agnostic read+write interface over the backing spreadsheet.
  *
  * Each fork picks one implementation via [SheetRepositoryFactory], driven by
@@ -17,6 +27,9 @@ interface SheetRepository {
     // Read
     /** Per-category budget + monthly actual spend. Empty on schemas without a budget tab. */
     suspend fun getBudget(): List<BudgetCategory>
+
+    /** The most recent [limit] entries (newest first), read from the data tab. */
+    suspend fun getRecentTransactions(limit: Int): List<RecentTransaction>
 
     // Write
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult

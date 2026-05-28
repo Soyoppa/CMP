@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Transaction Logger</title>
 
-    <link rel="icon" type="image/png" href="icon-512.png">
-    <link rel="apple-touch-icon" href="icon-512.png">
+    <link rel="icon" type="image/png" href="app_logo.png">
+    <link rel="apple-touch-icon" href="app_logo.png">
     <link rel="manifest" href="manifest.json">
 
     <meta name="mobile-web-app-capable" content="yes">
@@ -154,6 +154,54 @@
           await this._ready;
           await this._lib.signOut(this._auth);
           return "ok";
+        },
+      };
+    </script>
+
+    <!--
+      Firebase Remote Config bridge. Exposes window.__financeFlags.get(configJson);
+      called from RemoteConfigRepository (wasmJsMain). Acts as a remote kill-switch for UI
+      features (sign-up, guest mode, chat). Defaults below are the "fail-open" values used
+      before the first successful fetch or if Remote Config is unreachable.
+    -->
+    <script type="module">
+      const SDK = "https://www.gstatic.com/firebasejs/12.13.0";
+      const DEFAULTS = { signup_enabled: true, guest_mode_enabled: true, chat_enabled: true };
+      window.__financeFlags = {
+        _rc: null,
+        _lib: null,
+        _ready: null,
+        _ensure(configJson) {
+          if (this._ready) return this._ready;
+          const config = JSON.parse(configJson);
+          this._ready = (async () => {
+            const appMod = await import(`${SDK}/firebase-app.js`);
+            const rcMod = await import(`${SDK}/firebase-remote-config.js`);
+            this._lib = rcMod;
+            const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
+            const rc = rcMod.getRemoteConfig(app);
+            // Kill-switch latency: how stale a cached value may be before a refetch. 10 min.
+            rc.settings.minimumFetchIntervalMillis = 600000;
+            rc.defaultConfig = DEFAULTS;
+            this._rc = rc;
+            return true;
+          })();
+          return this._ready;
+        },
+        /** Fetches+activates, then returns JSON of the boolean flags. Falls back to DEFAULTS on error. */
+        async get(configJson) {
+          try {
+            await this._ensure(configJson);
+            await this._lib.fetchAndActivate(this._rc);
+            return JSON.stringify({
+              signup_enabled: this._lib.getValue(this._rc, "signup_enabled").asBoolean(),
+              guest_mode_enabled: this._lib.getValue(this._rc, "guest_mode_enabled").asBoolean(),
+              chat_enabled: this._lib.getValue(this._rc, "chat_enabled").asBoolean(),
+            });
+          } catch (e) {
+            console.error("[financeFlags] fetch failed, using defaults", e);
+            return JSON.stringify(DEFAULTS);
+          }
         },
       };
     </script>

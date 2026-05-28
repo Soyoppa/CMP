@@ -104,6 +104,36 @@ class Tracker1Repository(
         }
     }
 
+    /**
+     * Last [limit] rows of the 'Data Dump' tab (A:H), newest first.
+     * Columns: Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks.
+     * Exceptions propagate so the caller (e.g. the read diagnostic) can surface them.
+     */
+    override suspend fun getRecentTransactions(limit: Int): List<RecentTransaction> {
+        val config = ConfigManager.getConfig()
+        val response: SheetsResponse = client.get(
+            "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
+        ) {
+            parameter("key", config.apiKey)
+        }.body()
+
+        val rows = response.values ?: return emptyList()
+        return rows.drop(1) // header
+            .filter { it.getOrNull(1)?.isNotBlank() == true }
+            .takeLast(limit)
+            .map { row ->
+                val inflow = parseAmount(row.getOrNull(2))
+                val outflow = parseAmount(row.getOrNull(3))
+                val isInflow = inflow > 0.0
+                RecentTransaction(
+                    description = row.getOrNull(1)?.trim().orEmpty(),
+                    amount = if (isInflow) inflow else outflow,
+                    isInflow = isInflow,
+                )
+            }
+            .reversed()
+    }
+
     private fun parseAmount(raw: String?): Double =
         raw?.replace("₱", "")?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
 

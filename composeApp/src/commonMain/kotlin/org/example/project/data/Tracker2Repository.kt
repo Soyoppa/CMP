@@ -55,6 +55,37 @@ class Tracker2Repository : SheetRepository {
     // tracker_2 has no budget tab.
     override suspend fun getBudget(): List<BudgetCategory> = emptyList()
 
+    /**
+     * Last [limit] rows of the data tab (A:E), newest first.
+     * Columns: Date | Description | Amount (signed) | Credit Card | c/o.
+     * A negative amount is a refund/reversal, surfaced as an inflow.
+     */
+    override suspend fun getRecentTransactions(limit: Int): List<RecentTransaction> {
+        val config = ConfigManager.getConfig()
+        val response: SheetsResponse = client.get(
+            "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
+        ) {
+            parameter("key", config.apiKey)
+        }.body()
+
+        val rows = response.values ?: return emptyList()
+        return rows.drop(1) // header
+            .filter { it.getOrNull(1)?.isNotBlank() == true }
+            .takeLast(limit)
+            .map { row ->
+                val signed = parseAmount(row.getOrNull(2))
+                RecentTransaction(
+                    description = row.getOrNull(1)?.trim().orEmpty(),
+                    amount = kotlin.math.abs(signed),
+                    isInflow = signed < 0.0,
+                )
+            }
+            .reversed()
+    }
+
+    private fun parseAmount(raw: String?): Double =
+        raw?.replace("₱", "")?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0
+
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult {
         val scriptUrl = ConfigManager.getConfig().writeScriptUrl
         if (scriptUrl.isBlank()) {

@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.app_logo
+import org.example.project.config.FeatureFlagStore
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.viewmodel.AuthViewModel
 import org.jetbrains.compose.resources.painterResource
@@ -65,6 +66,7 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
+    val flags by FeatureFlagStore.state.collectAsState()
     val isSignUp = state.mode == AuthViewModel.Mode.SIGN_UP
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -149,33 +151,37 @@ fun LoginScreen(
                 onClick = viewModel::submit,
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = if (isSignUp) "Already have an account?" else "No account yet?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = if (isSignUp) "Sign in" else "Sign up",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                )
+            if (flags.signupEnabled) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = if (isSignUp) "Already have an account?" else "No account yet?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = if (isSignUp) "Sign in" else "Sign up",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
             }
 
-            DividerOr()
+            if (flags.guestModeEnabled) {
+                DividerOr()
 
-            GuestButton(
-                enabled = !state.isSubmitting,
-                onClick = viewModel::continueAsGuest,
-            )
+                GuestButton(
+                    enabled = !state.isSubmitting,
+                    onClick = viewModel::continueAsGuest,
+                )
+            }
         }
     }
 }

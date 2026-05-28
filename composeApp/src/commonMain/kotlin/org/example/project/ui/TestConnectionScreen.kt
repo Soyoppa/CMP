@@ -58,6 +58,7 @@ import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.util.DateUtils
+import org.example.project.util.FormatUtils
 import kotlin.time.TimeSource
 
 private val CardCorner = RoundedCornerShape(20.dp)
@@ -100,7 +101,7 @@ fun TestConnectionScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = "Connection Test",
+            text = "Settings",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -135,12 +136,24 @@ fun TestConnectionScreen(
                 enabled = !isGuest,
                 modifier = Modifier.weight(1f),
                 onClick = {
-                    // TODO: rewire Test Read once the new read path lands.
-                    // getFromDataDump() was removed for a fresh start.
-                    result = TestResult(
-                        ResultKind.ERROR,
-                        "Read path removed — no data source wired in yet.",
-                    )
+                    coroutineScope.launch {
+                        isLoading = true
+                        result = try {
+                            val recent = repository.getRecent(3)
+                            if (recent.isEmpty()) {
+                                TestResult(ResultKind.WARNING, "Read succeeded, but no transactions were found.")
+                            } else {
+                                val lines = recent.joinToString("\n") { entry ->
+                                    val sign = if (entry.isInflow) "+" else "-"
+                                    "• ${entry.description} — ${sign}PHP ${FormatUtils.formatPeso(entry.amount)}"
+                                }
+                                TestResult(ResultKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
+                            }
+                        } catch (e: Exception) {
+                            TestResult(ResultKind.ERROR, "Read failed: ${e.message}")
+                        }
+                        isLoading = false
+                    }
                 },
             )
             TestActionButton(

@@ -68,6 +68,8 @@ import kotlinproject.composeapp.generated.resources.success
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
 import org.example.project.auth.createAuthRepository
+import org.example.project.config.FeatureFlagStore
+import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.ChatScreen
 import org.example.project.ui.LoginScreen
@@ -120,10 +122,17 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         val authRepository = remember { createAuthRepository() }
         val authViewModel = remember { AuthViewModel(authRepository) }
         val authState by Session.state.collectAsState()
+        val featureFlags by FeatureFlagStore.state.collectAsState()
         val scope = rememberCoroutineScope()
 
-        // Restore any persisted session once at startup.
+        // Restore any persisted session and fetch remote feature flags once at startup.
         LaunchedEffect(Unit) { authRepository.restoreSession() }
+        LaunchedEffect(Unit) { createFeatureFlagLoader().load() }
+
+        // If chat is remotely disabled while it's the active tab, fall back to Add.
+        LaunchedEffect(featureFlags.chatEnabled) {
+            if (!featureFlags.chatEnabled && selectedTab == NavTab.CHAT) selectedTab = NavTab.ADD
+        }
 
         // Guest → "Create account": flip to sign-up, sign the guest out so the gate shows Login.
         val requestSignUp: () -> Unit = {
@@ -207,7 +216,11 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                         }
                     }
 
+                    val visibleNavItems = remember(featureFlags.chatEnabled) {
+                        NavItems.filter { it.tab != NavTab.CHAT || featureFlags.chatEnabled }
+                    }
                     FloatingNavPill(
+                        items = visibleNavItems,
                         selectedTab = selectedTab,
                         onTabSelected = { selectedTab = it },
                         modifier = Modifier
@@ -368,12 +381,13 @@ private fun FeedbackSnackbar(data: SnackbarData) {
 
 @Composable
 private fun FloatingNavPill(
+    items: List<NavItem>,
     selectedTab: NavTab,
     onTabSelected: (NavTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val itemCount = NavItems.size
-    val selectedIndex = NavItems.indexOfFirst { it.tab == selectedTab }.coerceAtLeast(0)
+    val itemCount = items.size
+    val selectedIndex = items.indexOfFirst { it.tab == selectedTab }.coerceAtLeast(0)
 
     var rowWidthPx by remember { mutableStateOf(0) }
     val slotWidthPx = if (itemCount > 0) rowWidthPx / itemCount else 0
@@ -402,7 +416,7 @@ private fun FloatingNavPill(
                 fun tabAt(x: Float): NavTab {
                     val local = (x - horizontalPaddingPx).coerceAtLeast(0f)
                     val idx = (local / slotWidthPx).toInt().coerceIn(0, itemCount - 1)
-                    return NavItems[idx].tab
+                    return items[idx].tab
                 }
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -473,7 +487,7 @@ private fun FloatingNavPill(
                 .onSizeChanged { rowWidthPx = it.width },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NavItems.forEach { item ->
+            items.forEach { item ->
                 NavPillItem(
                     iconRes = item.iconRes,
                     contentDescription = item.contentDescription,
