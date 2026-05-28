@@ -22,3 +22,28 @@ node_modules/
 .firebase/
 .claude/settings.local.json
 .claude/skills/
+
+# --- Secrets / local-only (safety net) ---
+# Keep real config local no matter where it lives; .example templates stay committed.
+**/local.properties
+**/google-services.json
+**/GoogleService-Info.plist
+!**/*.example
+
+# Signing keys & keystores
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+
+# Service-account / API credentials
+*-service-account*.json
+service-account*.json
+credentials*.json
+*.pem
+.env
+.env.*
+
+**/tracker_1.gs
+**/tracker_2.gs
