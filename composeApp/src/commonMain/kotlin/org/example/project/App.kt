@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -57,7 +58,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
 import kotlinproject.composeapp.generated.resources.app_logo
@@ -73,6 +73,8 @@ import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.ChatScreen
 import org.example.project.ui.LoginScreen
+import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.TestConnectionScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
@@ -105,7 +107,6 @@ private val NavItems: List<NavItem> = listOf(
 private val NavActiveColor = Color(0xFFFFBA00)   // golden
 private val NavInactiveColor = Color(0xFFB8C2BB)  // muted sage-grey
 private val NavPillBaseColor = Color(0xFF0C3B2E)  // dark forest glass
-private val PillCorner = RoundedCornerShape(50.dp)
 private val PillItemHeight = 56.dp
 
 @Composable
@@ -277,12 +278,11 @@ private fun GuestBanner(onCreateAccount: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(accent)
-                .clickable(onClick = onCreateAccount)
-                .padding(horizontal = 14.dp, vertical = 6.dp),
+        BounceSurface(
+            onClick = onCreateAccount,
+            shape = AppShapes.pill,
+            color = accent,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
         ) {
             Text(
                 text = "Create account",
@@ -410,7 +410,7 @@ private fun FloatingNavPill(
 
     Box(
         modifier = modifier
-            .clip(PillCorner)
+            .clip(AppShapes.pill)
             .pointerInput(itemCount, slotWidthPx, horizontalPaddingPx) {
                 if (slotWidthPx <= 0) return@pointerInput
                 fun tabAt(x: Float): NavTab {
@@ -460,7 +460,7 @@ private fun FloatingNavPill(
                         Color.White.copy(alpha = 0.06f),
                     )
                 ),
-                shape = PillCorner,
+                shape = AppShapes.pill,
             )
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -471,12 +471,12 @@ private fun FloatingNavPill(
                     .offset { IntOffset(animatedOffsetPx, 0) }
                     .width(slotWidthDp)
                     .height(PillItemHeight)
-                    .clip(PillCorner)
+                    .clip(AppShapes.pill)
                     .background(NavActiveColor.copy(alpha = 0.18f))
                     .border(
                         width = 1.dp,
                         color = NavActiveColor.copy(alpha = 0.35f),
-                        shape = PillCorner,
+                        shape = AppShapes.pill,
                     ),
             )
         }

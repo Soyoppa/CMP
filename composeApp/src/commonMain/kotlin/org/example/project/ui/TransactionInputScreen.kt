@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -84,7 +85,9 @@ import org.example.project.config.SchemaFeatures
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.model.PaymentMode
+import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
@@ -92,8 +95,6 @@ import org.jetbrains.compose.resources.painterResource
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.peso
 
-private val PillCorner = RoundedCornerShape(50.dp)
-private val FieldCorner = RoundedCornerShape(14.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,7 +197,7 @@ fun TransactionInputScreen(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = { onImeNext() }),
             colors = fieldColors(),
-            shape = FieldCorner,
+            shape = AppShapes.field,
             interactionSource = descriptionBounce.interactionSource,
             singleLine = true,
         )
@@ -307,7 +308,7 @@ private fun TransactionTypeSegmented(
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
-            .clip(PillCorner)
+            .clip(AppShapes.pill)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .onSizeChanged { widthPx = it.width }
             .semantics(mergeDescendants = true) {
@@ -359,7 +360,7 @@ private fun TransactionTypeSegmented(
                         scaleX = thumbScale
                         scaleY = thumbScale
                     }
-                    .clip(PillCorner)
+                    .clip(AppShapes.pill)
                     .background(accentColor),
             )
         }
@@ -445,7 +446,7 @@ private fun HeroAmountField(
         } else null,
         singleLine = true,
         colors = fieldColors(),
-        shape = FieldCorner,
+        shape = AppShapes.field,
         interactionSource = bounce.interactionSource,
     )
 }
@@ -484,12 +485,12 @@ private fun ChoiceField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FieldCorner)
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(
                 width = 1.5.dp,
                 color = borderColor,
-                shape = FieldCorner,
+                shape = AppShapes.field,
             )
             .clickable(
                 interactionSource = bounce.interactionSource,
@@ -615,7 +616,6 @@ private fun ChoiceChip(
     accentColor: Color,
     onClick: () -> Unit,
 ) {
-    val bounce = rememberPressBounce(pressedScale = 0.92f)
     val container by animateColorAsState(
         targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceContainerHigh,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -626,18 +626,12 @@ private fun ChoiceChip(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "chipContent",
     )
-    Box(
-        modifier = Modifier
-            .clip(PillCorner)
-            .background(container)
-            .clickable(
-                interactionSource = bounce.interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .then(bounce.modifier)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+    BounceSurface(
+        onClick = onClick,
+        shape = AppShapes.pill,
+        color = container,
+        pressedScale = 0.92f,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Text(
             text = text,
@@ -659,7 +653,7 @@ private fun PaidToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FieldCorner)
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .toggleable(
                 value = isPaid,

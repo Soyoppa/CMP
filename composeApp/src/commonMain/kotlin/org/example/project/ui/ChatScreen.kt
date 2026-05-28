@@ -37,15 +37,16 @@ import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.model.ChatMessage
+import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.AppShapes
 import org.example.project.viewmodel.AiViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val BubbleCorner = 18.dp
-private val FieldCorner = RoundedCornerShape(24.dp)
-private val ChipCorner = RoundedCornerShape(14.dp)
+private val ComposerCorner = RoundedCornerShape(24.dp)
 
 @Composable
 fun ChatScreen(
@@ -162,7 +163,7 @@ private fun GuestSuggestHint(bottomPadding: Dp) {
     ) {
         Box(
             modifier = Modifier
-                .clip(ChipCorner)
+                .clip(AppShapes.field)
                 .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f))
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
@@ -179,7 +180,6 @@ private fun GuestSuggestHint(bottomPadding: Dp) {
 /** Replaces the composer once a guest has used their free message. */
 @Composable
 private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
-    val bounce = rememberPressBounce(pressedScale = 0.97f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -193,17 +193,10 @@ private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        Box(
-            modifier = Modifier
-                .clip(ChipCorner)
-                .background(MaterialTheme.colorScheme.primary)
-                .clickable(
-                    interactionSource = bounce.interactionSource,
-                    indication = null,
-                    onClick = onSignUp,
-                )
-                .then(bounce.modifier)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+        BounceSurface(
+            onClick = onSignUp,
+            shape = AppShapes.field,
+            color = MaterialTheme.colorScheme.primary,
         ) {
             Text(
                 text = "Sign up to keep chatting",
@@ -248,18 +241,12 @@ private fun ChatHeader(
                 ProviderPill(provider = provider, model = model)
             }
         }
-        val clearBounce = rememberPressBounce(pressedScale = 0.92f)
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable(
-                    interactionSource = clearBounce.interactionSource,
-                    indication = null,
-                    onClick = onClearChat,
-                )
-                .then(clearBounce.modifier)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+        BounceSurface(
+            onClick = onClearChat,
+            shape = AppShapes.pill,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            pressedScale = 0.92f,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
         ) {
             Text(
                 text = "Clear",
@@ -547,18 +534,10 @@ private fun EmptyState(
 
 @Composable
 private fun SuggestionChip(text: String, onClick: () -> Unit) {
-    val bounce = rememberPressBounce(pressedScale = 0.97f)
-    Box(
-        modifier = Modifier
-            .clip(ChipCorner)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(
-                interactionSource = bounce.interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .then(bounce.modifier)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+    BounceSurface(
+        onClick = onClick,
+        shape = AppShapes.field,
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Text(
             text = text,
@@ -595,7 +574,7 @@ private fun ChatInputBar(
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
-            shape = FieldCorner,
+            shape = ComposerCorner,
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,

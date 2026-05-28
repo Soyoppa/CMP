@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
@@ -57,12 +59,11 @@ import org.example.project.data.ai.SessionUsage
 import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.AppShapes
 import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
 import kotlin.time.TimeSource
 
-private val CardCorner = RoundedCornerShape(20.dp)
-private val FieldCorner = RoundedCornerShape(14.dp)
 
 private enum class ResultKind { IDLE, SUCCESS, WARNING, ERROR }
 
@@ -98,7 +99,7 @@ fun TestConnectionScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .padding(top = 16.dp, bottom = 104.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         Text(
             text = "Settings",
@@ -107,123 +108,156 @@ fun TestConnectionScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 
-        AccountRow(
-            email = accountEmail,
-            isGuest = isGuest,
-            onSignOut = onSignOut,
-        )
-
-        DarkModeToggleRow(
-            isDarkTheme = isDarkTheme,
-            onDarkThemeChange = onDarkThemeChange,
-        )
-
-        if (isGuest) {
-            Text(
-                text = "Guest mode — diagnostics are read-only. Sign in to enable them.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFFFB300),
+        SettingsSection(title = "Account") {
+            AccountRow(
+                email = accountEmail,
+                isGuest = isGuest,
+                onSignOut = onSignOut,
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            TestActionButton(
-                label = "Test Read",
-                isLoading = isLoading,
+        SettingsSection(title = "Appearance") {
+            DarkModeToggleRow(
+                isDarkTheme = isDarkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+            )
+        }
+
+        SettingsSection(title = "AI Assistant") {
+            AiProviderCard(
+                selectedMode = providerMode,
+                geminiAvailable = aiRepository.isGeminiAvailable,
+                interactive = !isGuest,
+                status = switchStatus,
+                onSelect = { mode ->
+                    AiPrefs.setProviderMode(mode)
+                    switchStatus = AiSwitchStatus.Checking(mode)
+                    coroutineScope.launch {
+                        val mark = TimeSource.Monotonic.markNow()
+                        val reply = aiRepository.chat("Reply with the single word: OK.")
+                        val ms = mark.elapsedNow().inWholeMilliseconds
+                        switchStatus = if (reply.isError) {
+                            AiSwitchStatus.Failed(reply.text)
+                        } else {
+                            AiSwitchStatus.Ok(reply.provider, reply.model, ms)
+                        }
+                    }
+                },
+            )
+            PerMessageTokensToggleRow(
+                checked = showPerMessageTokens,
                 enabled = !isGuest,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    coroutineScope.launch {
-                        isLoading = true
-                        result = try {
-                            val recent = repository.getRecent(3)
-                            if (recent.isEmpty()) {
-                                TestResult(ResultKind.WARNING, "Read succeeded, but no transactions were found.")
-                            } else {
-                                val lines = recent.joinToString("\n") { entry ->
-                                    val sign = if (entry.isInflow) "+" else "-"
-                                    "• ${entry.description} — ${sign}PHP ${FormatUtils.formatPeso(entry.amount)}"
-                                }
-                                TestResult(ResultKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
-                            }
-                        } catch (e: Exception) {
-                            TestResult(ResultKind.ERROR, "Read failed: ${e.message}")
-                        }
-                        isLoading = false
-                    }
-                },
+                onCheckedChange = AiPrefs::setShowPerMessageTokens,
             )
-            TestActionButton(
-                label = "Test Write",
-                isLoading = isLoading,
-                enabled = false,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    coroutineScope.launch {
-                        isLoading = true
-                        result = try {
-                            val testTransaction = Transaction(
-                                date = DateUtils.getCurrentDateFormatted(),
-                                description = "Test Transaction",
-                                outflow = 100.0,
-                                category = "Test",
-                                modeOfPayment = "Test",
-                                isPaid = false,
-                            )
-                            if (repository.addTransaction(testTransaction)) {
-                                TestResult(
-                                    ResultKind.SUCCESS,
-                                    "Write succeeded. Check your Google Sheet to confirm the row.",
-                                )
-                            } else {
-                                TestResult(
-                                    ResultKind.WARNING,
-                                    "Write response was unclear. Apps Script sometimes commits even when parsing fails — check your sheet.",
-                                )
-                            }
-                        } catch (e: Exception) {
-                            TestResult(
-                                ResultKind.ERROR,
-                                "Write failed: ${e.message}\nThe row may still have been added — verify in your sheet.",
-                            )
-                        }
-                        isLoading = false
-                    }
-                },
-            )
+            AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
         }
 
-        ResultCard(result = result)
+        SettingsSection(title = "Diagnostics") {
+            if (isGuest) {
+                Text(
+                    text = "Guest mode — diagnostics are read-only. Sign in to enable them.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFFFB300),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TestActionButton(
+                    label = "Test Read",
+                    isLoading = isLoading,
+                    enabled = !isGuest,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        coroutineScope.launch {
+                            isLoading = true
+                            result = try {
+                                val recent = repository.getRecent(3)
+                                if (recent.isEmpty()) {
+                                    TestResult(ResultKind.WARNING, "Read succeeded, but no transactions were found.")
+                                } else {
+                                    val lines = recent.joinToString("\n") { entry ->
+                                        val sign = if (entry.isInflow) "+" else "-"
+                                        "• ${entry.description} — ${sign}PHP ${FormatUtils.formatPeso(entry.amount)}"
+                                    }
+                                    TestResult(ResultKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
+                                }
+                            } catch (e: Exception) {
+                                TestResult(ResultKind.ERROR, "Read failed: ${e.message}")
+                            }
+                            isLoading = false
+                        }
+                    },
+                )
+                TestActionButton(
+                    label = "Test Write",
+                    isLoading = isLoading,
+                    enabled = false,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        coroutineScope.launch {
+                            isLoading = true
+                            result = try {
+                                val testTransaction = Transaction(
+                                    date = DateUtils.getCurrentDateFormatted(),
+                                    description = "Test Transaction",
+                                    outflow = 100.0,
+                                    category = "Test",
+                                    modeOfPayment = "Test",
+                                    isPaid = false,
+                                )
+                                if (repository.addTransaction(testTransaction)) {
+                                    TestResult(
+                                        ResultKind.SUCCESS,
+                                        "Write succeeded. Check your Google Sheet to confirm the row.",
+                                    )
+                                } else {
+                                    TestResult(
+                                        ResultKind.WARNING,
+                                        "Write response was unclear. Apps Script sometimes commits even when parsing fails — check your sheet.",
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                TestResult(
+                                    ResultKind.ERROR,
+                                    "Write failed: ${e.message}\nThe row may still have been added — verify in your sheet.",
+                                )
+                            }
+                            isLoading = false
+                        }
+                    },
+                )
+            }
+            Text(
+                text = "Write test is disabled on this build.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ResultCard(result = result)
+        }
+    }
+}
 
-        AiProviderCard(
-            selectedMode = providerMode,
-            geminiAvailable = aiRepository.isGeminiAvailable,
-            interactive = !isGuest,
-            status = switchStatus,
-            onSelect = { mode ->
-                AiPrefs.setProviderMode(mode)
-                switchStatus = AiSwitchStatus.Checking(mode)
-                coroutineScope.launch {
-                    val mark = TimeSource.Monotonic.markNow()
-                    val reply = aiRepository.chat("Reply with the single word: OK.")
-                    val ms = mark.elapsedNow().inWholeMilliseconds
-                    switchStatus = if (reply.isError) {
-                        AiSwitchStatus.Failed(reply.text)
-                    } else {
-                        AiSwitchStatus.Ok(reply.provider, reply.model, ms)
-                    }
-                }
-            },
+/**
+ * A titled group of settings rows. The header label + tighter intra-group spacing (vs. the
+ * 24dp between sections) is what lets the eye chunk the screen by topic.
+ */
+@Composable
+private fun SettingsSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(start = 4.dp),
         )
-        PerMessageTokensToggleRow(
-            checked = showPerMessageTokens,
-            enabled = !isGuest,
-            onCheckedChange = AiPrefs::setShowPerMessageTokens,
-        )
-        AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
+        content()
     }
 }
 
@@ -234,7 +268,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FieldCorner)
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -280,15 +314,8 @@ private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit, canReset: Bool
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CardCorner)
+            .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.18f)),
-                ),
-                shape = CardCorner,
-            )
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -475,7 +502,7 @@ private fun PerMessageTokensToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FieldCorner)
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .toggleable(
                 value = checked,
@@ -552,19 +579,11 @@ private fun AiProviderCard(
     onSelect: (AiProviderMode) -> Unit,
     interactive: Boolean = true,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CardCorner)
+            .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.18f)),
-                ),
-                shape = CardCorner,
-            )
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -628,9 +647,9 @@ private fun ProviderModeChip(
     val bounce = rememberPressBounce(pressedScale = 0.96f)
     Box(
         modifier = modifier
-            .clip(FieldCorner)
+            .clip(AppShapes.field)
             .background(bg)
-            .border(1.dp, borderColor, FieldCorner)
+            .border(1.dp, borderColor, AppShapes.field)
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
@@ -717,7 +736,7 @@ private fun DarkModeToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FieldCorner)
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .toggleable(
                 value = isDarkTheme,
@@ -821,7 +840,7 @@ private fun ResultCard(result: TestResult) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CardCorner)
+            .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(
                 width = 1.dp,
@@ -831,7 +850,7 @@ private fun ResultCard(result: TestResult) {
                         animatedAccent.copy(alpha = 0.18f),
                     ),
                 ),
-                shape = CardCorner,
+                shape = AppShapes.card,
             )
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),

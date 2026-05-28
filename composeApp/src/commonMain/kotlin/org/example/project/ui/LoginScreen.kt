@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,12 +50,10 @@ import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.app_logo
 import org.example.project.config.FeatureFlagStore
-import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.theme.AppShapes
 import org.example.project.viewmodel.AuthViewModel
 import org.jetbrains.compose.resources.painterResource
-
-private val CardCorner = RoundedCornerShape(24.dp)
-private val FieldCorner = RoundedCornerShape(14.dp)
 
 /**
  * Sign-in / sign-up gate with a guest path. Stateless — observes [AuthViewModel]; success flips
@@ -209,7 +208,7 @@ private fun AuthField(
         trailingIcon = trailing,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
         keyboardActions = KeyboardActions(onDone = { onImeAction() }, onGo = { onImeAction() }),
-        shape = FieldCorner,
+        shape = AppShapes.field,
         textStyle = LocalTextStyle.current.copy(fontSize = 15.sp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -282,23 +281,15 @@ private fun PrimaryButton(
     loading: Boolean,
     onClick: () -> Unit,
 ) {
-    val bounce = rememberPressBounce(pressedScale = 0.97f)
     val primary = MaterialTheme.colorScheme.primary
     val bg = if (enabled) primary else primary.copy(alpha = 0.4f)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clip(FieldCorner)
-            .background(bg)
-            .clickable(
-                interactionSource = bounce.interactionSource,
-                indication = null,
-                enabled = enabled,
-                onClick = onClick,
-            )
-            .then(bounce.modifier),
-        contentAlignment = Alignment.Center,
+    BounceSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        enabled = enabled,
+        shape = AppShapes.field,
+        color = bg,
+        contentPadding = PaddingValues(0.dp),
     ) {
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
@@ -323,21 +314,13 @@ private fun DividerOr() {
 
 @Composable
 private fun GuestButton(enabled: Boolean, onClick: () -> Unit) {
-    val bounce = rememberPressBounce(pressedScale = 0.97f)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(FieldCorner)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(
-                interactionSource = bounce.interactionSource,
-                indication = null,
-                enabled = enabled,
-                onClick = onClick,
-            )
-            .then(bounce.modifier),
-        contentAlignment = Alignment.Center,
+    BounceSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        enabled = enabled,
+        shape = AppShapes.field,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentPadding = PaddingValues(0.dp),
     ) {
         Text(
             "Continue as guest",
