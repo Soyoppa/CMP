@@ -534,27 +534,14 @@ private fun CategoryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = formatAmount(amount),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isOverBudget) overflowColor
-                            else if (amount > 0) MaterialTheme.colorScheme.onSurface
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+            // Budget pill only — amount removed, total is shown in the top card
+            if (hasBudget) {
+                BudgetStatusPill(
+                    remaining = remaining,
+                    isOver = isOverBudget,
+                    remainingColor = remainingColor,
+                    overColor = overflowColor,
                 )
-                // Remaining / over-budget pill — only when budget data is available
-                if (hasBudget) {
-                    BudgetStatusPill(
-                        remaining = remaining,
-                        isOver = isOverBudget,
-                        remainingColor = remainingColor,
-                        overColor = overflowColor,
-                    )
-                }
             }
         }
 
