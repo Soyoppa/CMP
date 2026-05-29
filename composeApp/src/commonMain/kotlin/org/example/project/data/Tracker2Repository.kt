@@ -11,6 +11,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.BudgetCategory
+import org.example.project.model.CategorySummary
 import org.example.project.model.CareofCatagory
 import org.example.project.model.Transaction
 
@@ -52,8 +53,8 @@ class Tracker2Repository : SheetRepository {
         followRedirects = true
     }
 
-    // tracker_2 has no budget tab.
     override suspend fun getBudget(): List<BudgetCategory> = emptyList()
+    override suspend fun getSummary(): List<CategorySummary> = emptyList()
 
     /**
      * Last [limit] rows of the data tab (A:E), newest first.

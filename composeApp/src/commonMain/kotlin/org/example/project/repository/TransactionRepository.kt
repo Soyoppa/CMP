@@ -5,6 +5,7 @@ import org.example.project.data.RecentTransaction
 import org.example.project.data.SheetRepository
 import org.example.project.data.SheetRepositoryFactory
 import org.example.project.model.BudgetCategory
+import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
 
 /**
@@ -18,6 +19,9 @@ class TransactionRepository(
 
     /** Per-category budget + monthly actual spend (for AI budget context). */
     suspend fun getBudget(): List<BudgetCategory> = sheet.getBudget()
+
+    /** Per-category monthly spend from the Summary tab (for chart/summary views). */
+    suspend fun getSummary(): List<CategorySummary> = sheet.getSummary()
 
     /** The most recent [limit] entries (newest first) for read diagnostics. */
     suspend fun getRecent(limit: Int): List<RecentTransaction> = sheet.getRecentTransactions(limit)

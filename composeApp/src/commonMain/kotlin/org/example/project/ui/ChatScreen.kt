@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -71,6 +70,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
+    var showSummarySheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
@@ -95,10 +95,10 @@ fun ChatScreen(
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.messages.isEmpty()) {
                 EmptyState(
-                    // Guests can't type — tapping a suggestion sends it straight away.
                     onSuggestionClick = { suggestion ->
                         if (isGuest) viewModel.sendMessage(suggestion) else inputText = suggestion
                     },
+                    onShowSummary = { showSummarySheet = true },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
@@ -149,6 +149,10 @@ fun ChatScreen(
                 hint = "Ask about your finances…",
             )
         }
+    }
+
+    if (showSummarySheet) {
+        SummarySheet(onDismiss = { showSummarySheet = false })
     }
 }
 
@@ -487,6 +491,7 @@ private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp
 @Composable
 private fun EmptyState(
     onSuggestionClick: (String) -> Unit,
+    onShowSummary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val suggestions = remember {
@@ -529,20 +534,32 @@ private fun EmptyState(
         suggestions.forEach { suggestion ->
             SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
         }
+        // Summary shortcut — opens the spending-by-category sheet
+        SuggestionChip(
+            text = "📊  Show spending by category",
+            onClick = onShowSummary,
+            highlighted = true,
+        )
     }
 }
 
 @Composable
-private fun SuggestionChip(text: String, onClick: () -> Unit) {
+private fun SuggestionChip(
+    text: String,
+    onClick: () -> Unit,
+    highlighted: Boolean = false,
+) {
     BounceSurface(
         onClick = onClick,
         shape = AppShapes.field,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = if (highlighted) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = if (highlighted) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurface,
         )
     }
 }

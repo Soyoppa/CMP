@@ -7,3 +7,6 @@ expect fun createTransactionViewModel(): TransactionViewModel
 
 @Composable
 expect fun createAiViewModel(): AiViewModel
+
+@Composable
+expect fun createSummaryViewModel(): SummaryViewModel

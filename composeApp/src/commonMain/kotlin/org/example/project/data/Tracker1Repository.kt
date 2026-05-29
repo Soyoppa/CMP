@@ -5,12 +5,12 @@ import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
-import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.BudgetCategory
+import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
 
 @Serializable
@@ -132,6 +132,56 @@ class Tracker1Repository(
                 )
             }
             .reversed()
+    }
+
+    /**
+     * Fetches per-category monthly spend from the 'Summary' tab.
+     *
+     * Layout: Category | January | February | … (no Budget column).
+     * Returns empty list when the tab is missing or on network failure.
+     */
+    override suspend fun getSummary(): List<CategorySummary> {
+        return try {
+            val config = ConfigManager.getConfig()
+            val response: SheetsResponse = client.get(
+                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.summaryRange}"
+            ) {
+                parameter("key", config.apiKey)
+            }.body()
+
+            val rows = response.values ?: return emptyList()
+            if (rows.isEmpty()) return emptyList()
+
+            // Header row: Category, January, February, …
+            val monthHeaders = rows[0].drop(1).map { it.trim() }
+
+            // Section-header rows ("Income", "Expenses", "Savings", "Total", "Net", "Category")
+            // appear in summary tabs that group categories into sections. Skip them — they have
+            // no numeric data and would display as blank/date-like rows in the chart.
+            val sectionHeaders = setOf("income", "expenses", "expense", "savings", "total", "net", "category")
+
+            rows.drop(1)
+                .filter { row ->
+                    val name = row.getOrNull(0)?.trim().orEmpty()
+                    if (name.isBlank()) return@filter false
+                    // Skip rows whose first cell is a month name (stray date row) or a section header
+                    if (sectionHeaders.contains(name.lowercase())) return@filter false
+                    // Skip rows that are all-blank in the amount columns
+                    val hasAnyAmount = row.drop(1).any { parseAmount(it) > 0.0 }
+                    hasAnyAmount
+                }
+                .map { row ->
+                    val category = row[0].trim()
+                    val monthlySpend = monthHeaders.mapIndexed { index, month ->
+                        month to parseAmount(row.getOrNull(index + 1))
+                    }.toMap()
+                    CategorySummary(category = category, monthlySpend = monthlySpend)
+                }
+                .also { println("📊 [Tracker1] Parsed ${it.size} summary categories") }
+        } catch (e: Exception) {
+            println("💥 [Tracker1] getSummary failed: ${e::class.simpleName} — ${e.message}")
+            emptyList()
+        }
     }
 
     private fun parseAmount(raw: String?): Double =

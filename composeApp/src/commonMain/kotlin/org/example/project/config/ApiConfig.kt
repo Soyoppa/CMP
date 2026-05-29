@@ -10,6 +10,7 @@ object ApiConfig {
     val API_KEY = BuildConfig.GOOGLE_API_KEY
     val SHEET_RANGE = BuildConfig.SHEET_RANGE
     val BUDGET_RANGE = BuildConfig.BUDGET_RANGE
+    val SUMMARY_TREND = BuildConfig.SUMMARY_TREND
 
     // Write path (Google Apps Script)
     val SCRIPT_URL = BuildConfig.SCRIPT_URL

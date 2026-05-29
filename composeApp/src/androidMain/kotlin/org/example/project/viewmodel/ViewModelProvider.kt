@@ -12,3 +12,8 @@ actual fun createTransactionViewModel(): TransactionViewModel {
 actual fun createAiViewModel(): AiViewModel {
     return viewModel()
 }
+
+@Composable
+actual fun createSummaryViewModel(): SummaryViewModel {
+    return viewModel()
+}

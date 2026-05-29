@@ -92,6 +92,8 @@ fun TestConnectionScreen(
     var switchStatus by remember { mutableStateOf<AiSwitchStatus>(AiSwitchStatus.Idle) }
     val authState by Session.state.collectAsState()
     val isGuest = (authState as? AuthState.Authenticated)?.user?.isGuest == true
+    // Tracker 2 has no analysis sheets yet, so the AI section is hidden there (same flag the chat uses).
+    val aiAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
 
     Column(
         modifier = modifier
@@ -123,33 +125,35 @@ fun TestConnectionScreen(
             )
         }
 
-        SettingsSection(title = "AI Assistant") {
-            AiProviderCard(
-                selectedMode = providerMode,
-                geminiAvailable = aiRepository.isGeminiAvailable,
-                interactive = !isGuest,
-                status = switchStatus,
-                onSelect = { mode ->
-                    AiPrefs.setProviderMode(mode)
-                    switchStatus = AiSwitchStatus.Checking(mode)
-                    coroutineScope.launch {
-                        val mark = TimeSource.Monotonic.markNow()
-                        val reply = aiRepository.chat("Reply with the single word: OK.")
-                        val ms = mark.elapsedNow().inWholeMilliseconds
-                        switchStatus = if (reply.isError) {
-                            AiSwitchStatus.Failed(reply.text)
-                        } else {
-                            AiSwitchStatus.Ok(reply.provider, reply.model, ms)
+        if (aiAvailable) {
+            SettingsSection(title = "AI Assistant") {
+                AiProviderCard(
+                    selectedMode = providerMode,
+                    geminiAvailable = aiRepository.isGeminiAvailable,
+                    interactive = !isGuest,
+                    status = switchStatus,
+                    onSelect = { mode ->
+                        AiPrefs.setProviderMode(mode)
+                        switchStatus = AiSwitchStatus.Checking(mode)
+                        coroutineScope.launch {
+                            val mark = TimeSource.Monotonic.markNow()
+                            val reply = aiRepository.chat("Reply with the single word: OK.")
+                            val ms = mark.elapsedNow().inWholeMilliseconds
+                            switchStatus = if (reply.isError) {
+                                AiSwitchStatus.Failed(reply.text)
+                            } else {
+                                AiSwitchStatus.Ok(reply.provider, reply.model, ms)
+                            }
                         }
-                    }
-                },
-            )
-            PerMessageTokensToggleRow(
-                checked = showPerMessageTokens,
-                enabled = !isGuest,
-                onCheckedChange = AiPrefs::setShowPerMessageTokens,
-            )
-            AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
+                    },
+                )
+                PerMessageTokensToggleRow(
+                    checked = showPerMessageTokens,
+                    enabled = !isGuest,
+                    onCheckedChange = AiPrefs::setShowPerMessageTokens,
+                )
+                AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
+            }
         }
 
         SettingsSection(title = "Diagnostics") {
