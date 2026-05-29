@@ -52,10 +52,11 @@ class AuthViewModel(
                 Mode.SIGN_IN -> repository.signIn(current.email, current.password)
                 Mode.SIGN_UP -> repository.signUp(current.email, current.password)
             }
-            result.onFailure { e ->
-                _state.update { it.copy(isSubmitting = false, error = e.message ?: "Authentication failed.") }
-            }
-            // On success the gate reacts to Session; nothing to do here.
+            result
+                .onSuccess { _state.update { it.copy(isSubmitting = false) } }
+                .onFailure { e ->
+                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Authentication failed.") }
+                }
         }
     }
 
@@ -63,9 +64,11 @@ class AuthViewModel(
         if (_state.value.isSubmitting) return
         _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
-            repository.continueAsGuest().onFailure { e ->
-                _state.update { it.copy(isSubmitting = false, error = e.message ?: "Couldn't start guest mode.") }
-            }
+            repository.continueAsGuest()
+                .onSuccess { _state.update { it.copy(isSubmitting = false) } }
+                .onFailure { e ->
+                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Couldn't start guest mode.") }
+                }
         }
     }
 }
