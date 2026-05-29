@@ -59,6 +59,7 @@ import org.example.project.data.ai.SessionUsage
 import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.AppShapes
 import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
@@ -74,7 +75,7 @@ private data class TestResult(val kind: ResultKind, val message: String) {
 }
 
 @Composable
-fun TestConnectionScreen(
+fun SettingsScreen(
     modifier: Modifier = Modifier,
     isDarkTheme: Boolean = false,
     onDarkThemeChange: (Boolean) -> Unit = {},
@@ -161,7 +162,7 @@ fun TestConnectionScreen(
                 Text(
                     text = "Guest mode — diagnostics are read-only. Sign in to enable them.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFFFB300),
+                    color = MaterialTheme.colorScheme.tertiary,
                 )
             }
             Row(
@@ -380,7 +381,7 @@ private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit, canReset: Bool
                 usage = usage.gemini,
             )
             ProviderSplitRow(
-                color = Color(0xFFFFB300),
+                color = MaterialTheme.colorScheme.tertiary,
                 label = "Ollama",
                 usage = usage.ollama,
                 suffix = " (fallback)",
@@ -621,7 +622,7 @@ private fun AiProviderCard(
             Text(
                 text = "Firebase AI is unavailable on this build/config.",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFFFFB300),
+                color = MaterialTheme.colorScheme.tertiary,
             )
         }
         SwitchStatusRow(status = status)
@@ -699,12 +700,12 @@ private fun SwitchStatusRow(status: AiSwitchStatus) {
         }
 
         is AiSwitchStatus.Ok -> SwitchStatusLine(
-            color = Color(0xFF00C853),
+            color = IncomeGreen,
             text = "Switched to ${status.provider.displayName} · ${status.model.removePrefix("gemini-")} · ${status.ms} ms",
         )
 
         is AiSwitchStatus.Failed -> SwitchStatusLine(
-            color = Color(0xFFE53935),
+            color = MaterialTheme.colorScheme.error,
             text = status.message,
         )
     }
@@ -790,7 +791,7 @@ private fun TestActionButton(
         modifier = modifier
             .height(56.dp)
             .then(bounce.modifier),
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.card,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -819,9 +820,9 @@ private fun TestActionButton(
 private fun ResultCard(result: TestResult) {
     val accent = when (result.kind) {
         ResultKind.IDLE -> MaterialTheme.colorScheme.outlineVariant
-        ResultKind.SUCCESS -> Color(0xFF00C853)
-        ResultKind.WARNING -> Color(0xFFFFB300)
-        ResultKind.ERROR -> Color(0xFFE53935)
+        ResultKind.SUCCESS -> IncomeGreen
+        ResultKind.WARNING -> MaterialTheme.colorScheme.tertiary
+        ResultKind.ERROR -> MaterialTheme.colorScheme.error
     }
     val animatedAccent by animateColorAsState(
         targetValue = accent,

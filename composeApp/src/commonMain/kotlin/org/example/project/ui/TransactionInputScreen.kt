@@ -705,7 +705,7 @@ private fun SaveButton(
         modifier = modifier
             .height(56.dp)
             .then(bounce.modifier),
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.card,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,

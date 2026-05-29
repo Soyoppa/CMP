@@ -75,7 +75,7 @@ import org.example.project.ui.ChatScreen
 import org.example.project.ui.LoginScreen
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
-import org.example.project.ui.TestConnectionScreen
+import org.example.project.ui.SettingsScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.AuthViewModel
@@ -87,7 +87,7 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private enum class NavTab { CHAT, ADD, DEBUG }
+private enum class NavTab { CHAT, ADD, SETTINGS }
 
 @Immutable
 private data class NavItem(
@@ -99,7 +99,7 @@ private data class NavItem(
 private val NavItems: List<NavItem> = listOf(
     NavItem(NavTab.CHAT, Res.drawable.chat_bubble, "Chat"),
     NavItem(NavTab.ADD, Res.drawable.add, "Add Transaction"),
-    NavItem(NavTab.DEBUG, Res.drawable.dots, "Debug"),
+    NavItem(NavTab.SETTINGS, Res.drawable.dots, "Settings"),
 )
 
 // The floating nav pill is a fixed dark-forest glass element in both themes,
@@ -206,7 +206,7 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                                     viewModel = viewModel,
                                     modifier = Modifier.fillMaxSize(),
                                 )
-                                NavTab.DEBUG -> TestConnectionScreen(
+                                NavTab.SETTINGS -> SettingsScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     isDarkTheme = resolvedDark,
                                     onDarkThemeChange = { darkThemeOverride = it },
