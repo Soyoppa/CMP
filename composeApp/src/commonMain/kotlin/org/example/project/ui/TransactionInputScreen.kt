@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -39,7 +41,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
@@ -60,8 +61,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -75,7 +80,10 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
@@ -91,9 +99,7 @@ import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
-import org.jetbrains.compose.resources.painterResource
-import kotlinproject.composeapp.generated.resources.Res
-import kotlinproject.composeapp.generated.resources.peso
+import androidx.compose.foundation.layout.widthIn
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,6 +112,13 @@ fun TransactionInputScreen(
     val schemaFeatures = remember { SchemaFeatures.current() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val amountFocusRequester = remember { FocusRequester() }
+
+    // Open keyboard on the amount field immediately — no extra tap needed.
+    LaunchedEffect(Unit) {
+        delay(200)
+        amountFocusRequester.requestFocus()
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
@@ -179,9 +192,9 @@ fun TransactionInputScreen(
         // 2. Hero amount field — large typography, tinted prefix follows the type.
         HeroAmountField(
             amount = formState.amount,
-            isIncome = formState.isIncome,
             isEnabled = !formState.isLoading,
             accentColor = accentColor,
+            focusRequester = amountFocusRequester,
             onAmountChanged = onAmountChanged,
             onImeNext = onImeNext,
         )
@@ -192,6 +205,26 @@ fun TransactionInputScreen(
             onValueChange = onDescriptionChanged,
             label = { Text("Description") },
             placeholder = { Text("e.g. Groceries at SM") },
+            trailingIcon = if (formState.description.isNotEmpty()) {
+                {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+                            .clickable(enabled = !formState.isLoading) {
+                                onDescriptionChanged("")
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "×",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else null,
             modifier = Modifier.fillMaxWidth().then(descriptionBounce.modifier),
             enabled = !formState.isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -403,52 +436,130 @@ private fun SegmentLabel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HeroAmountField(
     amount: String,
-    isIncome: Boolean,
     isEnabled: Boolean,
     accentColor: Color,
+    focusRequester: FocusRequester,
     onAmountChanged: (String) -> Unit,
     onImeNext: () -> Unit,
 ) {
-    val bounce = rememberPressBounce(pressedScale = 0.98f)
     val isInvalid = amount.isNotEmpty() && amount.toDoubleOrNull() == null
-    OutlinedTextField(
-        value = amount,
-        onValueChange = onAmountChanged,
-        label = { Text("Amount") },
-        placeholder = { Text("0.00", style = LocalTextStyle.current.copy(fontSize = 28.sp)) },
-        prefix = {
-            // No bundled font ships the ₱ glyph (renders as "no glyph" on web), so use a vector asset.
-            Icon(
-                painter = painterResource(Res.drawable.peso),
-                contentDescription = "Peso",
-                tint = accentColor,
-                modifier = Modifier.padding(end = 2.dp).size(26.dp),
-            )
-        },
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Decimal,
-            imeAction = ImeAction.Next,
-        ),
-        keyboardActions = KeyboardActions(onNext = { onImeNext() }),
-        modifier = Modifier.fillMaxWidth().then(bounce.modifier),
-        textStyle = LocalTextStyle.current.copy(
-            fontSize = 28.sp,
-            fontWeight = FontWeight.SemiBold,
-        ),
-        enabled = isEnabled,
-        isError = isInvalid,
-        supportingText = if (isInvalid) {
-            { Text("Enter a valid number, e.g. 250.00") }
-        } else null,
-        singleLine = true,
-        colors = fieldColors(),
-        shape = AppShapes.field,
-        interactionSource = bounce.interactionSource,
+
+    // TextFieldValue lets us place the cursor at the end on every external update.
+    var fieldValue by remember {
+        mutableStateOf(TextFieldValue(text = amount, selection = TextRange(amount.length)))
+    }
+    // Sync when the amount is cleared externally (form reset).
+    LaunchedEffect(amount) {
+        if (fieldValue.text != amount) {
+            fieldValue = TextFieldValue(text = amount, selection = TextRange(amount.length))
+        }
+    }
+
+    val textColor = if (isInvalid) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurface
+    val clearColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val amountStyle = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.Bold, color = textColor)
+    val placeholderStyle = TextStyle(
+        fontSize = 44.sp,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
     )
+    val phpStyle = MaterialTheme.typography.headlineMedium
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "Amount",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(AppShapes.card)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .padding(vertical = 24.dp, horizontal = 24.dp),
+        ) {
+            // PHP + amount centered independently of the clear button
+            Row(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "PHP",
+                    style = phpStyle,
+                    color = accentColor,
+                    modifier = Modifier.padding(end = 10.dp),
+                )
+                BasicTextField(
+                    value = fieldValue,
+                    onValueChange = { new ->
+                        fieldValue = new
+                        onAmountChanged(new.text)
+                    },
+                    textStyle = amountStyle,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next,
+                    ),
+                    keyboardActions = KeyboardActions(onNext = { onImeNext() }),
+                    modifier = Modifier
+                        .widthIn(min = 80.dp)
+                        .focusRequester(focusRequester),
+                    singleLine = true,
+                    enabled = isEnabled,
+                    cursorBrush = SolidColor(accentColor),
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (fieldValue.text.isEmpty()) {
+                                Text(text = "0.00", style = placeholderStyle)
+                            }
+                            innerTextField()
+                        }
+                    },
+                )
+            }
+
+            // Clear button — anchored to trailing edge, never shifts the centered amount
+            if (fieldValue.text.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(clearColor.copy(alpha = 0.12f))
+                        .clickable(enabled = isEnabled) {
+                            fieldValue = TextFieldValue("")
+                            onAmountChanged("")
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "×",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = clearColor,
+                    )
+                }
+            }
+        }
+
+        if (isInvalid) {
+            Text(
+                text = "Enter a valid number, e.g. 250.00",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
 }
 
 @Composable

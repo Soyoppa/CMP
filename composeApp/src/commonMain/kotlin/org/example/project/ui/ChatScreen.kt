@@ -242,7 +242,7 @@ private fun ChatHeader(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = "AI Finance Assistant",
+                text = "AI Treasurer",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
