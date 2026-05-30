@@ -16,7 +16,7 @@ data class AppUser(
 val AppUser.canWriteTransactions: Boolean get() = !isGuest
 val AppUser.canUseDebugActions: Boolean get() = !isGuest
 /** Max AI messages a guest may send in a session (full users: unlimited). */
-val AppUser.aiMessageLimit: Int get() = if (isGuest) 1 else Int.MAX_VALUE
+val AppUser.aiMessageLimit: Int get() = if (isGuest) 2 else Int.MAX_VALUE
 /** Max characters a guest may type per AI message (full users: unlimited). */
 val AppUser.aiCharLimit: Int get() = if (isGuest) 20 else Int.MAX_VALUE
 

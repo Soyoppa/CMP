@@ -172,7 +172,7 @@ fun SettingsScreen(
                 TestActionButton(
                     label = "Test Read",
                     isLoading = isLoading,
-                    enabled = !isGuest,
+                    enabled = true,
                     modifier = Modifier.weight(1f),
                     onClick = {
                         coroutineScope.launch {

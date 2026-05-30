@@ -508,8 +508,7 @@ private fun EmptyState(
     val suggestions = remember {
         listOf(
             "How much did I spend on food?",
-            "What's my biggest expense this month?",
-            "Show my recent income.",
+            "tell me a joke",
         )
     }
     Column(

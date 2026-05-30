@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Color
 val GoldenYellow = Color(0xFFFFBA00)
 val SageGreen = Color(0xFF6D9773)
 val AmberBrown = Color(0xFFB46617)
-val DarkForest = Color(0xFF0C3B2E)
+val DarkForest = Color(0xFF0F2E24)
 
 // Semantic transaction accents (not part of the M3 scheme): forest-leaning green for
 // inflow, warm terracotta for outflow — tuned to sit on the earthy brand palette.
