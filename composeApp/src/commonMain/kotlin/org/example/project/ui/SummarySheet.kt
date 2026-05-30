@@ -17,6 +17,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -106,34 +109,53 @@ fun SummarySheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
-        ) {
+        // Absorbs any remaining downward drag after child scrollables are exhausted,
+        // so it never reaches the sheet's dismiss gesture handler.
+        val blockDismiss = remember {
+            object : NestedScrollConnection {
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset = if (available.y > 0f) available else Offset.Zero
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // ── Dismiss zone: drag handle (above) + header ───────────────────
+            // Sheet drag-to-dismiss works normally here.
             SummaryHeader(
                 hasData = uiState.categories.isNotEmpty(),
                 onRetry = viewModel::load,
             )
 
-            when {
-                uiState.isLoading -> SummaryLoading()
-                uiState.error != null -> SummaryError(
-                    message = uiState.error!!,
-                    onRetry = viewModel::load,
-                )
-                uiState.categories.isEmpty() -> SummaryEmpty()
-                else -> SummaryContent(
-                    categories = uiState.categories,
-                    months = uiState.months,
-                    selectedMonth = uiState.selectedMonth,
-                    totalMonthlyBudget = uiState.totalMonthlyBudget,
-                    budgetByCategory = uiState.budgetByCategory,
-                    onMonthSelected = viewModel::selectMonth,
-                )
+            // ── Protected zone: chart + categories ───────────────────────────
+            // nestedScroll blocker sits between this content and the sheet,
+            // eating leftover downward scroll so the sheet never dismisses.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .nestedScroll(blockDismiss)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                when {
+                    uiState.isLoading -> SummaryLoading()
+                    uiState.error != null -> SummaryError(
+                        message = uiState.error!!,
+                        onRetry = viewModel::load,
+                    )
+                    uiState.categories.isEmpty() -> SummaryEmpty()
+                    else -> SummaryContent(
+                        categories = uiState.categories,
+                        months = uiState.months,
+                        selectedMonth = uiState.selectedMonth,
+                        totalMonthlyBudget = uiState.totalMonthlyBudget,
+                        budgetByCategory = uiState.budgetByCategory,
+                        onMonthSelected = viewModel::selectMonth,
+                    )
+                }
+                Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
             }
-
-            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         }
     }
 }

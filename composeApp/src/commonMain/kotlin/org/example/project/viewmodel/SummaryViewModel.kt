@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.example.project.auth.Session
+import org.example.project.data.DemoRepository
 import org.example.project.model.CategorySummary
 import org.example.project.repository.TransactionRepository
 
@@ -35,7 +37,8 @@ class SummaryViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val categories = repository.getSummary()
+                val categories = if (Session.isGuest) DemoRepository.getSummary()
+                                 else repository.getSummary()
                 val months = categories.firstOrNull()?.months ?: emptyList()
                 val totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
                 val budgetByCategory = categories.associate { it.category.lowercase() to it.monthlyBudget }

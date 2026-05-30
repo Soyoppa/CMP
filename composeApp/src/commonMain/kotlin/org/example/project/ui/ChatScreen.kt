@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.app_logo
+import kotlinproject.composeapp.generated.resources.chart_label
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
@@ -42,6 +44,7 @@ import org.example.project.ui.theme.AppShapes
 import org.example.project.viewmodel.AiViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val BubbleCorner = 18.dp
@@ -536,7 +539,7 @@ private fun EmptyState(
         }
         // Summary shortcut — opens the spending-by-category sheet
         SuggestionChip(
-            text = "📊  Show spending by category",
+            text =  stringResource(Res.string.chart_label)+" Show spending by category",
             onClick = onShowSummary,
             highlighted = true,
         )
