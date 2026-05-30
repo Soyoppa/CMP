@@ -47,12 +47,6 @@ Share a read-only guest link so family members or a partner can explore the app 
 
 Sign-up and guest mode can be turned on or off remotely from **Firebase Remote Config** without a new deployment — useful for private household use where you do not want open self-registration.
 
-| Flag | Default | Effect when off |
-|---|---|---|
-| `signup_enabled` | on | Hides all "Create account" and "Sign up" entry points |
-| `guest_mode_enabled` | on | Hides the guest / explore option on the login screen |
-| `chat_enabled` | on | Removes the AI chat tab entirely |
-
 ---
 
 ## How the data flows
@@ -67,11 +61,3 @@ No proprietary backend. No monthly infrastructure cost beyond Firebase's free ti
 
 ---
 
-## Setup
-
-See [SETUP.md](SETUP.md) for full configuration instructions including Google Sheets setup, Firebase project wiring, and `local.properties` keys.
-
-For deployment to Firebase Hosting (web), run:
-```powershell
-.\scripts\deploy-all.ps1
-```
