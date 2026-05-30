@@ -9,7 +9,6 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
-import org.example.project.model.BudgetCategory
 import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
 
@@ -50,61 +49,6 @@ class Tracker1Repository(
     }
 
     /**
-     * Fetches per-category budget + monthly actual spend from the
-     * 'Budget vs Expense' tab.
-     *
-     * Layout: Category | Budget | January … December. Summary rows
-     * (Total Budgeted, Monthly Income, Income - Budget) and blank rows
-     * are skipped — only real categories are returned.
-     */
-    override suspend fun getBudget(): List<BudgetCategory> {
-        return try {
-            val config = ConfigManager.getConfig()
-            val response: SheetsResponse = client.get(
-                "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.budgetRange}"
-            ) {
-                parameter("key", config.apiKey)
-            }.body()
-
-            val rows = response.values ?: return emptyList()
-            if (rows.isEmpty()) return emptyList()
-
-            // Header: Category, Budget, January, February, … December
-            val monthHeaders = rows[0].drop(2).map { it.trim() }
-
-            // The budget block is the contiguous category rows at the top of the
-            // tab. It ends at the first blank row or summary row (Monthly Income,
-            // Total Budgeted, Income - Budget) — below that the tab holds unrelated
-            // tables (credit cards, salary vs savings, fixed/variable lists) that
-            // must NOT be read as categories. takeWhile stops at that boundary.
-            val stopPrefixes = listOf("total", "income", "monthly income")
-
-            rows.drop(1)
-                .takeWhile { row ->
-                    val name = row.getOrNull(0)?.trim().orEmpty()
-                    name.isNotBlank() &&
-                        stopPrefixes.none { name.lowercase().startsWith(it) }
-                }
-                .map { row ->
-                    val category = row[0].trim()
-                    val budget = parseAmount(row.getOrNull(1))
-                    val monthlyActual = monthHeaders.mapIndexed { index, month ->
-                        month to parseAmount(row.getOrNull(index + 2))
-                    }.toMap()
-                    BudgetCategory(
-                        category = category,
-                        monthlyBudget = budget,
-                        monthlyActual = monthlyActual,
-                    )
-                }
-                .also { println("💰 [Tracker1] Parsed ${it.size} budget categories") }
-        } catch (e: Exception) {
-            println("💥 [Tracker1] getBudget failed: ${e::class.simpleName} — ${e.message}")
-            emptyList()
-        }
-    }
-
-    /**
      * Last [limit] rows of the 'Data Dump' tab (A:H), newest first.
      * Columns: Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks.
      * Exceptions propagate so the caller (e.g. the read diagnostic) can surface them.
@@ -135,10 +79,10 @@ class Tracker1Repository(
     }
 
     /**
-     * Fetches per-category monthly spend from the 'Summary' tab.
+     * Fetches per-category budget + monthly spend from the 'Summary Trend' tab.
      *
-     * Layout: Category | January | February | … (no Budget column).
-     * Returns empty list when the tab is missing or on network failure.
+     * Layout: Budget | Category | January | February | … | December
+     * The Income row and any blank rows are skipped.
      */
     override suspend fun getSummary(): List<CategorySummary> {
         return try {
@@ -152,30 +96,23 @@ class Tracker1Repository(
             val rows = response.values ?: return emptyList()
             if (rows.isEmpty()) return emptyList()
 
-            // Header row: Category, January, February, …
-            val monthHeaders = rows[0].drop(1).map { it.trim() }
+            // Header: Budget | Category | January | February | … | December
+            val monthHeaders = rows[0].drop(2).map { it.trim() }
 
-            // Section-header rows ("Income", "Expenses", "Savings", "Total", "Net", "Category")
-            // appear in summary tabs that group categories into sections. Skip them — they have
-            // no numeric data and would display as blank/date-like rows in the chart.
-            val sectionHeaders = setOf("income", "expenses", "expense", "savings", "total", "net", "category")
+            val skipNames = setOf("income", "expenses", "expense", "savings", "total", "net", "category", "budget")
 
             rows.drop(1)
                 .filter { row ->
-                    val name = row.getOrNull(0)?.trim().orEmpty()
-                    if (name.isBlank()) return@filter false
-                    // Skip rows whose first cell is a month name (stray date row) or a section header
-                    if (sectionHeaders.contains(name.lowercase())) return@filter false
-                    // Skip rows that are all-blank in the amount columns
-                    val hasAnyAmount = row.drop(1).any { parseAmount(it) > 0.0 }
-                    hasAnyAmount
+                    val name = row.getOrNull(1)?.trim().orEmpty()
+                    name.isNotBlank() && !skipNames.contains(name.lowercase())
                 }
                 .map { row ->
-                    val category = row[0].trim()
+                    val budget = parseAmount(row.getOrNull(0))
+                    val category = row[1].trim()
                     val monthlySpend = monthHeaders.mapIndexed { index, month ->
-                        month to parseAmount(row.getOrNull(index + 1))
+                        month to parseAmount(row.getOrNull(index + 2))
                     }.toMap()
-                    CategorySummary(category = category, monthlySpend = monthlySpend)
+                    CategorySummary(category = category, monthlyBudget = budget, monthlySpend = monthlySpend)
                 }
                 .also { println("📊 [Tracker1] Parsed ${it.size} summary categories") }
         } catch (e: Exception) {

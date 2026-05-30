@@ -2,7 +2,6 @@ package org.example.project.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,9 +15,7 @@ data class SummaryUiState(
     val categories: List<CategorySummary> = emptyList(),
     val months: List<String> = emptyList(),
     val selectedMonth: String? = null,
-    /** Sum of all per-category monthly budgets from the Budget tab. Used as chart reference line. */
     val totalMonthlyBudget: Double = 0.0,
-    /** Monthly budget per category, keyed by lowercase category name. */
     val budgetByCategory: Map<String, Double> = emptyMap(),
     val error: String? = null,
 )
@@ -38,17 +35,10 @@ class SummaryViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                // Fetch summary rows and budget in parallel
-                val summaryDeferred = async { repository.getSummary() }
-                val budgetDeferred = async { repository.getBudget() }
-
-                val categories = summaryDeferred.await()
-                val budget = budgetDeferred.await()
-
+                val categories = repository.getSummary()
                 val months = categories.firstOrNull()?.months ?: emptyList()
-                // Total budget per month = sum of every category's monthlyBudget from the Budget tab
-                val totalMonthlyBudget = budget.sumOf { it.monthlyBudget }
-                val budgetByCategory = budget.associate { it.category.lowercase() to it.monthlyBudget }
+                val totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
+                val budgetByCategory = categories.associate { it.category.lowercase() to it.monthlyBudget }
 
                 _uiState.update {
                     it.copy(

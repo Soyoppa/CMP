@@ -12,7 +12,7 @@ import org.example.project.data.ai.AiProviderMode
 import org.example.project.data.ai.AiResult
 import org.example.project.data.ai.OllamaProvider
 import org.example.project.data.ai.geminiProviderOrNull
-import org.example.project.model.BudgetCategory
+import org.example.project.model.CategorySummary
 import org.example.project.util.FormatUtils
 
 /**
@@ -41,7 +41,7 @@ class AiRepository(
 
     suspend fun chat(
         userMessage: String,
-        budget: List<BudgetCategory> = emptyList(),
+        budget: List<CategorySummary> = emptyList(),
         history: List<OllamaMessage> = emptyList(),
     ): AiResult {
         val systemPrompt = buildSystemPrompt(budget)
@@ -117,12 +117,12 @@ class AiRepository(
         }
     }
 
-    private fun buildSystemPrompt(budget: List<BudgetCategory>): String {
+    private fun buildSystemPrompt(budget: List<CategorySummary>): String {
         if (budget.isEmpty()) {
             return """
                 You are a personal finance assistant. No budget data is loaded yet —
                 answer general finance questions based on your training.
-                Format all amounts in Philippine Peso (₱).
+                Format all amounts as PHP (e.g. PHP 1,500 — never use the ₱ symbol).
             """.trimIndent()
         }
 
@@ -135,21 +135,21 @@ class AiRepository(
             val remaining = c.remainingIn(currentMonth)
             val status = when {
                 c.monthlyBudget <= 0.0 -> "no budget set"
-                remaining < 0 -> "OVER by ₱${FormatUtils.formatPeso(-remaining)}"
-                else -> "₱${FormatUtils.formatPeso(remaining)} left"
+                remaining < 0 -> "OVER by PHP ${FormatUtils.formatPeso(-remaining)}"
+                else -> "PHP ${FormatUtils.formatPeso(remaining)} left"
             }
-            "  ${c.category}: budget ₱${FormatUtils.formatPeso(c.monthlyBudget)}/mo | " +
-                "spent ₱${FormatUtils.formatPeso(spent)} | $status"
+            "  ${c.category}: budget PHP ${FormatUtils.formatPeso(c.monthlyBudget)}/mo | " +
+                "spent PHP ${FormatUtils.formatPeso(spent)} | $status"
         }
 
         // Year-to-date totals give the model trend context across months.
         val ytdTable = budget.joinToString("\n") { c ->
-            "  ${c.category}: ₱${FormatUtils.formatPeso(c.totalSpent)} spent year-to-date"
+            "  ${c.category}: PHP ${FormatUtils.formatPeso(c.totalSpent)} spent year-to-date"
         }
 
         return """
             You are a personal finance assistant for a monthly household budget.
-            Use the data below to answer accurately. Format all amounts in Philippine Peso (₱).
+            Use the data below to answer accurately. Format all amounts as PHP (e.g. PHP 1,500 — never use the ₱ symbol).
             The current month is $currentMonth.
 
             When asked whether there is room to spend more in a category, compare that

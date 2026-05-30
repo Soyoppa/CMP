@@ -51,7 +51,7 @@ private fun colorForIndex(index: Int): Color = CategoryBarColors[index % Categor
 private fun formatAmount(amount: Double): String {
     if (amount == 0.0) return "—"
     val whole = amount.toLong()
-    return "₱" + buildString {
+    return "PHP " + buildString {
         whole.toString().reversed().forEachIndexed { i, c ->
             if (i > 0 && i % 3 == 0) append(',')
             append(c)
@@ -65,10 +65,10 @@ private fun abbreviateAmount(amount: Double): String = when {
         val m = amount / 1_000_000
         val whole = m.toLong()
         val dec = ((m - whole) * 10).toLong()
-        "₱${if (dec == 0L) "$whole" else "$whole.$dec"}M"
+        "${if (dec == 0L) "$whole" else "$whole.$dec"}M"
     }
-    amount >= 1_000 -> "₱${(amount / 1_000).toLong()}K"
-    else -> "₱${amount.toLong()}"
+    amount >= 1_000 -> "${(amount / 1_000).toLong()}K"
+    else -> "${amount.toLong()}"
 }
 
 // ─── Sheet entry ─────────────────────────────────────────────────────────────
@@ -440,9 +440,7 @@ private fun CategoryBreakdown(
         if (selectedMonth != null) c.spentIn(selectedMonth) else c.totalSpent
     }?.takeIf { it > 0 } ?: 1.0
 
-    // Only show per-category budget when a specific month is selected — comparing
-    // a single month's actual against a monthly budget only makes sense per-month.
-    val showBudget = selectedMonth != null
+    val showBudget = true
 
     Column(
         modifier = Modifier
@@ -534,8 +532,25 @@ private fun CategoryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // Budget pill only — amount removed, total is shown in the top card
-            if (hasBudget) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Gray budget pill — always shown for every category
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = abbreviateAmount(monthlyBudget),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 9.sp,
+                    )
+                }
                 BudgetStatusPill(
                     remaining = remaining,
                     isOver = isOverBudget,

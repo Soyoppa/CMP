@@ -12,7 +12,7 @@ import org.example.project.auth.aiMessageLimit
 import org.example.project.data.AiRepository
 import org.example.project.data.OllamaMessage
 import org.example.project.data.ai.AiUsageTracker
-import org.example.project.model.BudgetCategory
+import org.example.project.model.CategorySummary
 import org.example.project.model.ChatMessage
 import org.example.project.repository.TransactionRepository
 import kotlinx.datetime.Clock
@@ -40,8 +40,7 @@ class AiViewModel(
     // Conversation history for context (Ollama format)
     private val conversationHistory = mutableListOf<OllamaMessage>()
 
-    // Budget context fed to the model so it can answer "can we still spend on X?".
-    private var budget: List<BudgetCategory> = emptyList()
+    private var budget: List<CategorySummary> = emptyList()
 
     // Guest allowance tracking.
     private var guestMessagesSent = 0
@@ -56,7 +55,7 @@ class AiViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingTransactions = true) }
             try {
-                budget = transactionRepository.getBudget()
+                budget = transactionRepository.getSummary()
                 println("💰 [AiViewModel] Loaded ${budget.size} budget categories")
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             } catch (e: Exception) {

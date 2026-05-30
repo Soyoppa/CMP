@@ -10,7 +10,6 @@ import io.ktor.client.statement.request
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
-import org.example.project.model.BudgetCategory
 import org.example.project.model.CategorySummary
 import org.example.project.model.CareofCatagory
 import org.example.project.model.Transaction
@@ -53,7 +52,6 @@ class Tracker2Repository : SheetRepository {
         followRedirects = true
     }
 
-    override suspend fun getBudget(): List<BudgetCategory> = emptyList()
     override suspend fun getSummary(): List<CategorySummary> = emptyList()
 
     /**
