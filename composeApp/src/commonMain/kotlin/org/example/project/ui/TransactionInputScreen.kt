@@ -418,7 +418,7 @@ private fun HeroAmountField(
     OutlinedTextField(
         value = amount,
         onValueChange = onAmountChanged,
-        label = { Text(if (isIncome) "Inflow Amount" else "Outflow Amount") },
+        label = { Text("Amount") },
         placeholder = { Text("0.00", style = LocalTextStyle.current.copy(fontSize = 28.sp)) },
         prefix = {
             // No bundled font ships the ₱ glyph (renders as "no glyph" on web), so use a vector asset.
@@ -709,6 +709,9 @@ private fun SaveButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
+            // Disabled: shape stays visible, text is clearly muted — not invisible
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
         ),
         interactionSource = bounce.interactionSource,
     ) {
@@ -732,9 +735,11 @@ private fun SaveButton(
 
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    focusedBorderColor = MaterialTheme.colorScheme.secondary,
     focusedLabelColor = MaterialTheme.colorScheme.secondary,
-    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
+    // Visible resting border so the field shape is always discoverable
+    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurface,
     disabledTextColor = MaterialTheme.colorScheme.onSurface,
     disabledBorderColor = MaterialTheme.colorScheme.outline,
     disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
