@@ -33,6 +33,7 @@ import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
+import org.example.project.config.FeatureFlagStore
 import org.example.project.config.SchemaFeatures
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
@@ -67,6 +68,7 @@ fun ChatScreen(
     val uiState by viewModel.uiState.collectAsState()
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
+    val flags by FeatureFlagStore.state.collectAsState()
     val authState by Session.state.collectAsState()
     val authUser = (authState as? AuthState.Authenticated)?.user
     val isGuest = authUser?.isGuest == true
@@ -132,7 +134,11 @@ fun ChatScreen(
 
         when {
             isGuest && uiState.guestLocked ->
-                GuestChatUpsell(onSignUp = onRequestSignUp, bottomPadding = bottomPadding)
+                GuestChatUpsell(
+                    onSignUp = onRequestSignUp,
+                    signupEnabled = flags.signupEnabled,
+                    bottomPadding = bottomPadding,
+                )
 
             // Guests interact by tapping suggestions only — no free-text composer.
             isGuest ->
@@ -186,7 +192,7 @@ private fun GuestSuggestHint(bottomPadding: Dp) {
 
 /** Replaces the composer once a guest has used their free message. */
 @Composable
-private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
+private fun GuestChatUpsell(onSignUp: () -> Unit, signupEnabled: Boolean, bottomPadding: Dp) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,17 +206,19 @@ private fun GuestChatUpsell(onSignUp: () -> Unit, bottomPadding: Dp) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        BounceSurface(
-            onClick = onSignUp,
-            shape = AppShapes.field,
-            color = MaterialTheme.colorScheme.primary,
-        ) {
-            Text(
-                text = "Sign up to keep chatting",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
+        if (signupEnabled) {
+            BounceSurface(
+                onClick = onSignUp,
+                shape = AppShapes.field,
+                color = MaterialTheme.colorScheme.primary,
+            ) {
+                Text(
+                    text = "Sign up to keep chatting",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         }
     }
 }

@@ -130,6 +130,11 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         LaunchedEffect(Unit) { authRepository.restoreSession() }
         LaunchedEffect(Unit) { createFeatureFlagLoader().load() }
 
+        // Always land on ADD when a session starts (sign-in or guest).
+        LaunchedEffect(authState) {
+            if (authState is AuthState.Authenticated) selectedTab = NavTab.ADD
+        }
+
         // If chat is remotely disabled while it's the active tab, fall back to Add.
         LaunchedEffect(featureFlags.chatEnabled) {
             if (!featureFlags.chatEnabled && selectedTab == NavTab.CHAT) selectedTab = NavTab.ADD
@@ -192,7 +197,10 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                 ) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         if (auth.user.isGuest) {
-                            GuestBanner(onCreateAccount = requestSignUp)
+                            GuestBanner(
+                                onCreateAccount = requestSignUp,
+                                signupEnabled = featureFlags.signupEnabled,
+                            )
                         }
                         Box(modifier = Modifier.weight(1f)) {
                             when (selectedTab) {
@@ -262,7 +270,7 @@ private fun AuthSplash() {
 }
 
 @Composable
-private fun GuestBanner(onCreateAccount: () -> Unit) {
+private fun GuestBanner(onCreateAccount: () -> Unit, signupEnabled: Boolean) {
     val accent = MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier
@@ -278,18 +286,20 @@ private fun GuestBanner(onCreateAccount: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
-        BounceSurface(
-            onClick = onCreateAccount,
-            shape = AppShapes.pill,
-            color = accent,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-        ) {
-            Text(
-                text = "Create account",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
+        if (signupEnabled) {
+            BounceSurface(
+                onClick = onCreateAccount,
+                shape = AppShapes.pill,
+                color = accent,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Create account",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         }
     }
 }

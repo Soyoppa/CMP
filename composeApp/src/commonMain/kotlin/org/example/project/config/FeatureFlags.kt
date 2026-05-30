@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * is unreachable or hasn't been fetched yet, every feature stays on.
  */
 data class FeatureFlags(
-    val signupEnabled: Boolean = true,
+    val signupEnabled: Boolean = false,
     val guestModeEnabled: Boolean = true,
     val chatEnabled: Boolean = true,
 )
