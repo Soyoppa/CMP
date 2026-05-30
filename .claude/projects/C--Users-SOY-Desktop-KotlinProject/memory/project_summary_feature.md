@@ -7,8 +7,6 @@ metadata:
 
 Spending Summary sheet reads from `'Sumarry Trend'!A:M` (intentional misspellings in both key and tab name).
 
-**Config key:** `tracker_1.SUMARRY_TREND` in local.properties → `BuildConfig.SUMARRY_TREND` → `ApiConfig.SUMARRY_TREND` → `ConfigManager.summaryRange`
-
 **Layout:** `Category | January | February | … | Month-N` (no Budget column — different from Budget tab)
 
 **Parser filters** (getSummary in Tracker1Repository): skips rows where col-0 is "income", "expenses", "savings", "total", "net", "category" (section headers that bleed through), and rows with all-zero amounts.
