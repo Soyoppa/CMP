@@ -1,13 +1,23 @@
 package org.example.project.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -282,17 +292,31 @@ private fun MonthBarChart(
         modifier = Modifier
             .fillMaxWidth()
             .height(ChartHeight)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .pointerInput(months) {
+                awaitEachGesture {
+                    // Respond to both tap (down) and drag without any minimum distance
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val idx = (down.position.x / size.width * months.size)
+                        .toInt().coerceIn(0, months.lastIndex)
+                    onMonthSelected(months[idx])
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val pos = event.changes.firstOrNull()?.position ?: break
+                        val dragIdx = (pos.x / size.width * months.size)
+                            .toInt().coerceIn(0, months.lastIndex)
+                        onMonthSelected(months[dragIdx])
+                    } while (event.changes.any { it.pressed })
+                }
+            },
     ) {
-        // Dashed budget reference line drawn via Canvas so we get path effects
         if (budgetFraction > 0f) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val bottomPad = BarBottomPad.toPx()
                 val topPad = BarTopPad.toPx()
                 val barDrawingArea = size.height - topPad - bottomPad
-                // Y from top of Box where the budget line sits
                 val lineY = size.height - bottomPad - (budgetFraction * barDrawingArea * BarAreaFraction)
-
                 drawLine(
                     color = budgetLineColor.copy(alpha = 0.55f),
                     start = Offset(0f, lineY),
@@ -303,7 +327,6 @@ private fun MonthBarChart(
             }
         }
 
-        // Bars
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -311,14 +334,11 @@ private fun MonthBarChart(
         ) {
             months.forEach { month ->
                 val total = totals[month] ?: 0.0
-                val fraction = (total / maxY).toFloat()
-                val isSelected = month == selectedMonth
                 BarColumn(
                     month = month,
                     amount = total,
-                    fraction = fraction,
-                    isSelected = isSelected,
-                    onClick = { onMonthSelected(month) },
+                    fraction = (total / maxY).toFloat(),
+                    isSelected = month == selectedMonth,
                 )
             }
         }
@@ -331,7 +351,6 @@ private fun RowScope.BarColumn(
     amount: Double,
     fraction: Float,
     isSelected: Boolean,
-    onClick: () -> Unit,
 ) {
     val animatedFraction by animateFloatAsState(
         targetValue = fraction * BarAreaFraction,
@@ -350,13 +369,10 @@ private fun RowScope.BarColumn(
     Column(
         modifier = Modifier
             .weight(1f)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick),
+            .fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Bottom,
     ) {
-        // Amount label — only on selected bar
         Text(
             text = if (isSelected) abbreviateAmount(amount) else "",
             style = MaterialTheme.typography.labelSmall,
@@ -368,7 +384,6 @@ private fun RowScope.BarColumn(
 
         Spacer(Modifier.height(3.dp))
 
-        // Bar body — rounded top only
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.55f)
@@ -430,17 +445,14 @@ private fun CategoryBreakdown(
         categories.sortedByDescending { c ->
             val amount = if (selectedMonth != null) c.spentIn(selectedMonth) else c.totalSpent
             val budget = budgetByCategory[c.category.lowercase()] ?: 0.0
-            // Over-budget first: sort by (actual - budget) descending.
-            // Categories with no budget entry sort last (Double.MIN_VALUE).
             if (budget > 0.0) amount - budget else Double.MIN_VALUE
         }
     }
-    // Fallback max used only when a category has no budget entry
     val maxAmount = sorted.firstOrNull()?.let { c ->
         if (selectedMonth != null) c.spentIn(selectedMonth) else c.totalSpent
     }?.takeIf { it > 0 } ?: 1.0
 
-    val showBudget = true
+    var showPills by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -457,7 +469,7 @@ private fun CategoryBreakdown(
 
         sorted.forEachIndexed { index, summary ->
             val amount = if (selectedMonth != null) summary.spentIn(selectedMonth) else summary.totalSpent
-            val budget = if (showBudget) budgetByCategory[summary.category.lowercase()] ?: 0.0 else 0.0
+            val budget = budgetByCategory[summary.category.lowercase()] ?: 0.0
             val fallbackFraction = (amount / maxAmount).toFloat()
             CategoryRow(
                 category = summary.category,
@@ -465,6 +477,8 @@ private fun CategoryBreakdown(
                 fallbackFraction = fallbackFraction,
                 monthlyBudget = budget,
                 barColor = colorForIndex(index),
+                showPills = showPills,
+                onTap = { showPills = !showPills },
             )
         }
     }
@@ -474,16 +488,16 @@ private fun CategoryBreakdown(
 private fun CategoryRow(
     category: String,
     amount: Double,
-    fallbackFraction: Float,   // used when no budget data — relative to max spend
-    monthlyBudget: Double,     // 0.0 = no budget for this category
+    fallbackFraction: Float,
+    monthlyBudget: Double,
     barColor: Color,
+    showPills: Boolean,
+    onTap: () -> Unit,
 ) {
     val hasBudget = monthlyBudget > 0.0
     val isOverBudget = hasBudget && amount > monthlyBudget
-    val remaining = monthlyBudget - amount   // negative = over budget
+    val remaining = monthlyBudget - amount
 
-    // When budget exists: fill = actual/budget (capped at 1 for the main bar)
-    // When no budget: fill = relative fraction among all categories
     val targetFraction = if (hasBudget) (amount / monthlyBudget).toFloat().coerceAtMost(1f)
                          else fallbackFraction
 
@@ -504,11 +518,18 @@ private fun CategoryRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f))
+            .clickable(onClick = onTap)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        // ── Top row: dot + name + amount + budget pill ──────────────────────
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium,
+                    )
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -532,49 +553,61 @@ private fun CategoryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            AnimatedVisibility(
+                visible = showPills,
+                enter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+                        expandHorizontally(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium,
+                            ),
+                            expandFrom = Alignment.End,
+                        ),
+                exit = fadeOut(tween(140)) +
+                       shrinkHorizontally(tween(140), shrinkTowards = Alignment.End),
             ) {
-                // Gray budget pill — always shown for every category
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = abbreviateAmount(monthlyBudget),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 9.sp,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = if (hasBudget) abbreviateAmount(monthlyBudget) else "—",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 9.sp,
+                        )
+                    }
+                    if (hasBudget) {
+                        BudgetStatusPill(
+                            remaining = remaining,
+                            isOver = isOverBudget,
+                            remainingColor = remainingColor,
+                            overColor = overflowColor,
+                        )
+                    }
                 }
-                BudgetStatusPill(
-                    remaining = remaining,
-                    isOver = isOverBudget,
-                    remainingColor = remainingColor,
-                    overColor = overflowColor,
-                )
             }
         }
 
         Spacer(Modifier.height(7.dp))
 
-        // ── Budget-container bar ─────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(50))
-                // Track = budget ghost (category color, very low alpha) or neutral if no budget
                 .background(
                     if (hasBudget) barColor.copy(alpha = 0.14f)
                     else MaterialTheme.colorScheme.surfaceContainerHighest
                 ),
         ) {
-            // Spend fill
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -585,7 +618,6 @@ private fun CategoryRow(
                         else barColor.copy(alpha = 0.85f)
                     ),
             )
-            // Overflow nub — tiny terracotta pip at the right edge when over budget
             if (isOverBudget) {
                 Box(
                     modifier = Modifier
