@@ -42,12 +42,9 @@ class GoogleAppsScriptRepository {
             })
         }
         install(Logging) {
-            level = LogLevel.ALL
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println("[Ktor] $message")
-                }
-            }
+            // SECURITY: was LogLevel.ALL which wrote full request URLs (incl. API key query param)
+            // and response bodies to stdout. Downgraded to NONE; re-enable only under a debug flag.
+            level = LogLevel.NONE
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000  // 30s timeout — prevents infinite loading

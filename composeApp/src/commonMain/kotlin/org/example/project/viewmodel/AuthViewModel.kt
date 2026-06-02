@@ -34,8 +34,10 @@ class AuthViewModel(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    fun onEmailChange(value: String) = _state.update { it.copy(email = value, error = null) }
-    fun onPasswordChange(value: String) = _state.update { it.copy(password = value, error = null) }
+    fun onEmailChange(value: String) =
+        _state.update { it.copy(email = value.take(254), error = null) }   // RFC 5321 max email length
+    fun onPasswordChange(value: String) =
+        _state.update { it.copy(password = value.take(128), error = null) } // generous upper bound; prevents unbounded heap growth
 
     fun toggleMode() = _state.update {
         it.copy(mode = if (it.mode == Mode.SIGN_IN) Mode.SIGN_UP else Mode.SIGN_IN, error = null)

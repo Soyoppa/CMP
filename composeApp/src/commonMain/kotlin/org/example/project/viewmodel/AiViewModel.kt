@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.Session
+import org.example.project.auth.aiCharLimit
 import org.example.project.auth.aiMessageLimit
 import org.example.project.data.AiRepository
 import org.example.project.data.OllamaMessage
@@ -70,6 +71,9 @@ class AiViewModel(
         // Guest allowance: cap total messages; lock the composer once exhausted.
         val user = Session.currentUser
         val limit = user?.aiMessageLimit ?: Int.MAX_VALUE
+        val charLimit = user?.aiCharLimit ?: 4_000  // 4 000-char hard cap for authenticated users
+        if (userInput.length > charLimit) return     // silently drop over-length inputs
+
         if (user?.isGuest == true && guestMessagesSent >= limit) {
             _uiState.update { it.copy(guestLocked = true) }
             return
