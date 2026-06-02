@@ -84,7 +84,7 @@ fun LoginScreen(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -166,7 +166,7 @@ fun LoginScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(50))
+                            .clip(AppShapes.pill)
                             .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     )
@@ -238,7 +238,7 @@ private fun PasswordVisibilityToggle(
     Box(
         modifier = Modifier
             .size(44.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(AppShapes.pill)
             .clickable(enabled = enabled, onClick = onToggle)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,

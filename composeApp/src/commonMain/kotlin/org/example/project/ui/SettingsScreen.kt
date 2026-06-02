@@ -292,7 +292,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
         }
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(MaterialTheme.colorScheme.surface)
                 .clickable(
                     interactionSource = bounce.interactionSource,
@@ -423,7 +423,7 @@ private fun TokenSplitBar(promptTokens: Int, responseTokens: Int, accent: Color)
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(accent.copy(alpha = 0.18f)),
         ) {
             Box(
@@ -456,7 +456,7 @@ private fun ProviderSplitRow(
         Box(
             modifier = Modifier
                 .size(8.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(color),
         )
         Text(
@@ -478,7 +478,7 @@ private fun ResetChip(onReset: () -> Unit) {
     val bounce = rememberPressBounce(pressedScale = 0.92f)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(AppShapes.pill)
             .background(MaterialTheme.colorScheme.surface)
             .clickable(
                 interactionSource = bounce.interactionSource,
@@ -721,7 +721,7 @@ private fun SwitchStatusLine(color: Color, text: String) {
             modifier = Modifier
                 .padding(top = 5.dp)
                 .size(8.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(color),
         )
         Text(
@@ -867,9 +867,9 @@ private fun ResultCard(result: TestResult) {
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(animatedAccent.copy(alpha = 0.16f))
-                    .border(1.dp, animatedAccent.copy(alpha = 0.45f), RoundedCornerShape(50)),
+                    .border(1.dp, animatedAccent.copy(alpha = 0.45f), AppShapes.pill),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

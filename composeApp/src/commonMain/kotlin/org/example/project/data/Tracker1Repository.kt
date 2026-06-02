@@ -44,7 +44,9 @@ class Tracker1Repository(
             })
         }
         install(Logging) {
-            level = LogLevel.INFO
+            // SECURITY: INFO logs the full request URL which contains the ?key=<API_KEY>
+            // query parameter. Use NONE to prevent the key from appearing in logcat.
+            level = LogLevel.NONE
         }
     }
 

@@ -38,12 +38,9 @@ class Tracker2Repository : SheetRepository {
             })
         }
         install(Logging) {
-            level = LogLevel.INFO
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println("[Ktor] $message")
-                }
-            }
+            // SECURITY: INFO logs the full request URL which contains the ?key=<API_KEY>
+            // query parameter. Use NONE to prevent the key from appearing in logcat.
+            level = LogLevel.NONE
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000
@@ -105,9 +102,8 @@ class Tracker2Repository : SheetRepository {
         val careOf = CareofCatagory.fromDisplayName(transaction.category)?.displayName
             ?: transaction.category
 
-        println("💳 [Tracker2 write] POST -> $scriptUrl")
-        println("💳 [Tracker2 write] payload: date=${transaction.date}, desc=${transaction.description}, " +
-            "amount=$signedAmount, creditCard=${transaction.modeOfPayment}, careOf=$careOf")
+        // SECURITY: removed pre-request println that logged the full scriptUrl and transaction
+        // payload (description, amount, payment method) to stdout.
 
         return try {
             val response = client.get(scriptUrl) {
@@ -123,8 +119,8 @@ class Tracker2Repository : SheetRepository {
             val finalUrl = response.request.url.toString()
             val contentType = response.headers["Content-Type"] ?: "<none>"
 
-            println("💳 [Tracker2 write] status=$status, contentType=$contentType, finalUrl=$finalUrl")
-            println("💳 [Tracker2 write] body (first 2000): ${responseText.take(2000)}")
+            // SECURITY: removed post-response println that logged the final redirect URL
+            // (which may contain auth tokens) and full response body to stdout.
 
             if (status !in 200..399) {
                 return AddTransactionResult(
