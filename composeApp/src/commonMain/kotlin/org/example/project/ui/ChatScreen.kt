@@ -282,7 +282,7 @@ private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
     }
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(AppShapes.pill)
             .background(color.copy(alpha = 0.12f))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -291,7 +291,7 @@ private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(color),
         )
         Text(
@@ -321,7 +321,7 @@ private fun ProviderPill(provider: AiProviderId, model: String?) {
     }
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(AppShapes.pill)
             .background(color.copy(alpha = 0.12f))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -330,7 +330,7 @@ private fun ProviderPill(provider: AiProviderId, model: String?) {
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(color),
         )
         Text(
@@ -377,7 +377,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -457,7 +457,7 @@ private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp
             Box(
                 modifier = Modifier
                     .size(88.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -469,7 +469,7 @@ private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp
             }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 14.dp, vertical = 5.dp),
             ) {
@@ -519,7 +519,7 @@ private fun EmptyState(
         Box(
             modifier = Modifier
                 .size(72.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -617,7 +617,7 @@ private fun ChatInputBar(
             onClick = onSend,
             enabled = value.isNotBlank() && !isLoading,
             modifier = Modifier.size(48.dp).then(sendBounce.modifier),
-            shape = RoundedCornerShape(50),
+            shape = AppShapes.pill,
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,

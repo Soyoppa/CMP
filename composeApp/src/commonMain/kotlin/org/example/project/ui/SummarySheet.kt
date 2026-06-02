@@ -104,7 +104,7 @@ fun SummarySheet(
                 modifier = Modifier
                     .padding(top = 12.dp, bottom = 4.dp)
                     .size(width = 36.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)),
             )
         },
@@ -225,7 +225,7 @@ private fun TotalExpenseCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .padding(bottom = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -267,7 +267,7 @@ private fun TotalExpenseCard(
                     if (isOverBudget) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(50))
+                                .clip(AppShapes.pill)
                                 .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         ) {
@@ -538,7 +538,7 @@ private fun CategoryRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f))
             .clickable(onClick = onTap)
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -563,7 +563,7 @@ private fun CategoryRow(
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .clip(RoundedCornerShape(50))
+                        .clip(AppShapes.pill)
                         .background(barColor),
                 )
                 Text(
@@ -594,7 +594,7 @@ private fun CategoryRow(
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(50))
+                            .clip(AppShapes.pill)
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
@@ -624,7 +624,7 @@ private fun CategoryRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(
                     if (hasBudget) barColor.copy(alpha = 0.14f)
                     else MaterialTheme.colorScheme.surfaceContainerHighest
@@ -634,7 +634,7 @@ private fun CategoryRow(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(animatedFraction)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.pill)
                     .background(
                         if (isOverBudget) overflowColor.copy(alpha = 0.85f)
                         else barColor.copy(alpha = 0.85f)
@@ -646,7 +646,7 @@ private fun CategoryRow(
                         .align(Alignment.CenterEnd)
                         .width(4.dp)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp))
+                        .clip(AppShapes.pill)
                         .background(overflowColor),
                 )
             }
@@ -667,7 +667,7 @@ private fun BudgetStatusPill(
 
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(AppShapes.pill)
             .background(color.copy(alpha = 0.12f))
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
