@@ -116,7 +116,7 @@ fun TransactionInputScreen(
 
     // Open keyboard on the amount field immediately — no extra tap needed.
     LaunchedEffect(Unit) {
-        delay(200)
+        delay(700)
         amountFocusRequester.requestFocus()
     }
 
