@@ -210,7 +210,7 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(28.dp)
-                            .clip(RoundedCornerShape(50))
+                            .clip(AppShapes.pill)
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
@@ -535,7 +535,7 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(28.dp)
-                        .clip(RoundedCornerShape(50))
+                        .clip(AppShapes.pill)
                         .background(clearColor.copy(alpha = 0.12f))
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
@@ -636,7 +636,7 @@ private fun ChoiceField(
         Box(
             modifier = Modifier
                 .size(28.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.pill)
                 .background(
                     if (isExpanded) accentColor.copy(alpha = 0.15f)
                     else MaterialTheme.colorScheme.surface

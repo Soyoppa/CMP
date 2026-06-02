@@ -40,16 +40,18 @@ object DemoRepository : SheetRepository {
             )
         }
 
+    private val allRecentTransactions = listOf(
+        RecentTransaction("Monthly Salary",        55000.0, isInflow = true),
+        RecentTransaction("SM Supermarket",         3250.0, isInflow = false),
+        RecentTransaction("Meralco Bill",           4500.0, isInflow = false),
+        RecentTransaction("Jollibee Family Meal",    850.0, isInflow = false),
+        RecentTransaction("Grab — Airport",         1200.0, isInflow = false),
+        RecentTransaction("Church Offering",         400.0, isInflow = false),
+        RecentTransaction("Birthday Gift",          2500.0, isInflow = false),
+    )
+
     override suspend fun getRecentTransactions(limit: Int): List<RecentTransaction> =
-        listOf(
-            RecentTransaction("Monthly Salary",        55000.0, isInflow = true),
-            RecentTransaction("SM Supermarket",         3250.0, isInflow = false),
-            RecentTransaction("Meralco Bill",           4500.0, isInflow = false),
-            RecentTransaction("Jollibee Family Meal",    850.0, isInflow = false),
-            RecentTransaction("Grab — Airport",         1200.0, isInflow = false),
-            RecentTransaction("Church Offering",         400.0, isInflow = false),
-            RecentTransaction("Birthday Gift",          2500.0, isInflow = false),
-        ).takeLast(limit)
+        allRecentTransactions.take(limit)
 
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
         AddTransactionResult(success = true, responseBody = "Demo mode — transaction not saved.")
