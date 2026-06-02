@@ -294,6 +294,8 @@ private const val BarAreaFraction = 0.70f
 private val BarBottomPad = 23.dp
 // Top margin inside each bar column (amount label height ≈ 14dp + 3dp spacer)
 private val BarTopPad = 17.dp
+// Dash pattern for the budget reference line — constant, allocated once at class-load time.
+private val BudgetLineDash = PathEffect.dashPathEffect(floatArrayOf(12f, 6f))
 
 @Composable
 private fun MonthBarChart(
@@ -308,7 +310,6 @@ private fun MonthBarChart(
     val budgetFraction = if (totalMonthlyBudget > 0) (totalMonthlyBudget / maxY).toFloat() else -1f
 
     val budgetLineColor = MaterialTheme.colorScheme.secondary
-    val budgetLineDash = PathEffect.dashPathEffect(floatArrayOf(12f, 6f))
 
     Box(
         modifier = Modifier
@@ -344,7 +345,7 @@ private fun MonthBarChart(
                     start = Offset(0f, lineY),
                     end = Offset(size.width, lineY),
                     strokeWidth = 1.5.dp.toPx(),
-                    pathEffect = budgetLineDash,
+                    pathEffect = BudgetLineDash,
                 )
             }
         }
