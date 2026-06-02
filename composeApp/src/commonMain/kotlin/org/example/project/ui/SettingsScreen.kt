@@ -538,7 +538,7 @@ private fun PerMessageTokensToggleRow(
             enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
             ),
         )
     }
@@ -770,7 +770,7 @@ private fun DarkModeToggleRow(
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
             ),
         )
     }
