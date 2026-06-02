@@ -296,6 +296,8 @@ private val BarBottomPad = 23.dp
 private val BarTopPad = 17.dp
 // Dash pattern for the budget reference line — constant, allocated once at class-load time.
 private val BudgetLineDash = PathEffect.dashPathEffect(floatArrayOf(12f, 6f))
+// Rounded top corners for each bar column — constant, allocated once at class-load time.
+private val BarTopShape = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)
 
 @Composable
 private fun MonthBarChart(
@@ -411,7 +413,7 @@ private fun RowScope.BarColumn(
             modifier = Modifier
                 .fillMaxWidth(0.55f)
                 .fillMaxHeight(animatedFraction)
-                .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                .clip(BarTopShape)
                 .background(barColor),
         )
 
