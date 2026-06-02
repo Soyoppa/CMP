@@ -116,9 +116,7 @@ class Tracker1Repository(
                     }.toMap()
                     CategorySummary(category = category, monthlyBudget = budget, monthlySpend = monthlySpend)
                 }
-                .also { println("📊 [Tracker1] Parsed ${it.size} summary categories") }
         } catch (e: Exception) {
-            println("💥 [Tracker1] getSummary failed: ${e::class.simpleName} — ${e.message}")
             emptyList()
         }
     }
