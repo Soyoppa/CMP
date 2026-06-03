@@ -150,8 +150,6 @@ class AiViewModel(
         _uiState.update { it.copy(messages = emptyList(), error = null) }
     }
 
-    private fun generateId(): String {
-        val timestamp = kotlinx.datetime.DateTimePeriod()
-        return "msg_${timestamp}_${(0..9999).random()}"
-    }
+    private fun generateId(): String =
+        "msg_${Clock.System.now().toEpochMilliseconds()}_${(0..9999).random()}"
 }
