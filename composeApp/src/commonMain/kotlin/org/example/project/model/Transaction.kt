@@ -40,10 +40,11 @@ enum class TransactionCategory(val displayName: String) {
 enum class IncomeCategory(val displayName: String) {
     RENZ_INCOME("Renz Income"),
     GEN_INCOME("Gen Income"),
-    OTHER("Other")
+    OTHER("Other"),
 }
 
 enum class PaymentMode(val displayName: String) {
+    AMEX("Amex"),
     BPI("BPI"),
     CASH("Cash"),
     CITI_REWARDS("Citi Rewards"),
@@ -55,5 +56,5 @@ enum class PaymentMode(val displayName: String) {
     MAYA("Maya"),
     OTHER("Other"),
     RCBC_FLEX("Rcbc Flex"),
-    SECURITY_BANK("Security Bank")
+    SECURITY_BANK("Security Bank"),
 }

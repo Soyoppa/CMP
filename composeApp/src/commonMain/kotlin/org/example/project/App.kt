@@ -240,8 +240,8 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                     SnackbarHost(
                         hostState = snackbarHostState,
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(horizontal = 32.dp),
+                            .align(Alignment.TopCenter)
+                            .padding(horizontal = 32.dp, vertical = 10.dp),
                     ) { data ->
                         FeedbackSnackbar(data)
                     }
