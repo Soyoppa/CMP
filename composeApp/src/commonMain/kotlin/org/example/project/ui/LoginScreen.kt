@@ -237,7 +237,7 @@ private fun PasswordVisibilityToggle(
     val description = if (visible) "Hide password" else "Show password"
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(AppShapes.pill)
             .clickable(enabled = enabled, onClick = onToggle)
             .semantics { contentDescription = description },
