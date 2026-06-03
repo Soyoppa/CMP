@@ -593,7 +593,7 @@ private fun ChatInputBar(
         val inputBounce = rememberPressBounce(pressedScale = 0.98f)
         OutlinedTextField(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { if (it.length <= 4_000) onValueChange(it) },
             modifier = Modifier.weight(1f).then(inputBounce.modifier),
             placeholder = { Text(hint, fontSize = 13.sp) },
             maxLines = 3,
