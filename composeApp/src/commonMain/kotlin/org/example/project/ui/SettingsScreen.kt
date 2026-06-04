@@ -843,18 +843,21 @@ private fun ResultCard(result: TestResult) {
     }
 
     Column(
+        val borderBrush = remember(animatedAccent) {
+            Brush.verticalGradient(
+                listOf(
+                    animatedAccent.copy(alpha = 0.55f),
+                    animatedAccent.copy(alpha = 0.18f),
+                ),
+            )
+        }
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(
                 width = 1.dp,
-                brush = Brush.verticalGradient(
-                    listOf(
-                        animatedAccent.copy(alpha = 0.55f),
-                        animatedAccent.copy(alpha = 0.18f),
-                    ),
-                ),
+                brush = borderBrush,
                 shape = AppShapes.card,
             )
             .padding(18.dp),
