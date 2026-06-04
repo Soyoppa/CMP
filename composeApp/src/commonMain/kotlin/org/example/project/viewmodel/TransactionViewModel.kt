@@ -68,12 +68,6 @@ class TransactionViewModel(
                     _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved successfully!"))
                     resetForm()
                 } else {
-                    // Apps Script sometimes commits even when the response is unclear — keep the
-                    // diagnostic so a failed/ambiguous write can be traced against the sheet.
-                    println(
-                        "⚠️ [addTransaction] failed — status=${result.httpStatus}, " +
-                            "url=${result.urlUsed}, error=${result.errorMessage}, body=${result.responseBody}"
-                    )
                     _effects.emit(TransactionFormEffect.ShowError(result.errorMessage ?: "Failed to save transaction."))
                     _formState.update { it.copy(isLoading = false) }
                 }

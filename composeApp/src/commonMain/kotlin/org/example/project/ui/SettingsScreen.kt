@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -292,6 +291,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
         }
         Box(
             modifier = Modifier
+                .heightIn(min = 48.dp)
                 .clip(AppShapes.pill)
                 .background(MaterialTheme.colorScheme.surface)
                 .clickable(
@@ -301,6 +301,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
                 )
                 .then(bounce.modifier)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = if (isGuest) "Exit guest" else "Sign out",
@@ -478,6 +479,7 @@ private fun ResetChip(onReset: () -> Unit) {
     val bounce = rememberPressBounce(pressedScale = 0.92f)
     Box(
         modifier = Modifier
+            .heightIn(min = 48.dp)
             .clip(AppShapes.pill)
             .background(MaterialTheme.colorScheme.surface)
             .clickable(
@@ -487,6 +489,7 @@ private fun ResetChip(onReset: () -> Unit) {
             )
             .then(bounce.modifier)
             .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "Reset",
@@ -538,7 +541,7 @@ private fun PerMessageTokensToggleRow(
             enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
             ),
         )
     }
@@ -770,7 +773,7 @@ private fun DarkModeToggleRow(
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
             ),
         )
     }
@@ -843,18 +846,21 @@ private fun ResultCard(result: TestResult) {
     }
 
     Column(
+        val borderBrush = remember(animatedAccent) {
+            Brush.verticalGradient(
+                listOf(
+                    animatedAccent.copy(alpha = 0.55f),
+                    animatedAccent.copy(alpha = 0.18f),
+                ),
+            )
+        }
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(
                 width = 1.dp,
-                brush = Brush.verticalGradient(
-                    listOf(
-                        animatedAccent.copy(alpha = 0.55f),
-                        animatedAccent.copy(alpha = 0.18f),
-                    ),
-                ),
+                brush = borderBrush,
                 shape = AppShapes.card,
             )
             .padding(18.dp),
