@@ -132,10 +132,8 @@ class GoogleAppsScriptRepository {
         return try {
             val response = client.get(ConfigManager.getConfig().writeScriptUrl)
             val responseBody = response.body<String>()
-            println("🔗 [testConnection] Status: ${response.status}, Body: $responseBody")
             "Connection test - Status: ${response.status}, Body: $responseBody"
         } catch (e: Exception) {
-            println("💥 [testConnection] Failed: ${e.message}")
             "Connection failed: ${e.message}"
         }
     }
