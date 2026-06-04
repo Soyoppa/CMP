@@ -291,6 +291,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
         }
         Box(
             modifier = Modifier
+                .heightIn(min = 48.dp)
                 .clip(AppShapes.pill)
                 .background(MaterialTheme.colorScheme.surface)
                 .clickable(
@@ -300,6 +301,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
                 )
                 .then(bounce.modifier)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = if (isGuest) "Exit guest" else "Sign out",
@@ -477,6 +479,7 @@ private fun ResetChip(onReset: () -> Unit) {
     val bounce = rememberPressBounce(pressedScale = 0.92f)
     Box(
         modifier = Modifier
+            .heightIn(min = 48.dp)
             .clip(AppShapes.pill)
             .background(MaterialTheme.colorScheme.surface)
             .clickable(
@@ -486,6 +489,7 @@ private fun ResetChip(onReset: () -> Unit) {
             )
             .then(bounce.modifier)
             .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "Reset",

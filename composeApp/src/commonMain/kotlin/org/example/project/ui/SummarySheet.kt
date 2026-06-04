@@ -21,7 +21,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -411,7 +410,7 @@ private fun RowScope.BarColumn(
             modifier = Modifier
                 .fillMaxWidth(0.55f)
                 .fillMaxHeight(animatedFraction)
-                .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                .clip(AppShapes.pill)
                 .background(barColor),
         )
 
