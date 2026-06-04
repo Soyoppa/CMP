@@ -97,7 +97,7 @@ fun SummarySheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        shape = AppShapes.card,
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
