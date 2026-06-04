@@ -61,8 +61,6 @@ internal class OllamaProvider : AiProvider {
             add(OllamaMessage("user", userMessage))
         }
 
-        println("🤖 [Ollama] POST $baseUrl/api/chat | model=$model | msgs=${messages.size}")
-
         val rawBytes = client.post("$baseUrl/api/chat") {
             contentType(ContentType.Application.Json)
             setBody(
@@ -88,7 +86,6 @@ internal class OllamaProvider : AiProvider {
         val promptTokens = parsedLines.lastOrNull { it.promptEvalCount != null }?.promptEvalCount ?: 0
         val responseTokens = parsedLines.lastOrNull { it.evalCount != null }?.evalCount ?: 0
 
-        println("🤖 [Ollama] content=${fullContent.length} chars | tokens p=$promptTokens r=$responseTokens")
         return AiResult(
             text = fullContent,
             provider = id,
