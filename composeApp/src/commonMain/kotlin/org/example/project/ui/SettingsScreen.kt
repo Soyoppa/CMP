@@ -292,6 +292,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
         Box(
             modifier = Modifier
                 .heightIn(min = 48.dp)
+                .widthIn(min = 48.dp)
                 .clip(AppShapes.pill)
                 .background(MaterialTheme.colorScheme.surface)
                 .clickable(
@@ -480,6 +481,7 @@ private fun ResetChip(onReset: () -> Unit) {
     Box(
         modifier = Modifier
             .heightIn(min = 48.dp)
+            .widthIn(min = 48.dp)
             .clip(AppShapes.pill)
             .background(MaterialTheme.colorScheme.surface)
             .clickable(
@@ -655,6 +657,7 @@ private fun ProviderModeChip(
     val bounce = rememberPressBounce(pressedScale = 0.96f)
     Box(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .clip(AppShapes.field)
             .background(bg)
             .border(1.dp, borderColor, AppShapes.field)
@@ -845,15 +848,15 @@ private fun ResultCard(result: TestResult) {
         ResultKind.ERROR -> "Failed"
     }
 
+    val borderBrush = remember(animatedAccent) {
+        Brush.verticalGradient(
+            listOf(
+                animatedAccent.copy(alpha = 0.55f),
+                animatedAccent.copy(alpha = 0.18f),
+            ),
+        )
+    }
     Column(
-        val borderBrush = remember(animatedAccent) {
-            Brush.verticalGradient(
-                listOf(
-                    animatedAccent.copy(alpha = 0.55f),
-                    animatedAccent.copy(alpha = 0.18f),
-                ),
-            )
-        }
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.card)
