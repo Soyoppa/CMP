@@ -41,7 +41,7 @@
             // Share a single Firebase app instance with the auth bridge.
             const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
             this._ai = aiMod.getAI(app, { backend: new aiMod.GoogleAIBackend() });
-            console.log("[financeAi] Firebase AI Logic ready (Gemini Developer API)");
+            // Ready — no console.log; avoid leaking SDK/backend hints to devtools.
             return true;
           })().catch((e) => {
             console.error("[financeAi] init failed", e);
@@ -118,7 +118,9 @@
             "auth/operation-not-allowed": "Email/Password sign-in isn't enabled in Firebase.",
             "auth/admin-restricted-operation": "Guest mode (Anonymous auth) isn't enabled in Firebase.",
           };
-          return map[code] || (e && e.message) || "Authentication failed.";
+          // Do NOT fall back to e.message — it can carry internal Firebase details
+          // (including the submitted email address in some SDK versions).
+          return map[code] || "Authentication failed.";
         },
         // Resolves once the persisted auth state is known (first onAuthStateChanged emission).
         async init(configJson) {

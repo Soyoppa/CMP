@@ -12,7 +12,9 @@ object TransactionFormReducer {
                 }
             }
             is TransactionFormEvent.DescriptionChanged ->
-                state.copy(description = event.description)
+                // Cap at 200 chars — prevents unbounded heap growth and limits the token
+                // surface area if the description is later injected into an AI prompt.
+                state.copy(description = event.description.take(200))
             is TransactionFormEvent.DateChanged ->
                 state.copy(selectedDate = event.date)
             is TransactionFormEvent.CategorySelected ->
@@ -56,9 +58,12 @@ object TransactionFormReducer {
                 val validAmount = event.amount?.takeIf {
                     it.isNotEmpty() && it.matches(Regex("^\\d*\\.?\\d{0,2}$"))
                 }
+                // Apply the same 200-char cap as manual entry so voice-derived text
+                // cannot produce an unbounded description (or AI-prompt injection surface).
+                val safeDescription = event.description.take(200).ifBlank { state.description }
                 state.copy(
                     amount = validAmount ?: state.amount,
-                    description = event.description.ifBlank { state.description },
+                    description = safeDescription,
                     isIncome = event.isIncome ?: state.isIncome,
                     selectedCategory = event.category ?: state.selectedCategory,
                 )

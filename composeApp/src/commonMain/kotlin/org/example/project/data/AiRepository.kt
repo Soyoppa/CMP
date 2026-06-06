@@ -125,9 +125,13 @@ class AiRepository(
         if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
 
         val list = options.joinToString(", ")
+        // Strip characters that could break prompt structure or inject new instructions.
+        // The 200-char cap is already enforced in TransactionFormReducer; this is a defence-in-depth
+        // sanitisation pass before the text crosses the trust boundary into the model prompt.
+        val safeText = spokenText.replace(Regex("""[`"'\\]"""), " ").take(200)
         val prompt = """
             You are categorising a personal expense. Choose the SINGLE best category for this
-            transaction described in natural language: "$spokenText".
+            transaction described in natural language: "$safeText".
             Allowed categories: $list.
             Reply with ONLY the exact category name from the list — no punctuation, no explanation.
         """.trimIndent()

@@ -52,6 +52,11 @@ object VoiceTransactionParser {
     // First standalone number, optional thousands separators + up to 2 decimals.
     private val amountRegex = Regex("""(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?""")
 
+    // Matches any numeric token (with optional thousands separators and decimals) used to scrub
+    // the spoken amount from the raw transcript when building the description. Hoisted so the
+    // Regex is compiled once for the lifetime of the object rather than on every parse call.
+    private val numericScrubRegex = Regex("""\d[\d,]*(\.\d{1,2})?""")
+
     /**
      * @param transcript raw recognized speech.
      * @param categoryOptions the active schema's category labels, used for a best-effort keyword match.
@@ -109,7 +114,7 @@ object VoiceTransactionParser {
         if (amount != null) {
             // Remove the spoken amount in either comma or plain form.
             working = working.replace(Regex(Regex.escape(amount)), " ")
-            working = working.replace(Regex("""\d[\d,]*(\.\d{1,2})?"""), " ")
+            working = working.replace(numericScrubRegex, " ")
         }
 
         val words = working.split(' ', ',', '.')
