@@ -21,7 +21,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -97,7 +96,7 @@ fun SummarySheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        shape = AppShapes.card,
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
@@ -296,8 +295,6 @@ private val BarBottomPad = 23.dp
 private val BarTopPad = 17.dp
 // Dash pattern for the budget reference line — constant, allocated once at class-load time.
 private val BudgetLineDash = PathEffect.dashPathEffect(floatArrayOf(12f, 6f))
-// Rounded top corners for each bar column — constant, allocated once at class-load time.
-private val BarTopShape = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)
 
 @Composable
 private fun MonthBarChart(
@@ -413,7 +410,7 @@ private fun RowScope.BarColumn(
             modifier = Modifier
                 .fillMaxWidth(0.55f)
                 .fillMaxHeight(animatedFraction)
-                .clip(BarTopShape)
+                .clip(AppShapes.pill)
                 .background(barColor),
         )
 

@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
@@ -166,6 +166,7 @@ fun LoginScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier
+                            .heightIn(min = 48.dp)
                             .clip(AppShapes.pill)
                             .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -237,7 +238,7 @@ private fun PasswordVisibilityToggle(
     val description = if (visible) "Hide password" else "Show password"
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(AppShapes.pill)
             .clickable(enabled = enabled, onClick = onToggle)
             .semantics { contentDescription = description },

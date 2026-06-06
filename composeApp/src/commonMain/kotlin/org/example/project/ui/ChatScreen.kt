@@ -49,7 +49,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val BubbleCorner = 18.dp
-private val ComposerCorner = RoundedCornerShape(24.dp)
 
 @Composable
 fun ChatScreen(
@@ -601,7 +600,7 @@ private fun ChatInputBar(
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
-            shape = ComposerCorner,
+            shape = AppShapes.pill,
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,

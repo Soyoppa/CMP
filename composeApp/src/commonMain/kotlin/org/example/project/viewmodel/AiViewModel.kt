@@ -57,7 +57,6 @@ class AiViewModel(
             _uiState.update { it.copy(isLoadingTransactions = true) }
             try {
                 budget = transactionRepository.getSummary()
-                println("💰 [AiViewModel] Loaded ${budget.size} budget categories")
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = false) }
