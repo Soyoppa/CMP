@@ -528,27 +528,29 @@ private fun EmptyState(
                 modifier = Modifier.size(40.dp),
             )
         }
-        Text(
-            text = "Ask me about your finances",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
+
+        // Summary shortcut — opens the spending-by-category sheet
+        SuggestionChip(
+            text =  "Show spending by category",
+            onClick = onShowSummary,
+            highlighted = true,
         )
         Text(
             text = "Try one of these to get started",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text(
+            text = "Ask me about your finances",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         Spacer(Modifier.height(4.dp))
         suggestions.forEach { suggestion ->
             SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
         }
-        // Summary shortcut — opens the spending-by-category sheet
-        SuggestionChip(
-            text =  stringResource(Res.string.chart_label)+" Show spending by category",
-            onClick = onShowSummary,
-            highlighted = true,
-        )
+
     }
 }
 
