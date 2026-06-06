@@ -123,7 +123,7 @@ fun ChatScreen(
             Text(
                 text = it,
                 color = MaterialTheme.colorScheme.error,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.errorContainer)
@@ -264,7 +264,7 @@ private fun ChatHeader(
         ) {
             Text(
                 text = "Clear",
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -418,17 +418,16 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
                         )
                         Text(
                             text = "Thinking…",
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 } else {
                     Text(
                         text = message.content,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = if (isUser) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 20.sp,
                     )
                 }
             }
@@ -597,13 +596,13 @@ private fun ChatInputBar(
             value = value,
             onValueChange = { if (it.length <= 4_000) onValueChange(it) },
             modifier = Modifier.weight(1f).then(inputBounce.modifier),
-            placeholder = { Text(hint, fontSize = 13.sp) },
+            placeholder = { Text(hint, style = MaterialTheme.typography.labelMedium) },
             maxLines = 3,
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
             shape = AppShapes.card,
-            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            textStyle = MaterialTheme.typography.bodyMedium,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
