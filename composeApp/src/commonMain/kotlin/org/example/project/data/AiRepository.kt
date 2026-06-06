@@ -114,6 +114,41 @@ class AiRepository(
         }
     }
 
+    /**
+     * Picks the single best category for a spoken/free-text expense when the local parser couldn't.
+     *
+     * Reuses the same provider chain as [chat] (Gemini primary → Ollama fallback) but constrains the
+     * model to answer with exactly one of [options]. Returns null if AI is unreachable or replies with
+     * something outside the list, so the caller can keep its existing/default category. Never throws.
+     */
+    suspend fun classifyCategory(spokenText: String, options: List<String>): String? {
+        if (options.isEmpty() || spokenText.isBlank()) return null
+
+        val list = options.joinToString(", ")
+        val prompt = """
+            You are categorising a personal expense. Choose the SINGLE best category for this
+            transaction described in natural language: "$spokenText".
+            Allowed categories: $list.
+            Reply with ONLY the exact category name from the list — no punctuation, no explanation.
+        """.trimIndent()
+
+        return try {
+            val reply = chat(userMessage = prompt)
+            if (reply.isError) return null
+            normalizeToOption(reply.text, options)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Map a noisy model reply back onto one of [options] (exact, then contains, both case-insensitive). */
+    private fun normalizeToOption(reply: String, options: List<String>): String? {
+        val cleaned = reply.trim().trim('"', '.', '\'', '`').lowercase()
+        if (cleaned.isEmpty()) return null
+        options.firstOrNull { it.lowercase() == cleaned }?.let { return it }
+        return options.firstOrNull { cleaned.contains(it.lowercase()) }
+    }
+
     private fun buildSystemPrompt(budget: List<CategorySummary>): String {
         if (budget.isEmpty()) {
             return """

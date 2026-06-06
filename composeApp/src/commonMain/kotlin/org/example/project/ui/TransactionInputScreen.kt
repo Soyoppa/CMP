@@ -2,9 +2,14 @@ package org.example.project.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -98,6 +103,7 @@ import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
+import org.example.project.voice.VoiceStatus
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.TextFieldColors
 
@@ -153,6 +159,8 @@ fun TransactionInputScreen(
         remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) } }
     val onPaidChanged: (Boolean) -> Unit =
         remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) } }
+    val onVoiceToggle: () -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.VoiceInputToggled) } }
     val onImeNext: () -> Unit =
         remember(focusManager) { { focusManager.moveFocus(FocusDirection.Down) } }
     val onSubmit: () -> Unit = remember(viewModel, focusManager, keyboardController) {
@@ -200,11 +208,26 @@ fun TransactionInputScreen(
         )
 
         val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
+        val isListening = formState.voiceStatus == VoiceStatus.Listening
         OutlinedTextField(
             value = formState.description,
             onValueChange = onDescriptionChanged,
             label = { Text("Description") },
-            placeholder = { Text("e.g. Groceries at SM") },
+            placeholder = {
+                Text(if (isListening) "Listening… speak now" else "e.g. Groceries at SM")
+            },
+            // Voice mic lives on the leading edge — "speak it" affordance, distinct from the
+            // trailing clear action. Hidden where the platform has no speech engine.
+            leadingIcon = if (formState.isVoiceSupported) {
+                {
+                    DescriptionMicButton(
+                        status = formState.voiceStatus,
+                        isEnabled = !formState.isLoading,
+                        accentColor = accentColor,
+                        onClick = onVoiceToggle,
+                    )
+                }
+            } else null,
             trailingIcon = if (formState.description.isNotEmpty()) {
                 {
                     Box(
@@ -305,6 +328,171 @@ fun TransactionInputScreen(
             isEnabled = formState.isValid && !formState.isLoading,
             onClick = onSubmit,
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Compact mic control for the Description field's leading slot.
+ *
+ * States — idle: outlined mic (tap to dictate); listening: accent-filled mic with a breathing
+ * pulse ring (tap to stop); processing: spinner while the transcript is parsed/AI-classified.
+ * 44dp tap target meets the Material accessibility minimum; semantics announce the live state.
+ */
+@Composable
+private fun DescriptionMicButton(
+    status: VoiceStatus,
+    isEnabled: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+) {
+    val isListening = status == VoiceStatus.Listening
+    val isProcessing = status == VoiceStatus.Processing
+
+    val pulse = rememberInfiniteTransition(label = "voicePulse")
+    val pulseScale by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
+        label = "voicePulseScale",
+    )
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
+        label = "voicePulseAlpha",
+    )
+
+    val circleColor by animateColorAsState(
+        targetValue = if (isListening) accentColor else MaterialTheme.colorScheme.surfaceContainerHighest,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "micCircle",
+    )
+
+    // The whole control swells when armed — an unmistakable "I'm on now" cue that
+    // settles back the instant you tap it off. Visual only; the 44dp hit area is unchanged.
+    val emphasisScale by animateFloatAsState(
+        targetValue = if (isListening) 1.18f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "micEmphasisScale",
+    )
+
+    val stateLabel = when (status) {
+        VoiceStatus.Idle -> "Tap to talk"
+        VoiceStatus.Listening -> "Listening, tap to stop"
+        VoiceStatus.Processing -> "Processing voice"
+    }
+    val bounce = rememberPressBounce(pressedScale = 0.9f)
+
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .graphicsLayer {
+                scaleX = emphasisScale
+                scaleY = emphasisScale
+            }
+            .clip(AppShapes.pill)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                enabled = isEnabled && !isProcessing,
+                onClick = onClick,
+            )
+            .then(bounce.modifier)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Add by voice"
+                stateDescription = stateLabel
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        // Breathing ring while listening.
+        if (isListening) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                        alpha = pulseAlpha
+                    }
+                    .clip(AppShapes.pill)
+                    .background(accentColor),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(AppShapes.pill)
+                .background(circleColor)
+                // A crisp accent rim while armed sharpens the filled "on" disc.
+                .then(
+                    if (isListening) {
+                        Modifier.border(1.5.dp, accentColor.copy(alpha = 0.9f), AppShapes.pill)
+                    } else Modifier
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isProcessing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = accentColor,
+                )
+            } else {
+                MicGlyph(
+                    color = if (isListening) MaterialTheme.colorScheme.surface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MicGlyph(color: Color) {
+    Canvas(modifier = Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val stroke = 1.8.dp.toPx()
+        val bodyW = w * 0.34f
+        val cx = w / 2f
+
+        // Capsule body
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(cx - bodyW / 2f, h * 0.08f),
+            size = androidx.compose.ui.geometry.Size(bodyW, h * 0.48f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(bodyW / 2f, bodyW / 2f),
+        )
+        // Cradle arc hugging the lower half of the body
+        val cradleW = w * 0.6f
+        drawArc(
+            color = color,
+            startAngle = 20f,
+            sweepAngle = 140f,
+            useCenter = false,
+            topLeft = Offset(cx - cradleW / 2f, h * 0.28f),
+            size = androidx.compose.ui.geometry.Size(cradleW, h * 0.42f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+        // Stand + base
+        drawLine(
+            color = color,
+            start = Offset(cx, h * 0.72f),
+            end = Offset(cx, h * 0.88f),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color = color,
+            start = Offset(cx - bodyW * 0.7f, h * 0.88f),
+            end = Offset(cx + bodyW * 0.7f, h * 0.88f),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
         )
     }
 }

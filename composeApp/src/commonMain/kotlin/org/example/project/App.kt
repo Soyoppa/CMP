@@ -82,6 +82,7 @@ import org.example.project.viewmodel.AuthViewModel
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.example.project.viewmodel.createTransactionViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -153,16 +154,22 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
 
         LaunchedEffect(viewModel) {
             viewModel.effects.collect { effect ->
-                when (effect) {
+                val visuals = when (effect) {
                     is TransactionFormEffect.ShowSuccess ->
-                        snackbarHostState.showSnackbar(
-                            FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
-                        )
+                        FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
                     is TransactionFormEffect.ShowError ->
-                        snackbarHostState.showSnackbar(
-                            FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
-                        )
-                    TransactionFormEffect.FormCleared -> Unit
+                        FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
+                    TransactionFormEffect.FormCleared -> null
+                }
+                if (visuals != null) {
+                    // A quick half-second flash: pull it down from under showSnackbar's
+                    // suspend so the message confirms-and-vanishes instead of lingering.
+                    val autoDismiss = launch {
+                        delay(500)
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                    }
+                    snackbarHostState.showSnackbar(visuals)
+                    autoDismiss.cancel()
                 }
             }
         }
@@ -240,8 +247,8 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                     SnackbarHost(
                         hostState = snackbarHostState,
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(horizontal = 32.dp),
+                            .align(Alignment.TopCenter)
+                            .padding(top = 12.dp, start = 32.dp, end = 32.dp),
                     ) { data ->
                         FeedbackSnackbar(data)
                     }
@@ -309,7 +316,9 @@ private enum class FeedbackKind { SUCCESS, ERROR }
 private class FeedbackSnackbarVisuals(
     override val message: String,
     val kind: FeedbackKind,
-    override val duration: SnackbarDuration = SnackbarDuration.Short,
+    // Indefinite by design — the half-second auto-dismiss in App() owns the timing,
+    // so the built-in Short/Long timeout never competes with it.
+    override val duration: SnackbarDuration = SnackbarDuration.Indefinite,
     override val actionLabel: String? = null,
     override val withDismissAction: Boolean = false,
 ) : SnackbarVisuals

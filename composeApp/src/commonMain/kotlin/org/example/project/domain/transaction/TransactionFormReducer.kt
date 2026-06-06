@@ -43,5 +43,24 @@ object TransactionFormReducer {
                 )
             TransactionFormEvent.FormSubmitted ->
                 state.copy(isLoading = true, errorMessage = null)
+
+            // Side effect (start/stop mic) — owned by the ViewModel; no state change here.
+            TransactionFormEvent.VoiceInputToggled -> state
+
+            is TransactionFormEvent.VoiceStatusChanged ->
+                state.copy(voiceStatus = event.status)
+
+            is TransactionFormEvent.VoiceResultApplied -> {
+                // Only overwrite a field when voice produced a confident value; otherwise keep what's there.
+                val validAmount = event.amount?.takeIf {
+                    it.isNotEmpty() && it.matches(Regex("^\\d*\\.?\\d{0,2}$"))
+                }
+                state.copy(
+                    amount = validAmount ?: state.amount,
+                    description = event.description.ifBlank { state.description },
+                    isIncome = event.isIncome ?: state.isIncome,
+                    selectedCategory = event.category ?: state.selectedCategory,
+                )
+            }
         }
 }

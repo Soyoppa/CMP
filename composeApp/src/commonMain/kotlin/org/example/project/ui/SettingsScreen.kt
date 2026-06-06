@@ -155,6 +155,7 @@ fun SettingsScreen(
                     onCheckedChange = AiPrefs::setShowPerMessageTokens,
                 )
                 AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
+                AiTokenInfoCard()
             }
         }
 
@@ -397,6 +398,94 @@ private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit, canReset: Bool
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Quiet explainer for the AI section: what a Gemini token is, what spends them, and the
+ * (often surprising) fact that voice category detection also calls Gemini. Informational only —
+ * no actions, low visual weight, so it sits below the live usage numbers without competing.
+ */
+@Composable
+private fun AiTokenInfoCard() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.card)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(AppShapes.pill)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "i",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Text(
+                text = "Understanding Gemini tokens",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        TokenInfoLine(
+            heading = "What a token is",
+            body = "Gemini measures text in tokens — roughly 4 characters (about ¾ of a word). Longer messages cost more tokens.",
+        )
+        TokenInfoLine(
+            heading = "Prompt + reply both count",
+            body = "Every request spends prompt tokens (what you and the app send) plus reply tokens (Gemini's answer). The split bar above shows the balance.",
+        )
+        TokenInfoLine(
+            heading = "Voice entry uses Gemini too",
+            body = "When voice can't recognise a category, the app asks Gemini to choose one — a small extra prompt and reply per unclear transaction.",
+        )
+
+        Text(
+            text = "Firebase AI Logic keeps usage on the free Gemini Developer tier. For hard quotas and billing, open the Google AI Studio / Cloud console.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun TokenInfoLine(heading: String, body: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            modifier = Modifier
+                .padding(top = 7.dp)
+                .size(6.dp)
+                .clip(AppShapes.pill)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = heading,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
