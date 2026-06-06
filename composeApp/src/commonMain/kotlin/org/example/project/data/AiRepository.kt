@@ -121,8 +121,8 @@ class AiRepository(
      * model to answer with exactly one of [options]. Returns null if AI is unreachable or replies with
      * something outside the list, so the caller can keep its existing/default category. Never throws.
      */
-    suspend fun classifyCategory(spokenText: String, options: List<String>): String? {
-        if (options.isEmpty() || spokenText.isBlank()) return null
+    suspend fun classifyCategory(spokenText: String, options: List<String>): VoiceCategoryResult {
+        if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
 
         val list = options.joinToString(", ")
         val prompt = """
@@ -134,10 +134,11 @@ class AiRepository(
 
         return try {
             val reply = chat(userMessage = prompt)
-            if (reply.isError) return null
-            normalizeToOption(reply.text, options)
+            // Hand the raw result back too so the caller can read the token cost of this round-trip.
+            if (reply.isError) VoiceCategoryResult(null, reply)
+            else VoiceCategoryResult(normalizeToOption(reply.text, options), reply)
         } catch (e: Exception) {
-            null
+            VoiceCategoryResult(null, null)
         }
     }
 
@@ -206,3 +207,13 @@ class AiRepository(
         return month.lowercase().replaceFirstChar { it.uppercase() }
     }
 }
+
+/**
+ * Outcome of a voice-category classification. [category] is the matched option (or null when the
+ * model was unreachable or replied off-list); [result] is the raw AI turn so the caller can read
+ * the token cost. [result] is null only when no call happened or it threw before producing a turn.
+ */
+data class VoiceCategoryResult(
+    val category: String?,
+    val result: AiResult?,
+)

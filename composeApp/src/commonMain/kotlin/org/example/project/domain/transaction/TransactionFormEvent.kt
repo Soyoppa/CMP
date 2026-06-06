@@ -27,4 +27,7 @@ sealed interface TransactionFormEvent {
         val category: String?,
         val isIncome: Boolean?,
     ) : TransactionFormEvent
+
+    /** ViewModel-internal: token cost of the voice add, for the per-add usage readout. */
+    data class VoiceAiUsageReported(val usage: VoiceAiUsage) : TransactionFormEvent
 }

@@ -96,6 +96,7 @@ import androidx.compose.ui.unit.sp
 import org.example.project.config.SchemaFeatures
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
+import org.example.project.domain.transaction.VoiceAiUsage
 import org.example.project.model.PaymentMode
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.effects.rememberPressBounce
@@ -263,6 +264,11 @@ fun TransactionInputScreen(
             interactionSource = descriptionBounce.interactionSource,
             singleLine = true,
         )
+
+        // Per-add token readout — shows whether the last mic add spent a Gemini round-trip.
+        formState.voiceAiUsage?.let { usage ->
+            VoiceUsageInfo(usage = usage, accentColor = accentColor)
+        }
 
         // Income uses its own short source list (e.g. Renz/Gen); expense uses the full category set.
         val useIncomeCategories = schemaFeatures.showIncomeOption && formState.isIncome
@@ -449,6 +455,59 @@ private fun DescriptionMicButton(
                 )
             }
         }
+    }
+}
+
+/**
+ * Compact, per-add token readout for voice entry.
+ *
+ * Three honest states: matched on-device (no AI, zero tokens), an AI round-trip with its provider +
+ * model + token breakdown, or an AI call whose token data the provider didn't report. Deliberately
+ * understated — a `surfaceContainer` chip in the form's filled language, not a loud banner.
+ */
+@Composable
+private fun VoiceUsageInfo(usage: VoiceAiUsage, accentColor: Color) {
+    val onVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val label: String
+    val dotColor: Color
+    when {
+        !usage.aiInvoked -> {
+            label = "Matched on-device · 0 AI tokens"
+            dotColor = onVariant
+        }
+        usage.provider != null -> {
+            val model = usage.model?.let { " $it" } ?: ""
+            label = "Voice AI · ${usage.provider}$model · ${usage.totalTokens} tokens " +
+                "(prompt ${usage.promptTokens} + reply ${usage.responseTokens})"
+            dotColor = accentColor
+        }
+        else -> {
+            label = "Voice AI called · token count unavailable"
+            dotColor = accentColor
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // Accent dot when tokens were spent, muted when the add stayed on-device.
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(AppShapes.pill)
+                .background(dotColor),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = onVariant,
+        )
     }
 }
 
@@ -1046,13 +1105,19 @@ private fun SaveButton(
 
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    // Filled surface — the field reads as a tappable "fill me" tile, matching
+    // ChoiceField and the hero amount box. One consistent affordance across the form.
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+    // Border stays out of the way at rest (the fill is the affordance) and lights
+    // up in the accent only on focus — exactly how ChoiceField marks its active state.
     focusedBorderColor = MaterialTheme.colorScheme.secondary,
     focusedLabelColor = MaterialTheme.colorScheme.secondary,
-    // Visible resting border so the field shape is always discoverable
-    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
-    unfocusedLabelColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedBorderColor = Color.Transparent,
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledTextColor = MaterialTheme.colorScheme.onSurface,
-    disabledBorderColor = MaterialTheme.colorScheme.outline,
+    disabledBorderColor = Color.Transparent,
     disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,

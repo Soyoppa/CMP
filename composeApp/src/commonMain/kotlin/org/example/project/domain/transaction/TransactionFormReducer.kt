@@ -62,5 +62,8 @@ object TransactionFormReducer {
                     selectedCategory = event.category ?: state.selectedCategory,
                 )
             }
+
+            is TransactionFormEvent.VoiceAiUsageReported ->
+                state.copy(voiceAiUsage = event.usage)
         }
 }

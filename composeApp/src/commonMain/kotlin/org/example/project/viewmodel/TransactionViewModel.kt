@@ -18,6 +18,7 @@ import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.TransactionFormReducer
 import org.example.project.domain.transaction.TransactionFormState
+import org.example.project.domain.transaction.VoiceAiUsage
 import org.example.project.model.PaymentMode
 import org.example.project.model.Transaction
 import org.example.project.model.TransactionCategory
@@ -138,24 +139,43 @@ class TransactionViewModel(
 
         // Category fallback: parser couldn't match a known option → let the AI decide.
         if (parsed.category == null) {
-            val aiCategory = aiRepository.classifyCategory(transcript, options)
-            if (aiCategory != null) {
+            val classification = aiRepository.classifyCategory(transcript, options)
+            val result = classification.result
+            // Report the token cost of this round-trip for the per-add usage readout.
+            dispatchVoiceAiUsage(
+                VoiceAiUsage(
+                    aiInvoked = true,
+                    provider = result?.provider?.displayName,
+                    model = result?.model,
+                    promptTokens = result?.promptTokens ?: 0,
+                    responseTokens = result?.responseTokens ?: 0,
+                )
+            )
+            if (classification.category != null) {
                 _formState.update {
                     TransactionFormReducer.reduce(
                         it,
                         TransactionFormEvent.VoiceResultApplied(
                             amount = null,
                             description = "",
-                            category = aiCategory,
+                            category = classification.category,
                             isIncome = null,
                         ),
                     )
                 }
             }
+        } else {
+            // Category matched locally — no AI round-trip, no tokens spent.
+            dispatchVoiceAiUsage(VoiceAiUsage(aiInvoked = false))
         }
 
         dispatchVoiceStatus(VoiceStatus.Idle)
     }
+
+    private fun dispatchVoiceAiUsage(usage: VoiceAiUsage) =
+        _formState.update {
+            TransactionFormReducer.reduce(it, TransactionFormEvent.VoiceAiUsageReported(usage))
+        }
 
     // --- Save ----------------------------------------------------------------
 
