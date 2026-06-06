@@ -167,6 +167,7 @@ fun LoginScreen(
                         color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier
                             .heightIn(min = 48.dp)
+                            .widthIn(min = 48.dp)
                             .clip(AppShapes.pill)
                             .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
                             .padding(horizontal = 8.dp, vertical = 4.dp),

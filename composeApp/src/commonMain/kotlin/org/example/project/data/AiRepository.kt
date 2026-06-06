@@ -56,12 +56,11 @@ class AiRepository(
                 val g = gemini
                 if (g != null && ConfigManager.getConfig().isFirebaseAiConfigured) {
                     try {
-                        println("🤖 [AI] Auto: trying ${g.name}")
                         val reply = g.chat(systemPrompt, history, userMessage)
                         if (reply.text.isNotBlank()) return reply
-                        println("⚠️ [AI] ${g.name} returned blank — falling back to ${ollama.name}")
+                        // Gemini returned blank — fall through to Ollama silently
                     } catch (e: Exception) {
-                        println("⚠️ [AI] ${g.name} failed (${e::class.simpleName}: ${e.message}) — falling back to ${ollama.name}")
+                        // Gemini failed — fall through to Ollama silently
                     }
                 }
                 runOllama(systemPrompt, history, userMessage)
@@ -88,7 +87,6 @@ class AiRepository(
             if (reply.text.isBlank()) reply.copy(text = "Firebase AI returned an empty response.", isError = true)
             else reply
         } catch (e: Exception) {
-            println("💥 [AI] Gemini (forced) failed: ${e::class.simpleName}: ${e.message}")
             AiResult(
                 text = "Firebase AI error: ${e.message}",
                 provider = AiProviderId.GEMINI,
@@ -107,7 +105,6 @@ class AiRepository(
             val reply = ollama.chat(systemPrompt, history, userMessage)
             if (reply.text.isBlank()) reply.copy(text = "No response received.", isError = true) else reply
         } catch (e: Exception) {
-            println("💥 [AI] ${ollama.name} failed: ${e::class.simpleName}: ${e.message}")
             AiResult(
                 text = "Could not reach Ollama: ${e.message}",
                 provider = AiProviderId.OLLAMA,

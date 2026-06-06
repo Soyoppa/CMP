@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -100,6 +99,7 @@ import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.TextFieldColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -209,19 +209,25 @@ fun TransactionInputScreen(
                 {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(AppShapes.pill)
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+                            .size(48.dp)
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "×",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(AppShapes.pill)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "×",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             } else null,
@@ -419,7 +425,7 @@ private fun SegmentLabel(
     modifier: Modifier = Modifier,
 ) {
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "segmentTextColor",
     )
@@ -534,20 +540,26 @@ private fun HeroAmountField(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .size(28.dp)
-                        .clip(AppShapes.pill)
-                        .background(clearColor.copy(alpha = 0.12f))
+                        .size(48.dp)
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "×",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = clearColor,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(AppShapes.pill)
+                            .background(clearColor.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "×",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = clearColor,
+                        )
+                    }
                 }
             }
         }
@@ -687,7 +699,7 @@ private fun ChoicePickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shape = AppShapes.card,
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
         Column(
@@ -733,7 +745,7 @@ private fun ChoiceChip(
         label = "chipContainer",
     )
     val content by animateColorAsState(
-        targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+        targetValue = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "chipContent",
     )
@@ -795,7 +807,7 @@ private fun PaidToggleRow(
             enabled = isEnabled,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = accentColor,
-                checkedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
             ),
         )
     }
