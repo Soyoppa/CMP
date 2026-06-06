@@ -365,7 +365,7 @@ fun TransactionInputScreen(
  *
  * States — idle: outlined mic (tap to dictate); listening: accent-filled mic with a breathing
  * pulse ring (tap to stop); processing: spinner while the transcript is parsed/AI-classified.
- * 44dp tap target meets the Material accessibility minimum; semantics announce the live state.
+ * 48dp tap target satisfies the Material accessibility minimum; semantics announce the live state.
  */
 @Composable
 private fun DescriptionMicButton(
@@ -417,7 +417,7 @@ private fun DescriptionMicButton(
 
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .graphicsLayer {
                 scaleX = emphasisScale
                 scaleY = emphasisScale
