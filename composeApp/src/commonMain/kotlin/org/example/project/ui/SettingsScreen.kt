@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -845,15 +846,17 @@ private fun ResultCard(result: TestResult) {
         ResultKind.ERROR -> "Failed"
     }
 
+
+    val borderBrush = remember(animatedAccent) {
+        Brush.verticalGradient(
+            listOf(
+                animatedAccent.copy(alpha = 0.55f),
+                animatedAccent.copy(alpha = 0.18f),
+            ),
+        )
+    }
+
     Column(
-        val borderBrush = remember(animatedAccent) {
-            Brush.verticalGradient(
-                listOf(
-                    animatedAccent.copy(alpha = 0.55f),
-                    animatedAccent.copy(alpha = 0.18f),
-                ),
-            )
-        }
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.card)
