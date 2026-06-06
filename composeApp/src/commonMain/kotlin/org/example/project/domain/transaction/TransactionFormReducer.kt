@@ -44,8 +44,9 @@ object TransactionFormReducer {
             TransactionFormEvent.FormSubmitted ->
                 state.copy(isLoading = true, errorMessage = null)
 
-            // Side effect (start/stop mic) — owned by the ViewModel; no state change here.
+            // Side effects owned by the ViewModel; no state change here.
             TransactionFormEvent.VoiceInputToggled -> state
+            TransactionFormEvent.ClearForm -> state
 
             is TransactionFormEvent.VoiceStatusChanged ->
                 state.copy(voiceStatus = event.status)

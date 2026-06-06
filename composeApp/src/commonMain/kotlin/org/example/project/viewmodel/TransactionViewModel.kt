@@ -61,6 +61,7 @@ class TransactionViewModel(
         when (event) {
             TransactionFormEvent.FormSubmitted -> addTransaction()
             TransactionFormEvent.VoiceInputToggled -> toggleVoice()
+            TransactionFormEvent.ClearForm -> viewModelScope.launch { resetForm() }
             else -> _formState.update { TransactionFormReducer.reduce(it, event) }
         }
     }

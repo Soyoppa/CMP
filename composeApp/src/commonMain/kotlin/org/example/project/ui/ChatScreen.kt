@@ -530,11 +530,6 @@ private fun EmptyState(
         }
 
         // Summary shortcut — opens the spending-by-category sheet
-        SuggestionChip(
-            text =  "Show spending by category",
-            onClick = onShowSummary,
-            highlighted = true,
-        )
         Text(
             text = "Try one of these to get started",
             style = MaterialTheme.typography.bodySmall,
@@ -547,6 +542,11 @@ private fun EmptyState(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.height(4.dp))
+        SuggestionChip(
+            text =  "Show spending by category",
+            onClick = onShowSummary,
+            highlighted = true,
+        )
         suggestions.forEach { suggestion ->
             SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
         }

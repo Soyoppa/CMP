@@ -17,6 +17,9 @@ sealed interface TransactionFormEvent {
     /** Mic tapped — start listening if idle, stop if already listening. Side effect; handled in the ViewModel. */
     data object VoiceInputToggled : TransactionFormEvent
 
+    /** Pull-to-clear gesture — reset the whole form to defaults. Side effect; handled in the ViewModel. */
+    data object ClearForm : TransactionFormEvent
+
     /** ViewModel-internal: mic lifecycle status for the button UI. */
     data class VoiceStatusChanged(val status: VoiceStatus) : TransactionFormEvent
 

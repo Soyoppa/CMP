@@ -50,6 +50,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -59,6 +60,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,6 +70,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -172,8 +175,26 @@ fun TransactionInputScreen(
         }
     }
 
+    // Pull down from the top to wipe the form back to defaults — a quick "start over" without
+    // hunting for each field's clear button. The threshold guards against accidental triggers.
+    val scope = rememberCoroutineScope()
+    var isClearing by remember { mutableStateOf(false) }
+
+    PullToRefreshBox(
+        isRefreshing = isClearing,
+        onRefresh = {
+            viewModel.onEvent(TransactionFormEvent.ClearForm)
+            // The reset is instant; hold the indicator briefly so the gesture reads as a deliberate action.
+            scope.launch {
+                isClearing = true
+                delay(350)
+                isClearing = false
+            }
+        },
+        modifier = modifier.fillMaxSize(),
+    ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .imePadding()
             .verticalScroll(rememberScrollState())
@@ -335,6 +356,7 @@ fun TransactionInputScreen(
             onClick = onSubmit,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
     }
 }
 
