@@ -99,6 +99,7 @@ import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.TextFieldColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -856,23 +857,16 @@ private fun SaveButton(
 }
 
 @Composable
-private fun fieldColors() = remember(
-    MaterialTheme.colorScheme.secondary,
-    MaterialTheme.colorScheme.onSurface,
-    MaterialTheme.colorScheme.outline,
-    MaterialTheme.colorScheme.onSurfaceVariant,
-) {
-    OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = MaterialTheme.colorScheme.secondary,
-        focusedLabelColor = MaterialTheme.colorScheme.secondary,
-        // Visible resting border so the field shape is always discoverable
-        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
-        unfocusedLabelColor = MaterialTheme.colorScheme.onSurface,
-        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-        disabledBorderColor = MaterialTheme.colorScheme.outline,
-        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = MaterialTheme.colorScheme.secondary,
+    focusedLabelColor = MaterialTheme.colorScheme.secondary,
+    // Visible resting border so the field shape is always discoverable
+    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurface,
+    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+    disabledBorderColor = MaterialTheme.colorScheme.outline,
+    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+)

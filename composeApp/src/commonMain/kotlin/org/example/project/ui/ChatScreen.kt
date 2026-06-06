@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -527,27 +528,29 @@ private fun EmptyState(
                 modifier = Modifier.size(40.dp),
             )
         }
-        Text(
-            text = "Ask me about your finances",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
+
+        // Summary shortcut — opens the spending-by-category sheet
+        SuggestionChip(
+            text =  "Show spending by category",
+            onClick = onShowSummary,
+            highlighted = true,
         )
         Text(
             text = "Try one of these to get started",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text(
+            text = "Ask me about your finances",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         Spacer(Modifier.height(4.dp))
         suggestions.forEach { suggestion ->
             SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
         }
-        // Summary shortcut — opens the spending-by-category sheet
-        SuggestionChip(
-            text =  stringResource(Res.string.chart_label)+" Show spending by category",
-            onClick = onShowSummary,
-            highlighted = true,
-        )
+
     }
 }
 
@@ -592,14 +595,14 @@ private fun ChatInputBar(
         val inputBounce = rememberPressBounce(pressedScale = 0.98f)
         OutlinedTextField(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { if (it.length <= 4_000) onValueChange(it) },
             modifier = Modifier.weight(1f).then(inputBounce.modifier),
             placeholder = { Text(hint, fontSize = 13.sp) },
             maxLines = 3,
             enabled = !isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
-            shape = AppShapes.pill,
+            shape = AppShapes.card,
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
