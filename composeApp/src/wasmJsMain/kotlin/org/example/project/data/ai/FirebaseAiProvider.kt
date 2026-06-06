@@ -113,11 +113,9 @@ internal class FirebaseAiProvider : AiProvider {
         )
 
         val model = ConfigManager.getConfig().geminiModel
-        println("🤖 [Firebase AI] generateContent | model=$model | history=${geminiHistory.size}")
 
         val raw: JsString = financeAiGenerate(model, systemPrompt, historyJson, userMessage).await()
         val reply = json.decodeFromString(GeminiReply.serializer(), raw.toString())
-        println("🤖 [Firebase AI] tokens p=${reply.promptTokens} r=${reply.responseTokens} total=${reply.totalTokens}")
         return AiResult(
             text = reply.text,
             provider = id,

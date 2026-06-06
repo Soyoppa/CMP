@@ -68,8 +68,6 @@ class TransactionViewModel(
                     _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved successfully!"))
                     resetForm()
                 } else {
-                    // SECURITY: removed println that logged urlUsed (may contain OAuth redirect
-                    // tokens from Apps Script) and responseBody (partial financial data) to stdout.
                     _effects.emit(TransactionFormEffect.ShowError(result.errorMessage ?: "Failed to save transaction."))
                     _formState.update { it.copy(isLoading = false) }
                 }
