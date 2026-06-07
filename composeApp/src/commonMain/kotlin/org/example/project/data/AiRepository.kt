@@ -125,10 +125,15 @@ class AiRepository(
         if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
 
         val list = options.joinToString(", ")
-        // Strip characters that could break prompt structure or inject new instructions.
+        // Strip characters that could break prompt structure or inject new instructions
+        // (quotes/backslashes that could escape the wrapping quotes, and newlines/control
+        // characters that could fake a new instruction line in the multi-line prompt template).
         // The 200-char cap is already enforced in TransactionFormReducer; this is a defence-in-depth
         // sanitisation pass before the text crosses the trust boundary into the model prompt.
-        val safeText = spokenText.replace(Regex("""[`"'\\]"""), " ").take(200)
+        val safeText = spokenText
+            .replace(Regex("""[`"'\\]"""), " ")
+            .replace(Regex("[\r\n\t\u0000-\u001f]"), " ")
+            .take(200)
         val prompt = """
             You are categorising a personal expense. Choose the SINGLE best category for this
             transaction described in natural language: "$safeText".
