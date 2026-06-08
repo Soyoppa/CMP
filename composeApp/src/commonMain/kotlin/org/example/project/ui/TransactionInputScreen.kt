@@ -257,6 +257,10 @@ fun TransactionInputScreen(
                             .size(48.dp)
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
+                            }
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Clear description"
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -813,6 +817,10 @@ private fun HeroAmountField(
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
+                        }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Clear amount"
                         },
                     contentAlignment = Alignment.Center,
                 ) {
