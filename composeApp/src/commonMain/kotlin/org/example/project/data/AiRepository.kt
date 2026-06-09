@@ -22,6 +22,9 @@ import org.example.project.util.FormatUtils
 @Serializable
 data class OllamaMessage(val role: String, val content: String)
 
+// Compiled once; used in classifyCategory to strip characters that could break prompt structure.
+private val PROMPT_INJECTION_REGEX = Regex("""[`"'\\]""")
+
 /**
  * Orchestrates the AI chat feature across providers.
  *
@@ -128,7 +131,7 @@ class AiRepository(
         // Strip characters that could break prompt structure or inject new instructions.
         // The 200-char cap is already enforced in TransactionFormReducer; this is a defence-in-depth
         // sanitisation pass before the text crosses the trust boundary into the model prompt.
-        val safeText = spokenText.replace(Regex("""[`"'\\]"""), " ").take(200)
+        val safeText = spokenText.replace(PROMPT_INJECTION_REGEX, " ").take(200)
         val prompt = """
             You are categorising a personal expense. Choose the SINGLE best category for this
             transaction described in natural language: "$safeText".
