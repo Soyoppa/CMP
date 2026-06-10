@@ -30,6 +30,8 @@ data class OllamaMessage(val role: String, val content: String)
  * instruction. On any Gemini failure (unconfigured platform, network, quota) it transparently
  * retries through Ollama.
  */
+private val PROMPT_SANITIZE_REGEX = Regex("""[`"'\\]""")
+
 class AiRepository(
     private val gemini: AiProvider? = geminiProviderOrNull(),
     private val ollama: AiProvider = OllamaProvider(),
@@ -124,11 +126,11 @@ class AiRepository(
     suspend fun classifyCategory(spokenText: String, options: List<String>): VoiceCategoryResult {
         if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
 
-        val list = options.joinToString(", ")
+        val list = options.joinToString(", ") { it.replace(PROMPT_SANITIZE_REGEX, " ") }
         // Strip characters that could break prompt structure or inject new instructions.
         // The 200-char cap is already enforced in TransactionFormReducer; this is a defence-in-depth
         // sanitisation pass before the text crosses the trust boundary into the model prompt.
-        val safeText = spokenText.replace(Regex("""[`"'\\]"""), " ").take(200)
+        val safeText = spokenText.replace(PROMPT_SANITIZE_REGEX, " ").take(200)
         val prompt = """
             You are categorising a personal expense. Choose the SINGLE best category for this
             transaction described in natural language: "$safeText".
