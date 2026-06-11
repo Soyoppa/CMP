@@ -87,8 +87,10 @@ class AiRepository(
             if (reply.text.isBlank()) reply.copy(text = "Firebase AI returned an empty response.", isError = true)
             else reply
         } catch (e: Exception) {
+            // Do not forward e.message to the UI — it can contain internal URLs, query
+            // parameters (including API keys), or stack-frame paths on some runtimes.
             AiResult(
-                text = "Firebase AI error: ${e.message}",
+                text = "Firebase AI error: an unexpected error occurred.",
                 provider = AiProviderId.GEMINI,
                 model = model,
                 isError = true,
@@ -105,8 +107,10 @@ class AiRepository(
             val reply = ollama.chat(systemPrompt, history, userMessage)
             if (reply.text.isBlank()) reply.copy(text = "No response received.", isError = true) else reply
         } catch (e: Exception) {
+            // Do not forward e.message to the UI — it can contain the configured Ollama host
+            // URL or other internal details that should not be surfaced to end users.
             AiResult(
-                text = "Could not reach Ollama: ${e.message}",
+                text = "Could not reach Ollama: check that the server is running and the URL is correct.",
                 provider = AiProviderId.OLLAMA,
                 model = ConfigManager.getConfig().ollamaModel,
                 isError = true,
