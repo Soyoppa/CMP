@@ -1128,7 +1128,7 @@ private fun SaveButton(
 }
 
 @Composable
-private fun fieldColors() = remember { OutlinedTextFieldDefaults.colors(
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     // Filled surface — the field reads as a tappable "fill me" tile, matching
     // ChoiceField and the hero amount box. One consistent affordance across the form.
     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1146,4 +1146,4 @@ private fun fieldColors() = remember { OutlinedTextFieldDefaults.colors(
     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-) }
+)
