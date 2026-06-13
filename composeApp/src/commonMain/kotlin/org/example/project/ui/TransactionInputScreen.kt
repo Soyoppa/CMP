@@ -255,6 +255,7 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .semantics { contentDescription = "Clear description" }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
                             },
@@ -810,6 +811,7 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(48.dp)
+                        .semantics { contentDescription = "Clear amount" }
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
@@ -1126,7 +1128,7 @@ private fun SaveButton(
 }
 
 @Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+private fun fieldColors() = remember { OutlinedTextFieldDefaults.colors(
     // Filled surface — the field reads as a tappable "fill me" tile, matching
     // ChoiceField and the hero amount box. One consistent affordance across the form.
     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1144,4 +1146,4 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-)
+) }
