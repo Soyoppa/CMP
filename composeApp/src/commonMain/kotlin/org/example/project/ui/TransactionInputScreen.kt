@@ -231,6 +231,7 @@ fun TransactionInputScreen(
 
         val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
         val isListening = formState.voiceStatus == VoiceStatus.Listening
+        val descriptionFieldColors = remember(MaterialTheme.colorScheme) { fieldColors() }
         OutlinedTextField(
             value = formState.description,
             onValueChange = onDescriptionChanged,
@@ -284,7 +285,7 @@ fun TransactionInputScreen(
             enabled = !formState.isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = { onImeNext() }),
-            colors = fieldColors(),
+            colors = descriptionFieldColors,
             shape = AppShapes.field,
             interactionSource = descriptionBounce.interactionSource,
             singleLine = true,
