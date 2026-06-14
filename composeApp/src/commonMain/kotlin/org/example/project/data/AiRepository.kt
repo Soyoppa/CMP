@@ -88,7 +88,7 @@ class AiRepository(
             else reply
         } catch (e: Exception) {
             AiResult(
-                text = "Firebase AI error: ${e.message}",
+                text = "Firebase AI returned an error.",
                 provider = AiProviderId.GEMINI,
                 model = model,
                 isError = true,
@@ -106,7 +106,7 @@ class AiRepository(
             if (reply.text.isBlank()) reply.copy(text = "No response received.", isError = true) else reply
         } catch (e: Exception) {
             AiResult(
-                text = "Could not reach Ollama: ${e.message}",
+                text = "Could not reach Ollama.",
                 provider = AiProviderId.OLLAMA,
                 model = ConfigManager.getConfig().ollamaModel,
                 isError = true,
