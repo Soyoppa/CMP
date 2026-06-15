@@ -281,7 +281,7 @@ fun TransactionInputScreen(
             enabled = !formState.isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = { onImeNext() }),
-            colors = fieldColors(),
+            colors = remember { fieldColors() },
             shape = AppShapes.field,
             interactionSource = descriptionBounce.interactionSource,
             singleLine = true,
