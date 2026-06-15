@@ -255,6 +255,7 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .semantics { contentDescription = "Clear description" }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
                             },
@@ -810,6 +811,7 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(48.dp)
+                        .semantics { contentDescription = "Clear amount" }
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
@@ -884,6 +886,7 @@ private fun ChoiceField(
                 color = borderColor,
                 shape = AppShapes.field,
             )
+            .semantics { contentDescription = label }
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
