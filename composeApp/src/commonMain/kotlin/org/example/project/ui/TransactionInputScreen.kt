@@ -109,7 +109,6 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.voice.VoiceStatus
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.TextFieldColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -398,7 +397,7 @@ private fun DescriptionMicButton(
     )
 
     // The whole control swells when armed — an unmistakable "I'm on now" cue that
-    // settles back the instant you tap it off. Visual only; the 44dp hit area is unchanged.
+    // settles back the instant you tap it off. Visual only; the 48dp hit area is unchanged.
     val emphasisScale by animateFloatAsState(
         targetValue = if (isListening) 1.18f else 1f,
         animationSpec = spring(
