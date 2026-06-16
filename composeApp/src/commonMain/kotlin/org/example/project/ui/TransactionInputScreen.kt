@@ -254,6 +254,10 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Clear description"
+                            }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
                             }
@@ -813,6 +817,10 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(48.dp)
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Clear amount"
+                        }
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
@@ -891,6 +899,11 @@ private fun ChoiceField(
                 color = borderColor,
                 shape = AppShapes.field,
             )
+            .semantics {
+                role = Role.Button
+                contentDescription = if (selected.isNotBlank()) "$label: $selected" else "$label: $placeholder"
+                stateDescription = if (isExpanded) "expanded" else "collapsed"
+            }
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
@@ -1031,6 +1044,11 @@ private fun ChoiceChip(
         color = container,
         pressedScale = 0.92f,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.semantics {
+            role = Role.Button
+            contentDescription = text
+            stateDescription = if (isSelected) "selected" else "not selected"
+        },
     ) {
         Text(
             text = text,
@@ -1103,6 +1121,9 @@ private fun SaveButton(
         enabled = isEnabled,
         modifier = modifier
             .height(56.dp)
+            .semantics {
+                contentDescription = if (isLoading) "Saving transaction" else "Save transaction"
+            }
             .then(bounce.modifier),
         shape = AppShapes.card,
         colors = ButtonDefaults.buttonColors(
