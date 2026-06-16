@@ -67,7 +67,7 @@ object VoiceTransactionParser {
         categoryOptions: List<String>,
         incomeKeywordDetection: Boolean = true,
     ): ParsedVoiceTransaction {
-        val normalized = transcript.trim()
+        val normalized = transcript.take(500).trim()
         val lower = normalized.lowercase()
 
         val amount = extractAmount(lower)

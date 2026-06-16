@@ -124,7 +124,7 @@ class AiRepository(
     suspend fun classifyCategory(spokenText: String, options: List<String>): VoiceCategoryResult {
         if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
 
-        val list = options.joinToString(", ")
+        val list = options.joinToString(", ") { it.replace(Regex("""[`"'\\]"""), " ") }
         // Strip characters that could break prompt structure or inject new instructions
         // (quotes/backslashes that could escape the wrapping quotes, and newlines/control
         // characters that could fake a new instruction line in the multi-line prompt template).

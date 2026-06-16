@@ -785,8 +785,10 @@ private fun HeroAmountField(
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { new ->
-                        fieldValue = new
-                        onAmountChanged(new.text)
+                        if (new.text.length <= 20) {
+                            fieldValue = new
+                            onAmountChanged(new.text)
+                        }
                     },
                     textStyle = amountStyle,
                     keyboardOptions = KeyboardOptions(
