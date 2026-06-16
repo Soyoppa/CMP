@@ -67,7 +67,10 @@ object VoiceTransactionParser {
         categoryOptions: List<String>,
         incomeKeywordDetection: Boolean = true,
     ): ParsedVoiceTransaction {
-        val normalized = transcript.trim()
+        // Cap the raw transcript before any processing — prevents unbounded regex work and
+        // limits the string length that eventually reaches the AI prompt / description field.
+        // 500 chars is well above any realistic spoken sentence while being safely bounded.
+        val normalized = transcript.take(500).trim()
         val lower = normalized.lowercase()
 
         val amount = extractAmount(lower)
