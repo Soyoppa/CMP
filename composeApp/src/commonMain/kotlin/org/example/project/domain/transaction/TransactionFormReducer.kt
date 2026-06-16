@@ -9,9 +9,12 @@ object TransactionFormReducer {
     fun reduce(state: TransactionFormState, event: TransactionFormEvent): TransactionFormState =
         when (event) {
             is TransactionFormEvent.AmountChanged -> {
-                // Only allow valid decimal input
-                if (event.amount.isEmpty() || event.amount.matches(decimalAmountRegex)) {
-                    state.copy(amount = event.amount)
+                // Cap at 20 chars — no legitimate monetary amount needs more, and this
+                // prevents unbounded input growth consistent with the description cap.
+                // Only allow valid decimal input.
+                val capped = event.amount.take(20)
+                if (capped.isEmpty() || capped.matches(decimalAmountRegex)) {
+                    state.copy(amount = capped)
                 } else {
                     state
                 }
