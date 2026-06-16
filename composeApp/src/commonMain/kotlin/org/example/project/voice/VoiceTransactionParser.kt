@@ -67,6 +67,9 @@ object VoiceTransactionParser {
         categoryOptions: List<String>,
         incomeKeywordDetection: Boolean = true,
     ): ParsedVoiceTransaction {
+        // Cap at 500 chars before any heap-allocating operations. The description reducer
+        // will enforce its own 200-char limit downstream; this stops a pathologically long
+        // speech-engine result from causing unbounded allocations during regex/split work.
         val normalized = transcript.take(500).trim()
         val lower = normalized.lowercase()
 

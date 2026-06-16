@@ -22,6 +22,10 @@ import org.example.project.util.FormatUtils
 @Serializable
 data class OllamaMessage(val role: String, val content: String)
 
+// Characters that could break prompt structure or inject new instructions.
+// Compiled once at class-load time; reused by every classifyCategory call.
+private val promptInjectionRegex = Regex("""[`"'\\]""")
+
 /**
  * Orchestrates the AI chat feature across providers.
  *
@@ -87,8 +91,10 @@ class AiRepository(
             if (reply.text.isBlank()) reply.copy(text = "Firebase AI returned an empty response.", isError = true)
             else reply
         } catch (e: Exception) {
+            // Do not forward e.message to the UI — it can contain internal URLs, query
+            // parameters (including API keys), or stack-frame paths on some runtimes.
             AiResult(
-                text = "Firebase AI error: ${e.message}",
+                text = "Firebase AI error: an unexpected error occurred.",
                 provider = AiProviderId.GEMINI,
                 model = model,
                 isError = true,
@@ -105,8 +111,10 @@ class AiRepository(
             val reply = ollama.chat(systemPrompt, history, userMessage)
             if (reply.text.isBlank()) reply.copy(text = "No response received.", isError = true) else reply
         } catch (e: Exception) {
+            // Do not forward e.message to the UI — it can contain the configured Ollama host
+            // URL or other internal details that should not be surfaced to end users.
             AiResult(
-                text = "Could not reach Ollama: ${e.message}",
+                text = "Could not reach Ollama: check that the server is running and the URL is correct.",
                 provider = AiProviderId.OLLAMA,
                 model = ConfigManager.getConfig().ollamaModel,
                 isError = true,
@@ -124,14 +132,14 @@ class AiRepository(
     suspend fun classifyCategory(spokenText: String, options: List<String>): VoiceCategoryResult {
         if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
 
-        val list = options.joinToString(", ") { it.replace(Regex("""[`"'\\]"""), " ") }
+        val list = options.joinToString(", ") { it.replace(promptInjectionRegex, " ") }
         // Strip characters that could break prompt structure or inject new instructions
         // (quotes/backslashes that could escape the wrapping quotes, and newlines/control
         // characters that could fake a new instruction line in the multi-line prompt template).
         // The 200-char cap is already enforced in TransactionFormReducer; this is a defence-in-depth
         // sanitisation pass before the text crosses the trust boundary into the model prompt.
         val safeText = spokenText
-            .replace(Regex("""[`"'\\]"""), " ")
+            .replace(promptInjectionRegex, " ")
             .replace(Regex("[\r\n\t\u0000-\u001f]"), " ")
             .take(200)
         val prompt = """
