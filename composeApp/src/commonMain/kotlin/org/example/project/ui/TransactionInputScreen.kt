@@ -890,6 +890,10 @@ private fun ChoiceField(
                 enabled = isEnabled,
                 onClick = onToggle,
             )
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
+            }
             .then(bounce.modifier)
             .graphicsLayer { alpha = containerAlpha }
             .padding(horizontal = 16.dp, vertical = 14.dp),
