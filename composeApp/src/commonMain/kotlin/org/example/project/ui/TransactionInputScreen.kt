@@ -378,13 +378,13 @@ private fun DescriptionMicButton(
     val isProcessing = status == VoiceStatus.Processing
 
     val pulse = rememberInfiniteTransition(label = "voicePulse")
-    val pulseScale by pulse.animateFloat(
+    val pulseScaleState = pulse.animateFloat(
         initialValue = 1f,
         targetValue = 1.4f,
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
         label = "voicePulseScale",
     )
-    val pulseAlpha by pulse.animateFloat(
+    val pulseAlphaState = pulse.animateFloat(
         initialValue = 0.55f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
@@ -443,9 +443,9 @@ private fun DescriptionMicButton(
                 modifier = Modifier
                     .size(34.dp)
                     .graphicsLayer {
-                        scaleX = pulseScale
-                        scaleY = pulseScale
-                        alpha = pulseAlpha
+                        scaleX = pulseScaleState.value
+                        scaleY = pulseScaleState.value
+                        alpha = pulseAlphaState.value
                     }
                     .clip(AppShapes.pill)
                     .background(accentColor),
