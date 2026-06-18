@@ -150,7 +150,7 @@ class AiViewModel(
     }
 
     private fun generateId(): String {
-        val timestamp = kotlinx.datetime.DateTimePeriod()
+        val timestamp = Clock.System.now().toEpochMilliseconds()
         return "msg_${timestamp}_${(0..9999).random()}"
     }
 }
