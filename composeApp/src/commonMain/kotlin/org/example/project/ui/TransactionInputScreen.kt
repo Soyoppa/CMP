@@ -109,6 +109,7 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.voice.VoiceStatus
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.TextFieldColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -386,13 +387,13 @@ private fun DescriptionMicButton(
     val isProcessing = status == VoiceStatus.Processing
 
     val pulse = rememberInfiniteTransition(label = "voicePulse")
-    val pulseScale by pulse.animateFloat(
+    val pulseScaleState = pulse.animateFloat(
         initialValue = 1f,
         targetValue = 1.4f,
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
         label = "voicePulseScale",
     )
-    val pulseAlpha by pulse.animateFloat(
+    val pulseAlphaState = pulse.animateFloat(
         initialValue = 0.55f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
@@ -451,9 +452,9 @@ private fun DescriptionMicButton(
                 modifier = Modifier
                     .size(34.dp)
                     .graphicsLayer {
-                        scaleX = pulseScale
-                        scaleY = pulseScale
-                        alpha = pulseAlpha
+                        scaleX = pulseScaleState.value
+                        scaleY = pulseScaleState.value
+                        alpha = pulseAlphaState.value
                     }
                     .clip(AppShapes.pill)
                     .background(accentColor),
@@ -918,6 +919,10 @@ private fun ChoiceField(
                 enabled = isEnabled,
                 onClick = onToggle,
             )
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
+            }
             .then(bounce.modifier)
             .graphicsLayer { alpha = containerAlpha }
             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1162,8 +1167,7 @@ private fun SaveButton(
 }
 
 @Composable
-private fun fieldColors(): TextFieldColors = remember {
-    OutlinedTextFieldDefaults.colors(
+private fun fieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
     // Filled surface — the field reads as a tappable "fill me" tile, matching
     // ChoiceField and the hero amount box. One consistent affordance across the form.
     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1182,4 +1186,3 @@ private fun fieldColors(): TextFieldColors = remember {
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
-}
