@@ -94,7 +94,7 @@ class AiRepository(
             // Do not forward e.message to the UI — it can contain internal URLs, query
             // parameters (including API keys), or stack-frame paths on some runtimes.
             AiResult(
-                text = "Firebase AI error: an unexpected error occurred.",
+                text = "Firebase AI encountered an error. Please try again.",
                 provider = AiProviderId.GEMINI,
                 model = model,
                 isError = true,
@@ -114,7 +114,7 @@ class AiRepository(
             // Do not forward e.message to the UI — it can contain the configured Ollama host
             // URL or other internal details that should not be surfaced to end users.
             AiResult(
-                text = "Could not reach Ollama: check that the server is running and the URL is correct.",
+                text = "Could not reach the AI service. Please check your connection and try again.",
                 provider = AiProviderId.OLLAMA,
                 model = ConfigManager.getConfig().ollamaModel,
                 isError = true,

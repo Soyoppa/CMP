@@ -741,15 +741,20 @@ private fun HeroAmountField(
         }
     }
 
-    val textColor = if (isInvalid) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurface
+    val errorColor = MaterialTheme.colorScheme.error
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val textColor = if (isInvalid) errorColor else onSurface
     val clearColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val amountStyle = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.Bold, color = textColor)
-    val placeholderStyle = TextStyle(
-        fontSize = 44.sp,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
-    )
+    val amountStyle = remember(textColor) {
+        TextStyle(fontSize = 44.sp, fontWeight = FontWeight.Bold, color = textColor)
+    }
+    val placeholderStyle = remember(onSurface) {
+        TextStyle(
+            fontSize = 44.sp,
+            fontWeight = FontWeight.Bold,
+            color = onSurface.copy(alpha = 0.25f),
+        )
+    }
     val phpStyle = MaterialTheme.typography.headlineMedium
 
     Column(
@@ -1157,7 +1162,8 @@ private fun SaveButton(
 }
 
 @Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+private fun fieldColors(): TextFieldColors = remember {
+    OutlinedTextFieldDefaults.colors(
     // Filled surface — the field reads as a tappable "fill me" tile, matching
     // ChoiceField and the hero amount box. One consistent affordance across the form.
     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1176,3 +1182,4 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
+}
