@@ -1,12 +1,20 @@
 package org.example.project.domain.transaction
 
 object TransactionFormReducer {
+    // Validates "optional digits, optional decimal point, up to 2 decimal digits".
+    // Hoisted so the Regex is compiled once rather than on every AmountChanged/VoiceResultApplied
+    // event (i.e. on every keystroke while typing an amount).
+    private val decimalAmountRegex = Regex("^\\d*\\.?\\d{0,2}$")
+
     fun reduce(state: TransactionFormState, event: TransactionFormEvent): TransactionFormState =
         when (event) {
             is TransactionFormEvent.AmountChanged -> {
-                // Only allow valid decimal input
-                if (event.amount.isEmpty() || event.amount.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-                    state.copy(amount = event.amount)
+                // Cap at 20 chars — no legitimate monetary amount needs more, and this
+                // prevents unbounded input growth consistent with the description cap.
+                // Only allow valid decimal input.
+                val capped = event.amount.take(20)
+                if (capped.isEmpty() || capped.matches(decimalAmountRegex)) {
+                    state.copy(amount = capped)
                 } else {
                     state
                 }
@@ -56,7 +64,7 @@ object TransactionFormReducer {
             is TransactionFormEvent.VoiceResultApplied -> {
                 // Only overwrite a field when voice produced a confident value; otherwise keep what's there.
                 val validAmount = event.amount?.takeIf {
-                    it.isNotEmpty() && it.matches(Regex("^\\d*\\.?\\d{0,2}$"))
+                    it.isNotEmpty() && it.matches(decimalAmountRegex)
                 }
                 // Apply the same 200-char cap as manual entry so voice-derived text
                 // cannot produce an unbounded description (or AI-prompt injection surface).

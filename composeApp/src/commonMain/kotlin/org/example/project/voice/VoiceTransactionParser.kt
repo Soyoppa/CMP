@@ -67,7 +67,10 @@ object VoiceTransactionParser {
         categoryOptions: List<String>,
         incomeKeywordDetection: Boolean = true,
     ): ParsedVoiceTransaction {
-        val normalized = transcript.trim()
+        // Cap at 500 chars before any heap-allocating operations. The description reducer
+        // will enforce its own 200-char limit downstream; this stops a pathologically long
+        // speech-engine result from causing unbounded allocations during regex/split work.
+        val normalized = transcript.take(500).trim()
         val lower = normalized.lowercase()
 
         val amount = extractAmount(lower)
@@ -112,8 +115,10 @@ object VoiceTransactionParser {
     private fun buildDescription(original: String, amount: String?, category: String?): String {
         var working = original
         if (amount != null) {
-            // Remove the spoken amount in either comma or plain form.
-            working = working.replace(Regex(Regex.escape(amount)), " ")
+            // Remove the spoken amount in either comma or plain form. Plain literal substring
+            // replace — no need to build/compile a Regex (via Regex.escape) just to match a
+            // fixed string on every parse call.
+            working = working.replace(amount, " ")
             working = working.replace(numericScrubRegex, " ")
         }
 

@@ -135,7 +135,7 @@ class AiViewModel(
                     state.copy(
                         messages = updatedMessages,
                         isLoading = false,
-                        error = "Failed to get response: ${e.message}"
+                        error = "Failed to get a response. Please try again."
                     )
                 }
             }
