@@ -165,7 +165,7 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                     // A quick half-second flash: pull it down from under showSnackbar's
                     // suspend so the message confirms-and-vanishes instead of lingering.
                     val autoDismiss = launch {
-                        delay(800)
+                        delay(1000)
                         snackbarHostState.currentSnackbarData?.dismiss()
                     }
                     snackbarHostState.showSnackbar(visuals)
