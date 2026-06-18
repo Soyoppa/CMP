@@ -67,7 +67,10 @@ object VoiceTransactionParser {
         categoryOptions: List<String>,
         incomeKeywordDetection: Boolean = true,
     ): ParsedVoiceTransaction {
-        val normalized = transcript.trim()
+        // Cap the raw transcript before any processing — prevents unbounded regex work and
+        // limits the string length that eventually reaches the AI prompt / description field.
+        // 500 chars is well above any realistic spoken sentence while being safely bounded.
+        val normalized = transcript.take(500).trim()
         val lower = normalized.lowercase()
 
         val amount = extractAmount(lower)
@@ -112,8 +115,10 @@ object VoiceTransactionParser {
     private fun buildDescription(original: String, amount: String?, category: String?): String {
         var working = original
         if (amount != null) {
-            // Remove the spoken amount in either comma or plain form.
-            working = working.replace(Regex(Regex.escape(amount)), " ")
+            // Remove the spoken amount in either comma or plain form. Plain literal substring
+            // replace — no need to build/compile a Regex (via Regex.escape) just to match a
+            // fixed string on every parse call.
+            working = working.replace(amount, " ")
             working = working.replace(numericScrubRegex, " ")
         }
 
