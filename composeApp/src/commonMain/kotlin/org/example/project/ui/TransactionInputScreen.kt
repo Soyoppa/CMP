@@ -230,7 +230,7 @@ fun TransactionInputScreen(
 
         val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
         val isListening = formState.voiceStatus == VoiceStatus.Listening
-        val descriptionFieldColors = remember(MaterialTheme.colorScheme) { fieldColors() }
+        val descriptionFieldColors = fieldColors()
         OutlinedTextField(
             value = formState.description,
             onValueChange = onDescriptionChanged,
