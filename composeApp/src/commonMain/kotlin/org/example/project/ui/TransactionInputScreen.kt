@@ -109,7 +109,6 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.voice.VoiceStatus
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.TextFieldColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -231,6 +230,7 @@ fun TransactionInputScreen(
 
         val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
         val isListening = formState.voiceStatus == VoiceStatus.Listening
+        val descriptionFieldColors = fieldColors()
         OutlinedTextField(
             value = formState.description,
             onValueChange = onDescriptionChanged,
@@ -255,8 +255,16 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Clear description"
+                            }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
+                            }
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Clear description"
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -280,7 +288,7 @@ fun TransactionInputScreen(
             enabled = !formState.isLoading,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = { onImeNext() }),
-            colors = fieldColors(),
+            colors = descriptionFieldColors,
             shape = AppShapes.field,
             interactionSource = descriptionBounce.interactionSource,
             singleLine = true,
@@ -398,7 +406,7 @@ private fun DescriptionMicButton(
     )
 
     // The whole control swells when armed — an unmistakable "I'm on now" cue that
-    // settles back the instant you tap it off. Visual only; the 44dp hit area is unchanged.
+    // settles back the instant you tap it off. Visual only; the 48dp hit area is unchanged.
     val emphasisScale by animateFloatAsState(
         targetValue = if (isListening) 1.18f else 1f,
         animationSpec = spring(
@@ -783,8 +791,10 @@ private fun HeroAmountField(
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { new ->
-                        fieldValue = new
-                        onAmountChanged(new.text)
+                        if (new.text.length <= 20) {
+                            fieldValue = new
+                            onAmountChanged(new.text)
+                        }
                     },
                     textStyle = amountStyle,
                     keyboardOptions = KeyboardOptions(
@@ -815,9 +825,17 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(48.dp)
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Clear amount"
+                        }
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
+                        }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Clear amount"
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -889,6 +907,11 @@ private fun ChoiceField(
                 color = borderColor,
                 shape = AppShapes.field,
             )
+            .semantics {
+                role = Role.Button
+                contentDescription = if (selected.isNotBlank()) "$label: $selected" else "$label: $placeholder"
+                stateDescription = if (isExpanded) "expanded" else "collapsed"
+            }
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
@@ -1029,6 +1052,11 @@ private fun ChoiceChip(
         color = container,
         pressedScale = 0.92f,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.semantics {
+            role = Role.Button
+            contentDescription = text
+            stateDescription = if (isSelected) "selected" else "not selected"
+        },
     ) {
         Text(
             text = text,
@@ -1101,6 +1129,9 @@ private fun SaveButton(
         enabled = isEnabled,
         modifier = modifier
             .height(56.dp)
+            .semantics {
+                contentDescription = if (isLoading) "Saving transaction" else "Save transaction"
+            }
             .then(bounce.modifier),
         shape = AppShapes.card,
         colors = ButtonDefaults.buttonColors(

@@ -12,6 +12,14 @@ interface AuthRepository {
     suspend fun signUp(email: String, password: String): Result<Unit>
     suspend fun continueAsGuest(): Result<Unit>
     suspend fun signOut()
+
+    /**
+     * Google OAuth sign-in that yields a Sheets-scoped access token (stored in [GoogleTokenProvider]),
+     * used by the BYO-sheet flow. Only platforms with a Google bridge override this; the default fails
+     * cleanly so the rest compile and the UI surfaces an honest "not available" status.
+     */
+    suspend fun signInWithGoogle(): Result<Unit> =
+        Result.failure(NotImplementedError("Google sign-in is not wired up on this platform yet."))
 }
 
 expect fun createAuthRepository(): AuthRepository
