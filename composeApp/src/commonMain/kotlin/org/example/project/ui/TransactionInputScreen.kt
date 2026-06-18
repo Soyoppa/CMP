@@ -109,6 +109,7 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.voice.VoiceStatus
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.TextFieldColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1166,8 +1167,7 @@ private fun SaveButton(
 }
 
 @Composable
-private fun fieldColors(): TextFieldColors = remember {
-    OutlinedTextFieldDefaults.colors(
+private fun fieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
     // Filled surface — the field reads as a tappable "fill me" tile, matching
     // ChoiceField and the hero amount box. One consistent affordance across the form.
     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1186,4 +1186,3 @@ private fun fieldColors(): TextFieldColors = remember {
     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
-}
