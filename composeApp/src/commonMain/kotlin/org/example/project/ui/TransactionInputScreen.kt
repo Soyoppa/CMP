@@ -111,6 +111,12 @@ import org.example.project.voice.VoiceStatus
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.TextFieldColors
 
+// Pulse animation spec is constant — hoisted to avoid allocating a new InfiniteRepeatableSpec
+// (and inner TweenSpec) on every recomposition of DescriptionMicButton.
+private val VoicePulseAnimSpec = infiniteRepeatable<Float>(
+    animation = tween(900),
+    repeatMode = RepeatMode.Restart,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -231,8 +237,7 @@ fun TransactionInputScreen(
 
         val descriptionBounce = rememberPressBounce(pressedScale = 0.98f)
         val isListening = formState.voiceStatus == VoiceStatus.Listening
-        val colorScheme = MaterialTheme.colorScheme
-        val descriptionFieldColors = remember(colorScheme) { fieldColors(colorScheme) }
+        val descriptionFieldColors = fieldColors()
         OutlinedTextField(
             value = formState.description,
             onValueChange = onDescriptionChanged,
@@ -387,13 +392,13 @@ private fun DescriptionMicButton(
     val pulseScaleState = pulse.animateFloat(
         initialValue = 1f,
         targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
+        animationSpec = VoicePulseAnimSpec,
         label = "voicePulseScale",
     )
     val pulseAlphaState = pulse.animateFloat(
         initialValue = 0.55f,
         targetValue = 0f,
-        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
+        animationSpec = VoicePulseAnimSpec,
         label = "voicePulseAlpha",
     )
 
