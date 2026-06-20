@@ -262,10 +262,6 @@ fun TransactionInputScreen(
                             }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
-                            }
-                            .semantics {
-                                role = Role.Button
-                                contentDescription = "Clear description"
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -833,10 +829,6 @@ private fun HeroAmountField(
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
-                        }
-                        .semantics {
-                            role = Role.Button
-                            contentDescription = "Clear amount"
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -908,9 +900,9 @@ private fun ChoiceField(
                 color = borderColor,
                 shape = AppShapes.field,
             )
-            .semantics {
+            .semantics(mergeDescendants = true) {
                 role = Role.Button
-                contentDescription = if (selected.isNotBlank()) "$label: $selected" else "$label: $placeholder"
+                contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
                 stateDescription = if (isExpanded) "expanded" else "collapsed"
             }
             .clickable(
@@ -919,10 +911,6 @@ private fun ChoiceField(
                 enabled = isEnabled,
                 onClick = onToggle,
             )
-            .semantics(mergeDescendants = true) {
-                role = Role.Button
-                contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
-            }
             .then(bounce.modifier)
             .graphicsLayer { alpha = containerAlpha }
             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1085,6 +1073,11 @@ private fun PaidToggleRow(
             .fillMaxWidth()
             .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
+            .semantics(mergeDescendants = true) {
+                role = Role.Switch
+                contentDescription = "Already paid"
+                stateDescription = if (isPaid) "on" else "off"
+            }
             .toggleable(
                 value = isPaid,
                 enabled = isEnabled,
