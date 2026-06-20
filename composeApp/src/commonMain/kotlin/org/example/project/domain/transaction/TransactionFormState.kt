@@ -28,11 +28,13 @@ data class TransactionFormState(
     val voiceAiUsage: VoiceAiUsage? = null,
 ) {
     val isValid: Boolean
-        get() = amount.isNotBlank() &&
-                amount.toDoubleOrNull() != null &&
-                amount.toDouble() > 0 &&
-                description.isNotBlank() &&
-                selectedDate.isNotBlank()
+        get() {
+            val parsed = amount.toDoubleOrNull()
+            return parsed != null &&
+                    parsed > 0 &&
+                    description.isNotBlank() &&
+                    selectedDate.isNotBlank()
+        }
 }
 
 /**
