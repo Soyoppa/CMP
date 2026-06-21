@@ -209,7 +209,9 @@ class TransactionViewModel(
                     _formState.update { it.copy(isLoading = false) }
                 }
             } catch (e: Exception) {
-                _effects.emit(TransactionFormEffect.ShowError("Error: ${e.message ?: "Unknown error occurred"}"))
+                // Do not forward e.message to the UI — network/Ktor exceptions can contain
+                // internal host URLs, query parameters (including API keys), or stack paths.
+                _effects.emit(TransactionFormEffect.ShowError("Failed to save transaction. Please try again."))
                 _formState.update { it.copy(isLoading = false) }
             }
         }

@@ -57,7 +57,9 @@ class AuthViewModel(
             result
                 .onSuccess { _state.update { it.copy(isSubmitting = false) } }
                 .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Authentication failed.") }
+                    // Do not forward e.message to the UI — Firebase Auth exceptions can contain
+                    // internal project URLs, error codes, or stack paths. Return a generic message.
+                    _state.update { it.copy(isSubmitting = false, error = "Authentication failed. Please check your credentials and try again.") }
                 }
         }
     }
@@ -68,8 +70,8 @@ class AuthViewModel(
         viewModelScope.launch {
             repository.continueAsGuest()
                 .onSuccess { _state.update { it.copy(isSubmitting = false) } }
-                .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Couldn't start guest mode.") }
+                .onFailure { _ ->
+                    _state.update { it.copy(isSubmitting = false, error = "Couldn't start guest mode. Please try again.") }
                 }
         }
     }
