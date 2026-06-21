@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.AppShapes
 import org.example.project.util.DateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -138,7 +139,7 @@ fun DatePickerDialog(
                                 MaterialTheme.colorScheme.primary 
                             else 
                                 MaterialTheme.colorScheme.surfaceVariant,
-                            shape = MaterialTheme.shapes.small
+                            shape = AppShapes.pill
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
