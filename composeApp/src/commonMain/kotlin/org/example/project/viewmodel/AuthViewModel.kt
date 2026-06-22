@@ -56,8 +56,10 @@ class AuthViewModel(
             }
             result
                 .onSuccess { _state.update { it.copy(isSubmitting = false) } }
-                .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Authentication failed.") }
+                .onFailure { _ ->
+                    // Do not surface e.message — Firebase Auth exceptions can include
+                    // internal endpoint URLs and user-identifying information.
+                    _state.update { it.copy(isSubmitting = false, error = "Authentication failed. Please check your credentials and try again.") }
                 }
         }
     }
@@ -68,8 +70,9 @@ class AuthViewModel(
         viewModelScope.launch {
             repository.continueAsGuest()
                 .onSuccess { _state.update { it.copy(isSubmitting = false) } }
-                .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Couldn't start guest mode.") }
+                .onFailure { _ ->
+                    // Same rationale: don't forward raw exception messages to the UI.
+                    _state.update { it.copy(isSubmitting = false, error = "Couldn't start guest mode. Please try again.") }
                 }
         }
     }

@@ -191,7 +191,9 @@ fun SettingsScreen(
                                     TestResult(ResultKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
                                 }
                             } catch (e: Exception) {
-                                TestResult(ResultKind.ERROR, "Read failed: ${e.message}")
+                                // Do not surface e.message — Ktor exceptions can embed
+                                // the full request URL including the ?key=<API_KEY> param.
+                                TestResult(ResultKind.ERROR, "Read failed: could not reach the sheet. Check your network and sheet configuration.")
                             }
                             isLoading = false
                         }
@@ -226,9 +228,11 @@ fun SettingsScreen(
                                     )
                                 }
                             } catch (e: Exception) {
+                                // Do not surface e.message — exceptions can embed the
+                                // script URL or internal Ktor details.
                                 TestResult(
                                     ResultKind.ERROR,
-                                    "Write failed: ${e.message}\nThe row may still have been added — verify in your sheet.",
+                                    "Write failed: could not reach the Apps Script endpoint. The row may still have been added — verify in your sheet.",
                                 )
                             }
                             isLoading = false
