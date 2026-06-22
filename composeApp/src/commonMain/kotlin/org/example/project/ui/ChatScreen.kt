@@ -48,7 +48,8 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private val BubbleCorner = 18.dp
+// Bubble tail corner — the only non-token radius; all other corners use AppShapes.card.
+private val BubbleTailCorner = 4.dp
 
 @Composable
 fun ChatScreen(
@@ -394,10 +395,10 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
                 modifier = Modifier
                     .clip(
                         RoundedCornerShape(
-                            topStart = BubbleCorner,
-                            topEnd = BubbleCorner,
-                            bottomStart = if (isUser) BubbleCorner else 4.dp,
-                            bottomEnd = if (isUser) 4.dp else BubbleCorner,
+                            topStart = AppShapes.card.topStart,
+                            topEnd = AppShapes.card.topEnd,
+                            bottomStart = if (isUser) AppShapes.card.bottomStart else BubbleTailCorner,
+                            bottomEnd = if (isUser) BubbleTailCorner else AppShapes.card.bottomEnd,
                         )
                     )
                     .background(
