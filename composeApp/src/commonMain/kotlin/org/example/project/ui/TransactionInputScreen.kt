@@ -382,20 +382,6 @@ private fun DescriptionMicButton(
     val isListening = status == VoiceStatus.Listening
     val isProcessing = status == VoiceStatus.Processing
 
-    val pulse = rememberInfiniteTransition(label = "voicePulse")
-    val pulseScaleState = pulse.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
-        label = "voicePulseScale",
-    )
-    val pulseAlphaState = pulse.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
-        label = "voicePulseAlpha",
-    )
-
     val circleColor by animateColorAsState(
         targetValue = if (isListening) accentColor else MaterialTheme.colorScheme.surfaceContainerHighest,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -442,19 +428,10 @@ private fun DescriptionMicButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        // Breathing ring while listening.
+        // Breathing ring while listening — composable only enters the tree when active,
+        // so the InfiniteTransition and its frame callbacks are created only while needed.
         if (isListening) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .graphicsLayer {
-                        scaleX = pulseScaleState.value
-                        scaleY = pulseScaleState.value
-                        alpha = pulseAlphaState.value
-                    }
-                    .clip(AppShapes.pill)
-                    .background(accentColor),
-            )
+            PulseRing(accentColor = accentColor)
         }
         Box(
             modifier = Modifier
@@ -536,6 +513,42 @@ private fun VoiceUsageInfo(usage: VoiceAiUsage, accentColor: Color) {
             color = onVariant,
         )
     }
+}
+
+/**
+ * Breathing pulse ring shown behind the mic icon while voice input is active.
+ *
+ * Isolated into its own composable so that [rememberInfiniteTransition] — and the
+ * Choreographer frame callback it registers — only exist in the composition tree while
+ * [isListening] is true. When the mic is idle or processing, this node is never
+ * composed and no animation work runs.
+ */
+@Composable
+private fun PulseRing(accentColor: Color) {
+    val pulse = rememberInfiniteTransition(label = "voicePulse")
+    val pulseScale by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
+        label = "voicePulseScale",
+    )
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Restart),
+        label = "voicePulseAlpha",
+    )
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .graphicsLayer {
+                scaleX = pulseScale
+                scaleY = pulseScale
+                alpha = pulseAlpha
+            }
+            .clip(AppShapes.pill)
+            .background(accentColor),
+    )
 }
 
 @Composable
