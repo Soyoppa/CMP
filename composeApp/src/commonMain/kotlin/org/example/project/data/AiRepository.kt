@@ -128,6 +128,9 @@ class AiRepository(
      * Reuses the same provider chain as [chat] (Gemini primary → Ollama fallback) but constrains the
      * model to answer with exactly one of [options]. Returns null if AI is unreachable or replies with
      * something outside the list, so the caller can keep its existing/default category. Never throws.
+     *
+     * Note: budget context is intentionally omitted from the inner [chat] call — category
+     * classification only needs the spoken text and the allowed option list, not spending data.
      */
     suspend fun classifyCategory(spokenText: String, options: List<String>): VoiceCategoryResult {
         if (options.isEmpty() || spokenText.isBlank()) return VoiceCategoryResult(null, null)
