@@ -270,6 +270,7 @@ private fun ChatHeader(
         }
         BounceSurface(
             onClick = onClearChat,
+            modifier = Modifier.heightIn(min = 48.dp),
             shape = AppShapes.pill,
             color = MaterialTheme.colorScheme.surfaceContainer,
             pressedScale = 0.92f,

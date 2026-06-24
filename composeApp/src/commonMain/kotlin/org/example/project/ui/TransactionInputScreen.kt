@@ -286,10 +286,6 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .semantics {
-                                role = Role.Button
-                                contentDescription = "Clear description"
-                            }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
                             }
@@ -907,10 +903,6 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(48.dp)
-                        .semantics {
-                            role = Role.Button
-                            contentDescription = "Clear amount"
-                        }
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")

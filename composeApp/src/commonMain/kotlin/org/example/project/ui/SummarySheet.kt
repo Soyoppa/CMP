@@ -767,7 +767,7 @@ private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit) {
             ) {
                 Text(
                     text = "Refresh",
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
