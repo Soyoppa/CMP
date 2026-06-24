@@ -10,10 +10,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
 import org.example.project.ui.effects.rememberPressBounce
+import org.example.project.ui.theme.AppShapes
 import org.example.project.util.DateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +56,7 @@ fun DatePickerDialog(
                     val yearPrevBounce = rememberPressBounce(pressedScale = 0.85f)
                     TextButton(
                         onClick = { selectedYear-- },
-                        modifier = yearPrevBounce.modifier,
+                        modifier = yearPrevBounce.modifier.semantics { contentDescription = "Previous year" },
                         interactionSource = yearPrevBounce.interactionSource,
                     ) {
                         Text("◀")
@@ -65,7 +68,7 @@ fun DatePickerDialog(
                     val yearNextBounce = rememberPressBounce(pressedScale = 0.85f)
                     TextButton(
                         onClick = { selectedYear++ },
-                        modifier = yearNextBounce.modifier,
+                        modifier = yearNextBounce.modifier.semantics { contentDescription = "Next year" },
                         interactionSource = yearNextBounce.interactionSource,
                     ) {
                         Text("▶")
@@ -89,7 +92,7 @@ fun DatePickerDialog(
                                 selectedYear--
                             }
                         },
-                        modifier = monthPrevBounce.modifier,
+                        modifier = monthPrevBounce.modifier.semantics { contentDescription = "Previous month" },
                         interactionSource = monthPrevBounce.interactionSource,
                     ) {
                         Text("◀")
@@ -107,7 +110,7 @@ fun DatePickerDialog(
                                 selectedYear++
                             }
                         },
-                        modifier = monthNextBounce.modifier,
+                        modifier = monthNextBounce.modifier.semantics { contentDescription = "Next month" },
                         interactionSource = monthNextBounce.interactionSource,
                     ) {
                         Text("▶")
@@ -164,7 +167,7 @@ fun DatePickerDialog(
                                 MaterialTheme.colorScheme.primary
                             else
                                 MaterialTheme.colorScheme.surfaceVariant,
-                            shape = MaterialTheme.shapes.small
+                            shape = AppShapes.pill
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
