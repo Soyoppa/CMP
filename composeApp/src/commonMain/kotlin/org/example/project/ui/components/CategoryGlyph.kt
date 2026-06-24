@@ -44,7 +44,7 @@ fun categoryGlyphKind(name: String): CategoryGlyphKind {
         has("home", "rent", "balay", "house", "mortgage") -> CategoryGlyphKind.HOME
         has("salary", "income", "renz", "wage", "cash", "pay") -> CategoryGlyphKind.WALLET
         has("saving", "invest", "fund") -> CategoryGlyphKind.COINS
-        has("gift", "present", "donation", "charity") -> CategoryGlyphKind.GIFT
+        has("gift", "present", "donation", "charity", "benevolent") -> CategoryGlyphKind.GIFT
         has("bill", "reimburse", "receipt", "tax", "subscription", "subs") -> CategoryGlyphKind.RECEIPT
         has("mama", "mimi", "mom", "dad", "care", "r&g", "family", "gen") -> CategoryGlyphKind.USER
         has("thing", "misc", "stuff", "item") -> CategoryGlyphKind.BOX

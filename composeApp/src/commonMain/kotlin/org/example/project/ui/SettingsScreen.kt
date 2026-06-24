@@ -155,7 +155,12 @@ fun SettingsScreen(
                             result = try {
                                 val recent = repository.getRecent(3)
                                 if (recent.isEmpty()) {
-                                    TestResult(ResultKind.WARNING, "Read succeeded, but no transactions were found.")
+                                    TestResult(
+                                        ResultKind.WARNING,
+                                        "Read returned HTTP 200 but no data rows. If you expected rows, " +
+                                            "the range likely points at the wrong/empty tab — check this " +
+                                            "schema's SHEET_RANGE tab name and that data sits under the header.",
+                                    )
                                 } else {
                                     val lines = recent.joinToString("\n") { entry ->
                                         val sign = if (entry.isInflow) "+" else "-"

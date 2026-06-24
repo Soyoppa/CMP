@@ -18,6 +18,7 @@ data class Transaction(
 
 enum class TransactionCategory(val displayName: String) {
     BALAY_KAB("Balay Kab"),
+    BENEVOLENT("Benevolent"),
     CHURCH("Church"),
     CLOTHING("Clothing"),
     ELECTRICITY("Electricity"),
@@ -45,6 +46,7 @@ enum class IncomeCategory(val displayName: String) {
 
 enum class PaymentMode(val displayName: String) {
     BPI("BPI"),
+    BPI_GOLD("BPI Gold"),
     CASH("Cash"),
     CITI_REWARDS("Citi Rewards"),
     EASTWEST_GOLD("Eastwest Gold"),

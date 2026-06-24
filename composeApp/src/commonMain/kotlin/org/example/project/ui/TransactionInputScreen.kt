@@ -114,6 +114,7 @@ import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.CategoryGlyphKind
 import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.components.DatePickerDialog
+import org.example.project.ui.components.PaymentBadge
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
@@ -381,7 +382,7 @@ fun TransactionInputScreen(
                 isEnabled = !formState.isLoading,
                 accentColor = accentColor,
                 onToggle = onPaymentToggle,
-                leadingGlyph = CategoryGlyphKind.WALLET,
+                leading = { PaymentBadge(name = formState.selectedPaymentMode) },
                 showChevron = false,
                 modifier = Modifier.weight(1f),
             )
@@ -407,6 +408,7 @@ fun TransactionInputScreen(
                 accentColor = accentColor,
                 onDismiss = onPaymentToggle,
                 onSelect = onPaymentSelect,
+                showPaymentBadges = true,
             )
         }
 
@@ -789,6 +791,10 @@ private fun SegmentLabel(
     }
 }
 
+// Allowed money input: optional digits, an optional single decimal point, up to 2 decimal places.
+// Matches the validation in TransactionFormReducer so the field can reject anything it would drop.
+private val AmountInputRegex = Regex("^\\d*\\.?\\d{0,2}$")
+
 @Composable
 private fun HeroAmountField(
     amount: String,
@@ -861,7 +867,13 @@ private fun HeroAmountField(
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { new ->
-                        if (new.text.length <= 20) {
+                        // Accept numeric input only — digits plus at most one decimal point with up
+                        // to 2 places. Anything else (letters, symbols, a second dot, pasted junk) is
+                        // rejected outright so the field never displays a non-number. Mirrors
+                        // TransactionFormReducer's amount rule, keeping the field and VM in lockstep.
+                        if (new.text.length <= 20 &&
+                            (new.text.isEmpty() || new.text.matches(AmountInputRegex))
+                        ) {
                             fieldValue = new
                             onAmountChanged(new.text)
                         }
@@ -949,6 +961,8 @@ private fun ChoiceField(
     // When set, a leading icon tile is shown — makes the picked value recognisable at a
     // glance, the way every mainstream tracker tags its categories.
     leadingGlyph: CategoryGlyphKind? = null,
+    // Overrides [leadingGlyph] with a custom leading slot (e.g. a payment brand badge).
+    leading: (@Composable () -> Unit)? = null,
     // The compact two-up tiles drop the chevron to claw back width for long values.
     showChevron: Boolean = true,
 ) {
@@ -1003,7 +1017,9 @@ private fun ChoiceField(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (leadingGlyph != null) {
+        if (leading != null) {
+            leading()
+        } else if (leadingGlyph != null) {
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -1091,6 +1107,7 @@ private fun ChoicePickerSheet(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
     showGlyphs: Boolean = false,
+    showPaymentBadges: Boolean = false,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -1123,6 +1140,7 @@ private fun ChoicePickerSheet(
                         accentColor = accentColor,
                         onClick = { onSelect(option) },
                         showGlyph = showGlyphs,
+                        showPaymentBadge = showPaymentBadges,
                     )
                 }
             }
@@ -1137,6 +1155,7 @@ private fun ChoiceChip(
     accentColor: Color,
     onClick: () -> Unit,
     showGlyph: Boolean = false,
+    showPaymentBadge: Boolean = false,
 ) {
     val container by animateColorAsState(
         targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1154,10 +1173,10 @@ private fun ChoiceChip(
         color = container,
         pressedScale = 0.92f,
         contentPadding = PaddingValues(
-            start = if (showGlyph) 12.dp else 16.dp,
+            start = if (showGlyph) 12.dp else if (showPaymentBadge) 6.dp else 16.dp,
             end = 16.dp,
-            top = 10.dp,
-            bottom = 10.dp,
+            top = if (showPaymentBadge) 6.dp else 10.dp,
+            bottom = if (showPaymentBadge) 6.dp else 10.dp,
         ),
         modifier = Modifier.semantics {
             role = Role.Button
@@ -1169,7 +1188,11 @@ private fun ChoiceChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (showGlyph) {
+            if (showPaymentBadge) {
+                // The badge keeps its own brand colour + white initials, so it stands on both
+                // the resting and the accent-filled (selected) chip without extra treatment.
+                PaymentBadge(name = text, size = 26.dp)
+            } else if (showGlyph) {
                 // Selected chips tint the glyph to the on-accent surface so it reads on the
                 // filled pill; unselected chips keep the brand accent for a pop of colour.
                 CategoryGlyph(

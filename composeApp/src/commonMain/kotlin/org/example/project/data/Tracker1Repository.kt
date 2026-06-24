@@ -5,6 +5,8 @@ import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -21,6 +23,34 @@ data class SheetsResponse(
 data class SheetsRequest(
     val values: List<List<String>>
 )
+
+@Serializable
+data class SheetsErrorEnvelope(val error: SheetsApiError? = null)
+
+@Serializable
+data class SheetsApiError(val code: Int = 0, val message: String = "", val status: String = "")
+
+private val sheetsErrorJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+/**
+ * Turns a non-2xx Sheets API response into an actionable message.
+ *
+ * The API reports problems like a wrong tab name as
+ * `{"error":{"message":"Unable to parse range: 'Tab'!A:E", ...}}` with HTTP 400. Because the client
+ * doesn't fail on non-2xx and [SheetsResponse] ignores unknown keys, that error body used to
+ * deserialize into `SheetsResponse(values = null)` and surface as an *empty success* ("read
+ * succeeded, no transactions") instead of a real error. Callers now check the status and use this.
+ */
+internal fun sheetsErrorMessage(body: String, httpStatus: Int): String {
+    val msg = runCatching {
+        sheetsErrorJson.decodeFromString<SheetsErrorEnvelope>(body).error?.message
+    }.getOrNull()
+    return when {
+        !msg.isNullOrBlank() -> "Sheets API error (HTTP $httpStatus): $msg"
+        body.isNotBlank() -> "Sheets API returned HTTP $httpStatus. ${body.take(200)}"
+        else -> "Sheets API returned HTTP $httpStatus with an empty body."
+    }
+}
 
 /**
  * Sheet #1 schema implementation (`tracker_1`).
@@ -57,11 +87,17 @@ class Tracker1Repository(
      */
     override suspend fun getRecentTransactions(limit: Int): List<RecentTransaction> {
         val config = ConfigManager.getConfig()
-        val response: SheetsResponse = client.get(
+        val resp = client.get(
             "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
         ) {
             parameter("key", config.apiKey)
-        }.body()
+        }
+        // The client doesn't fail on non-2xx; surface Sheets API errors (wrong tab/range, bad key,
+        // no access) instead of letting the error body parse into an empty, "successful" read.
+        if (!resp.status.isSuccess()) {
+            throw IllegalStateException(sheetsErrorMessage(resp.bodyAsText(), resp.status.value))
+        }
+        val response: SheetsResponse = resp.body()
 
         val rows = response.values ?: return emptyList()
         return rows.drop(1) // header

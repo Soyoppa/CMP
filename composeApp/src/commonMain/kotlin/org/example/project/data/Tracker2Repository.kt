@@ -6,7 +6,9 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.request
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
@@ -58,11 +60,17 @@ class Tracker2Repository : SheetRepository {
      */
     override suspend fun getRecentTransactions(limit: Int): List<RecentTransaction> {
         val config = ConfigManager.getConfig()
-        val response: SheetsResponse = client.get(
+        val resp = client.get(
             "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
         ) {
             parameter("key", config.apiKey)
-        }.body()
+        }
+        // The client doesn't fail on non-2xx; surface Sheets API errors (wrong tab/range, bad key,
+        // no access) instead of letting the error body parse into an empty, "successful" read.
+        if (!resp.status.isSuccess()) {
+            throw IllegalStateException(sheetsErrorMessage(resp.bodyAsText(), resp.status.value))
+        }
+        val response: SheetsResponse = resp.body()
 
         val rows = response.values ?: return emptyList()
         return rows.drop(1) // header
