@@ -1447,22 +1447,30 @@ private fun friendlyDate(raw: String): String {
 }
 
 @Composable
-private fun fieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
-    // Filled surface — the field reads as a tappable "fill me" tile, matching
-    // ChoiceField and the hero amount box. One consistent affordance across the form.
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-    // Border stays out of the way at rest (the fill is the affordance) and lights
-    // up in the accent only on focus — exactly how ChoiceField marks its active state.
-    focusedBorderColor = MaterialTheme.colorScheme.secondary,
-    focusedLabelColor = MaterialTheme.colorScheme.secondary,
-    unfocusedBorderColor = Color.Transparent,
-    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-    disabledBorderColor = Color.Transparent,
-    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-)
+private fun fieldColors(): TextFieldColors {
+    val secondary = MaterialTheme.colorScheme.secondary
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val surfaceContainer = MaterialTheme.colorScheme.surfaceContainer
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    return remember(secondary, onSurfaceVariant, surfaceContainer, onSurface) {
+        OutlinedTextFieldDefaults.colors(
+            // Filled surface — the field reads as a tappable "fill me" tile, matching
+            // ChoiceField and the hero amount box. One consistent affordance across the form.
+            focusedContainerColor = surfaceContainer,
+            unfocusedContainerColor = surfaceContainer,
+            disabledContainerColor = surfaceContainer,
+            // Border stays out of the way at rest (the fill is the affordance) and lights
+            // up in the accent only on focus — exactly how ChoiceField marks its active state.
+            focusedBorderColor = secondary,
+            focusedLabelColor = secondary,
+            unfocusedBorderColor = Color.Transparent,
+            unfocusedLabelColor = onSurfaceVariant,
+            disabledTextColor = onSurface,
+            disabledBorderColor = Color.Transparent,
+            disabledLeadingIconColor = onSurfaceVariant,
+            disabledTrailingIconColor = onSurfaceVariant,
+            disabledLabelColor = onSurfaceVariant,
+            disabledPlaceholderColor = onSurfaceVariant,
+        )
+    }
+}
