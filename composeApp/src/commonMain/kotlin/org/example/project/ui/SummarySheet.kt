@@ -1,7 +1,10 @@
 package org.example.project.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -10,9 +13,14 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import org.example.project.ui.effects.rememberPressBounce
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
@@ -35,10 +43,13 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.project.model.CategorySummary
 import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.components.CategoryGlyph
+import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.theme.AmberBrown
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
@@ -224,7 +235,7 @@ private fun TotalExpenseCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .padding(bottom = 8.dp)
-            .clip(AppShapes.field)
+            .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -247,12 +258,30 @@ private fun TotalExpenseCard(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = formatAmount(total),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = amountColor,
-            )
+            // Rolling counter — the total slides up/down to its new value when the month
+            // changes, the way Revolut / Monarch animate a balance instead of snapping it.
+            AnimatedContent(
+                targetState = total,
+                transitionSpec = {
+                    val slide = tween<IntOffset>(260, easing = EaseOutQuart)
+                    val fade = tween<Float>(260, easing = EaseOutQuart)
+                    if (targetState >= initialState) {
+                        (slideInVertically(slide) { it } + fadeIn(fade)) togetherWith
+                            (slideOutVertically(slide) { -it } + fadeOut(fade))
+                    } else {
+                        (slideInVertically(slide) { -it } + fadeIn(fade)) togetherWith
+                            (slideOutVertically(slide) { it } + fadeOut(fade))
+                    }.using(SizeTransform(clip = false))
+                },
+                label = "totalCounter",
+            ) { value ->
+                Text(
+                    text = formatAmount(value),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = amountColor,
+                )
+            }
             if (budget > 0) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -354,9 +383,10 @@ private fun MonthBarChart(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom,
         ) {
-            months.forEach { month ->
+            months.forEachIndexed { index, month ->
                 val total = totals[month] ?: 0.0
                 BarColumn(
+                    index = index,
                     month = month,
                     amount = total,
                     fraction = (total / maxY).toFloat(),
@@ -369,13 +399,21 @@ private fun MonthBarChart(
 
 @Composable
 private fun RowScope.BarColumn(
+    index: Int,
     month: String,
     amount: Double,
     fraction: Float,
     isSelected: Boolean,
 ) {
+    // Grow each bar up from the baseline, staggered left-to-right on first load — the
+    // data "arrives" rather than appearing fully formed (Monarch Money's chart intro).
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(index * 45L)
+        started = true
+    }
     val animatedFraction by animateFloatAsState(
-        targetValue = fraction * BarAreaFraction,
+        targetValue = if (started) fraction * BarAreaFraction else 0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -494,6 +532,7 @@ private fun CategoryBreakdown(
             val budget = budgetByCategory[summary.category.lowercase()] ?: 0.0
             val fallbackFraction = (amount / maxAmount).toFloat()
             CategoryRow(
+                index = index,
                 category = summary.category,
                 amount = amount,
                 fallbackFraction = fallbackFraction,
@@ -508,6 +547,7 @@ private fun CategoryBreakdown(
 
 @Composable
 private fun CategoryRow(
+    index: Int,
     category: String,
     amount: Double,
     fallbackFraction: Float,
@@ -523,8 +563,15 @@ private fun CategoryRow(
     val targetFraction = if (hasBudget) (amount / monthlyBudget).toFloat().coerceAtMost(1f)
                          else fallbackFraction
 
+    // Fill each progress bar from empty, staggered down the list so the breakdown reads
+    // as curated rather than dumped — same intro language as the month bars above.
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(index * 35L)
+        started = true
+    }
     val animatedFraction by animateFloatAsState(
-        targetValue = targetFraction,
+        targetValue = if (started) targetFraction else 0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -535,12 +582,18 @@ private fun CategoryRow(
     val overflowColor = MaterialTheme.colorScheme.error
     val remainingColor = MaterialTheme.colorScheme.secondary
 
+    val bounce = rememberPressBounce(pressedScale = 0.97f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .then(bounce.modifier)
             .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f))
-            .clickable(onClick = onTap)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onClick = onTap,
+            )
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(
@@ -560,11 +613,10 @@ private fun CategoryRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.weight(1f),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(AppShapes.pill)
-                        .background(barColor),
+                CategoryGlyph(
+                    kind = categoryGlyphKind(category),
+                    color = barColor,
+                    size = 22.dp,
                 )
                 Text(
                     text = category,

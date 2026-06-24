@@ -115,16 +115,42 @@ fun DatePickerDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
+                // Weekday header — Monday-first, aligned with the grid columns below.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { label ->
+                        Text(
+                            text = label,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 // Day grid
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(7),
-                    modifier = Modifier.height(200.dp),
+                    modifier = Modifier.height(248.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     val daysInMonth = getDaysInMonth(selectedYear, selectedMonth)
-                    items((1..daysInMonth).toList()) { day ->
+                    // DayOfWeek.ordinal is 0 for Monday; +1 mod 7 shifts to a Sunday-first week
+                    // (Sun=0..Sat=6), giving the count of blank leading cells before day 1.
+                    val leadingBlanks = (LocalDate(selectedYear, selectedMonth, 1).dayOfWeek.ordinal + 1) % 7
+                    val cells: List<Int?> = List(leadingBlanks) { null } + (1..daysInMonth).toList()
+                    items(cells) { day ->
+                        if (day == null) {
+                            Spacer(modifier = Modifier.aspectRatio(1f))
+                            return@items
+                        }
                         val dayBounce = rememberPressBounce(pressedScale = 0.86f)
                         Surface(
                             modifier = Modifier
@@ -134,9 +160,9 @@ fun DatePickerDialog(
                                     interactionSource = dayBounce.interactionSource,
                                     indication = LocalIndication.current,
                                 ) { selectedDay = day },
-                            color = if (day == selectedDay) 
-                                MaterialTheme.colorScheme.primary 
-                            else 
+                            color = if (day == selectedDay)
+                                MaterialTheme.colorScheme.primary
+                            else
                                 MaterialTheme.colorScheme.surfaceVariant,
                             shape = MaterialTheme.shapes.small
                         ) {

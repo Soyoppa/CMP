@@ -1,9 +1,21 @@
 package org.example.project.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.EaseOutQuart
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.text.font.FontWeight
@@ -355,10 +368,58 @@ private fun TokenFootnote(model: String, tokens: Int) {
     )
 }
 
+/**
+ * Three dots that bounce in a staggered wave while the assistant is replying.
+ * Reads as "thinking", not "loading" — the pattern every premium AI chat uses.
+ */
+@Composable
+private fun TypingDots(color: Color) {
+    val transition = rememberInfiniteTransition(label = "typingDots")
+    Row(
+        modifier = Modifier.padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        repeat(3) { index ->
+            val lift by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 900
+                        0f at 0
+                        -5f at 250
+                        0f at 500
+                    },
+                    repeatMode = RepeatMode.Restart,
+                    initialStartOffset = StartOffset(index * 120),
+                ),
+                label = "dot$index",
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .graphicsLayer { translationY = lift }
+                    .clip(AppShapes.pill)
+                    .background(color),
+            )
+        }
+    }
+}
+
 @Composable
 private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
     val isUser = message.role == ChatMessage.Role.USER
 
+    // Each new bubble rises into place once — a fresh message reads as "arriving",
+    // matching the conversational feel of Cleo / Copilot / Claude.ai threads.
+    val appear = remember { MutableTransitionState(false).apply { targetState = true } }
+
+    AnimatedVisibility(
+        visibleState = appear,
+        enter = fadeIn(tween(220)) +
+            slideInVertically(tween(260, easing = EaseOutQuart)) { it / 3 },
+    ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -399,21 +460,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 if (message.isStreaming) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = "Thinking…",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    TypingDots(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     Text(
                         text = message.content,
@@ -430,6 +477,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
         }
 
         if (isUser) Spacer(Modifier.width(10.dp))
+    }
     }
 }
 
@@ -533,15 +581,38 @@ private fun EmptyState(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.height(4.dp))
-        SuggestionChip(
-            text =  "Show spending by category",
-            onClick = onShowSummary,
-            highlighted = true,
-        )
-        suggestions.forEach { suggestion ->
-            SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
+        // Stagger the chips in so the empty state assembles itself rather than snapping in —
+        // the standard onboarding reveal in Monarch / Copilot.
+        StaggeredChip(index = 0) {
+            SuggestionChip(
+                text = "Show spending by category",
+                onClick = onShowSummary,
+                highlighted = true,
+            )
+        }
+        suggestions.forEachIndexed { i, suggestion ->
+            StaggeredChip(index = i + 1) {
+                SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
+            }
         }
 
+    }
+}
+
+/** Fades + lifts its content in once, delayed by [index] for a cascade. */
+@Composable
+private fun StaggeredChip(index: Int, content: @Composable () -> Unit) {
+    val state = remember { MutableTransitionState(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(index * 55L)
+        state.targetState = true
+    }
+    AnimatedVisibility(
+        visibleState = state,
+        enter = fadeIn(tween(260)) +
+            slideInVertically(tween(300, easing = EaseOutQuart)) { it / 3 },
+    ) {
+        content()
     }
 }
 
@@ -596,8 +667,10 @@ private fun ChatInputBar(
             shape = AppShapes.card,
             textStyle = MaterialTheme.typography.bodyMedium,
             colors = OutlinedTextFieldDefaults.colors(
+                // Borderless at rest (the filled surface is the affordance); the brand
+                // ring appears only on focus — the Claude.ai / Perplexity composer pattern.
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainer,
+                unfocusedBorderColor = Color.Transparent,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             ),

@@ -1,8 +1,14 @@
 package org.example.project.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.EaseOutQuart
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
@@ -93,6 +99,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,7 +108,12 @@ import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.VoiceAiUsage
 import org.example.project.model.PaymentMode
+import org.example.project.util.DateUtils
 import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.components.CategoryGlyph
+import org.example.project.ui.components.CategoryGlyphKind
+import org.example.project.ui.components.categoryGlyphKind
+import org.example.project.ui.components.DatePickerDialog
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
@@ -123,6 +135,12 @@ fun TransactionInputScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val amountFocusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+
+    // Briefly flips true when a save succeeds so the CTA can confirm with a checkmark
+    // before the cleared form settles back to its disabled resting state.
+    var saveSuccess by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     // Open keyboard on the amount field immediately — no extra tap needed.
     LaunchedEffect(Unit) {
@@ -132,9 +150,19 @@ fun TransactionInputScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
-            if (effect is TransactionFormEffect.FormCleared) {
-                keyboardController?.hide()
-                focusManager.clearFocus()
+            when (effect) {
+                is TransactionFormEffect.FormCleared -> {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }
+                is TransactionFormEffect.ShowSuccess -> {
+                    saveSuccess = true
+                    scope.launch {
+                        delay(1300)
+                        saveSuccess = false
+                    }
+                }
+                is TransactionFormEffect.ShowError -> Unit
             }
         }
     }
@@ -163,6 +191,8 @@ fun TransactionInputScreen(
         remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.PaymentModeSelected(it)) } }
     val onPaidChanged: (Boolean) -> Unit =
         remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.IsPaidChanged(it)) } }
+    val onDateSelected: (String) -> Unit =
+        remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.DateChanged(it)) } }
     val onVoiceToggle: () -> Unit =
         remember(viewModel) { { viewModel.onEvent(TransactionFormEvent.VoiceInputToggled) } }
     val onImeNext: () -> Unit =
@@ -177,7 +207,6 @@ fun TransactionInputScreen(
 
     // Pull down from the top to wipe the form back to defaults — a quick "start over" without
     // hunting for each field's clear button. The threshold guards against accidental triggers.
-    val scope = rememberCoroutineScope()
     var isClearing by remember { mutableStateOf(false) }
 
     PullToRefreshBox(
@@ -296,9 +325,27 @@ fun TransactionInputScreen(
         )
 
         // Per-add token readout — shows whether the last mic add spent a Gemini round-trip.
-        formState.voiceAiUsage?.let { usage ->
-            VoiceUsageInfo(usage = usage, accentColor = accentColor)
+        // Retain the last value so the exit animation has content to fade/collapse out.
+        val lastVoiceUsage = remember { mutableStateOf<VoiceAiUsage?>(null) }
+        formState.voiceAiUsage?.let { lastVoiceUsage.value = it }
+        AnimatedVisibility(
+            visible = formState.voiceAiUsage != null,
+            enter = fadeIn(tween(200)) +
+                expandVertically(tween(220, easing = EaseOutQuart)),
+            exit = fadeOut(tween(140)) + shrinkVertically(tween(140)),
+        ) {
+            lastVoiceUsage.value?.let { usage ->
+                VoiceUsageInfo(usage = usage, accentColor = accentColor)
+            }
         }
+
+        // Date — defaults to today; tap to log a receipt from another day.
+        DateField(
+            dateText = formState.selectedDate,
+            isEnabled = !formState.isLoading,
+            accentColor = accentColor,
+            onClick = { showDatePicker = true },
+        )
 
         // Income uses its own short source list (e.g. Renz/Gen); expense uses the full category set.
         val useIncomeCategories = schemaFeatures.showIncomeOption && formState.isIncome
@@ -308,25 +355,37 @@ fun TransactionInputScreen(
             if (useIncomeCategories) schemaFeatures.incomeCategoryOptions else schemaFeatures.categoryOptions
         val paymentOptions = remember { PaymentMode.entries.map { it.displayName } }
 
-        ChoiceField(
-            label = schemaFeatures.categoryLabel,
-            placeholder = "Select ${schemaFeatures.categoryLabel.lowercase()}",
-            selected = formState.selectedCategory,
-            isExpanded = formState.showCategoryDropdown,
-            isEnabled = !formState.isLoading,
-            accentColor = accentColor,
-            onToggle = onCategoryToggle,
-        )
-
-        ChoiceField(
-            label = "Mode of Payment",
-            placeholder = "How was it paid?",
-            selected = formState.selectedPaymentMode,
-            isExpanded = formState.showPaymentDropdown,
-            isEnabled = !formState.isLoading,
-            accentColor = accentColor,
-            onToggle = onPaymentToggle,
-        )
+        // Category + Payment are the same kind of decision (how to file this transaction),
+        // so they sit together as a two-up row — chevron-less tiles matching the Date tile above.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ChoiceField(
+                label = schemaFeatures.categoryLabel,
+                placeholder = "Select ${schemaFeatures.categoryLabel.lowercase()}",
+                selected = formState.selectedCategory,
+                isExpanded = formState.showCategoryDropdown,
+                isEnabled = !formState.isLoading,
+                accentColor = accentColor,
+                onToggle = onCategoryToggle,
+                leadingGlyph = categoryGlyphKind(formState.selectedCategory),
+                showChevron = false,
+                modifier = Modifier.weight(1f),
+            )
+            ChoiceField(
+                label = "Payment",
+                placeholder = "How paid?",
+                selected = formState.selectedPaymentMode,
+                isExpanded = formState.showPaymentDropdown,
+                isEnabled = !formState.isLoading,
+                accentColor = accentColor,
+                onToggle = onPaymentToggle,
+                leadingGlyph = CategoryGlyphKind.WALLET,
+                showChevron = false,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         if (formState.showCategoryDropdown) {
             ChoicePickerSheet(
@@ -336,6 +395,7 @@ fun TransactionInputScreen(
                 accentColor = accentColor,
                 onDismiss = onCategoryToggle,
                 onSelect = onCategorySelect,
+                showGlyphs = true,
             )
         }
 
@@ -362,10 +422,19 @@ fun TransactionInputScreen(
         SaveButton(
             isLoading = formState.isLoading,
             isEnabled = formState.isValid && !formState.isLoading,
+            isSuccess = saveSuccess,
             onClick = onSubmit,
             modifier = Modifier.fillMaxWidth(),
         )
     }
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            currentDate = formState.selectedDate,
+            onDateSelected = onDateSelected,
+            onDismiss = { showDatePicker = false },
+        )
     }
 }
 
@@ -876,6 +945,12 @@ private fun ChoiceField(
     isEnabled: Boolean,
     accentColor: Color,
     onToggle: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    // When set, a leading icon tile is shown — makes the picked value recognisable at a
+    // glance, the way every mainstream tracker tags its categories.
+    leadingGlyph: CategoryGlyphKind? = null,
+    // The compact two-up tiles drop the chevron to claw back width for long values.
+    showChevron: Boolean = true,
 ) {
     val bounce = rememberPressBounce(pressedScale = 0.98f)
     val hasValue = selected.isNotBlank()
@@ -899,8 +974,7 @@ private fun ChoiceField(
     )
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .clip(AppShapes.field)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(
@@ -927,7 +1001,23 @@ private fun ChoiceField(
             .graphicsLayer { alpha = containerAlpha }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (leadingGlyph != null) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(AppShapes.field)
+                    .background(accentColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                CategoryGlyph(
+                    kind = leadingGlyph,
+                    color = accentColor,
+                    size = 20.dp,
+                )
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
@@ -945,43 +1035,47 @@ private fun ChoiceField(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(AppShapes.pill)
-                .background(
-                    if (isExpanded) accentColor.copy(alpha = 0.15f)
-                    else MaterialTheme.colorScheme.surface
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            val chevronColor =
-                if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-            Canvas(
+        if (showChevron) {
+            Box(
                 modifier = Modifier
-                    .size(14.dp)
-                    .graphicsLayer { rotationZ = chevronRotation },
+                    .size(28.dp)
+                    .clip(AppShapes.pill)
+                    .background(
+                        if (isExpanded) accentColor.copy(alpha = 0.15f)
+                        else MaterialTheme.colorScheme.surface
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
-                val stroke = 2.dp.toPx()
-                val w = size.width
-                val h = size.height
-                // Downward chevron: left -> bottom-center -> right
-                drawLine(
-                    color = chevronColor,
-                    start = Offset(w * 0.5f, h * 0.7f),
-                    end = Offset(w * 0.08f, h * 0.32f),
-                    strokeWidth = stroke,
-                    cap = StrokeCap.Round,
-                )
-                drawLine(
-                    color = chevronColor,
-                    start = Offset(w * 0.5f, h * 0.7f),
-                    end = Offset(w * 0.92f, h * 0.32f),
-                    strokeWidth = stroke,
-                    cap = StrokeCap.Round,
-                )
+                val chevronColor =
+                    if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                Canvas(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .graphicsLayer { rotationZ = chevronRotation },
+                ) {
+                    val stroke = 2.dp.toPx()
+                    val w = size.width
+                    val h = size.height
+                    // Downward chevron: left -> bottom-center -> right
+                    drawLine(
+                        color = chevronColor,
+                        start = Offset(w * 0.5f, h * 0.7f),
+                        end = Offset(w * 0.08f, h * 0.32f),
+                        strokeWidth = stroke,
+                        cap = StrokeCap.Round,
+                    )
+                    drawLine(
+                        color = chevronColor,
+                        start = Offset(w * 0.5f, h * 0.7f),
+                        end = Offset(w * 0.92f, h * 0.32f),
+                        strokeWidth = stroke,
+                        cap = StrokeCap.Round,
+                    )
+                }
             }
         }
     }
@@ -996,6 +1090,7 @@ private fun ChoicePickerSheet(
     accentColor: Color,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
+    showGlyphs: Boolean = false,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -1027,6 +1122,7 @@ private fun ChoicePickerSheet(
                         isSelected = option == selected,
                         accentColor = accentColor,
                         onClick = { onSelect(option) },
+                        showGlyph = showGlyphs,
                     )
                 }
             }
@@ -1040,6 +1136,7 @@ private fun ChoiceChip(
     isSelected: Boolean,
     accentColor: Color,
     onClick: () -> Unit,
+    showGlyph: Boolean = false,
 ) {
     val container by animateColorAsState(
         targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1056,19 +1153,38 @@ private fun ChoiceChip(
         shape = AppShapes.pill,
         color = container,
         pressedScale = 0.92f,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(
+            start = if (showGlyph) 12.dp else 16.dp,
+            end = 16.dp,
+            top = 10.dp,
+            bottom = 10.dp,
+        ),
         modifier = Modifier.semantics {
             role = Role.Button
             contentDescription = text
             stateDescription = if (isSelected) "selected" else "not selected"
         },
     ) {
-        Text(
-            text = text,
-            color = content,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (showGlyph) {
+                // Selected chips tint the glyph to the on-accent surface so it reads on the
+                // filled pill; unselected chips keep the brand accent for a pop of colour.
+                CategoryGlyph(
+                    kind = categoryGlyphKind(text),
+                    color = content,
+                    size = 18.dp,
+                )
+            }
+            Text(
+                text = text,
+                color = content,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            )
+        }
     }
 }
 
@@ -1124,23 +1240,47 @@ private fun PaidToggleRow(
 private fun SaveButton(
     isLoading: Boolean,
     isEnabled: Boolean,
+    isSuccess: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val bounce = rememberPressBounce(pressedScale = 0.96f)
-    // The submit CTA is always the brand golden — predictable regardless of income/expense.
+    // A small swell as the checkmark lands — a tactile "it worked" before the form resets.
+    val successPop by animateFloatAsState(
+        targetValue = if (isSuccess) 1.04f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "savePop",
+    )
+    // Confirm-green on success; otherwise the brand golden — predictable regardless of type.
+    val containerColor by animateColorAsState(
+        targetValue = if (isSuccess) IncomeGreen else MaterialTheme.colorScheme.primary,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "saveContainer",
+    )
     Button(
-        onClick = onClick,
-        enabled = isEnabled,
+        onClick = { if (!isSuccess) onClick() },
+        // Stay "enabled" during the success flash so the confirm-green container shows instead
+        // of disabled grey while the cleared form settles underneath.
+        enabled = isSuccess || isEnabled,
         modifier = modifier
             .height(56.dp)
+            .graphicsLayer { scaleX = successPop; scaleY = successPop }
             .semantics {
-                contentDescription = if (isLoading) "Saving transaction" else "Save transaction"
+                contentDescription = when {
+                    isSuccess -> "Transaction saved"
+                    isLoading -> "Saving transaction"
+                    else -> "Save transaction"
+                }
             }
             .then(bounce.modifier),
-        shape = AppShapes.card,
+        // Design system: buttons are pill-shaped. A full-round CTA also matches the
+        // primary-action language of trending trackers (Monarch, Revolut).
+        shape = AppShapes.pill,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
+            containerColor = containerColor,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             // Disabled: shape stays visible, text is clearly muted — not invisible
             disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -1148,22 +1288,147 @@ private fun SaveButton(
         ),
         interactionSource = bounce.interactionSource,
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
-            Spacer(Modifier.width(10.dp))
-            Text("Saving…", fontWeight = FontWeight.SemiBold)
-        } else {
-            Text(
-                text = "Save Transaction",
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.titleMedium,
-            )
+        when {
+            isSuccess -> {
+                CheckGlyph(color = MaterialTheme.colorScheme.onPrimary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Saved",
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("Saving…", fontWeight = FontWeight.SemiBold)
+            }
+            else -> {
+                Text(
+                    text = "Save Transaction",
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun CheckGlyph(color: Color) {
+    Canvas(modifier = Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val sw = 2.4.dp.toPx()
+        drawLine(color, Offset(w * 0.2f, h * 0.55f), Offset(w * 0.42f, h * 0.74f), sw, StrokeCap.Round)
+        drawLine(color, Offset(w * 0.42f, h * 0.74f), Offset(w * 0.8f, h * 0.3f), sw, StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun DateField(
+    dateText: String,
+    isEnabled: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+) {
+    val bounce = rememberPressBounce(pressedScale = 0.98f)
+    val isToday = remember(dateText) { dateText == DateUtils.getCurrentDateFormatted() }
+    val friendly = remember(dateText) { friendlyDate(dateText) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(bounce.modifier)
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                enabled = isEnabled,
+                onClick = onClick,
+            )
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = "Date: $friendly"
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(AppShapes.field)
+                .background(accentColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            CalendarGlyph(color = accentColor)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Date",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = friendly,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        if (isToday) {
+            Box(
+                modifier = Modifier
+                    .clip(AppShapes.pill)
+                    .background(accentColor.copy(alpha = 0.14f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = "Today",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accentColor,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarGlyph(color: Color) {
+    Canvas(modifier = Modifier.size(18.dp)) {
+        val w = size.width
+        val h = size.height
+        val sw = 1.7.dp.toPx()
+        val st = androidx.compose.ui.graphics.drawscope.Stroke(width = sw, cap = StrokeCap.Round)
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(w * 0.12f, h * 0.20f),
+            size = androidx.compose.ui.geometry.Size(w * 0.76f, h * 0.70f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.10f, w * 0.10f),
+            style = st,
+        )
+        drawLine(color, Offset(w * 0.12f, h * 0.40f), Offset(w * 0.88f, h * 0.40f), sw, StrokeCap.Round)
+        drawLine(color, Offset(w * 0.34f, h * 0.10f), Offset(w * 0.34f, h * 0.28f), sw, StrokeCap.Round)
+        drawLine(color, Offset(w * 0.66f, h * 0.10f), Offset(w * 0.66f, h * 0.28f), sw, StrokeCap.Round)
+    }
+}
+
+private val MonthAbbrev =
+    listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+/** "6/24/2026" → "Jun 24, 2026"; falls back to the raw string if it can't be parsed. */
+private fun friendlyDate(raw: String): String {
+    val d = DateUtils.parseDate(raw) ?: return raw.ifBlank { "Select a date" }
+    val m = MonthAbbrev.getOrElse(d.month.ordinal) { "" }
+    return "$m ${d.day}, ${d.year}"
 }
 
 @Composable
