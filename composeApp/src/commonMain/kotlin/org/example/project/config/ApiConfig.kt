@@ -20,10 +20,6 @@ object ApiConfig {
     // Schema variant for this fork: "tracker_1" | "tracker_2"
     val SHEET_SCHEMA = BuildConfig.SHEET_SCHEMA
 
-    // AI chat (Ollama — fallback provider)
-    val OLLAMA_URL = BuildConfig.OLLAMA_URL
-    val OLLAMA_MODEL = BuildConfig.OLLAMA_MODEL
-
     // AI chat (Firebase AI Logic — primary provider, web)
     val FIREBASE_API_KEY = BuildConfig.FIREBASE_API_KEY
     val FIREBASE_AUTH_DOMAIN = BuildConfig.FIREBASE_AUTH_DOMAIN

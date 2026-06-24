@@ -23,8 +23,6 @@ object ConfigManager {
         val budgetRange: String,
         val summaryRange: String,
         val sheetSchema: String,
-        val ollamaUrl: String,
-        val ollamaModel: String,
         // Firebase AI Logic (primary AI provider on web)
         val firebaseApiKey: String,
         val firebaseAuthDomain: String,
@@ -34,10 +32,7 @@ object ConfigManager {
         val firebaseAppId: String,
         val geminiModel: String,
     ) {
-        /**
-         * Firebase AI Logic is usable only when the core web-app identifiers are present.
-         * When false, the app skips the Gemini path and uses Ollama directly.
-         */
+        /** Firebase AI Logic is usable only when the core web-app identifiers are present. */
         val isFirebaseAiConfigured: Boolean
             get() = firebaseApiKey.isNotBlank() &&
                 firebaseProjectId.isNotBlank() &&
@@ -59,8 +54,6 @@ object ConfigManager {
             budgetRange = ApiConfig.BUDGET_RANGE,
             summaryRange = ApiConfig.SUMMARY_TREND,
             sheetSchema = ApiConfig.SHEET_SCHEMA,
-            ollamaUrl = ApiConfig.OLLAMA_URL,
-            ollamaModel = ApiConfig.OLLAMA_MODEL,
             firebaseApiKey = ApiConfig.FIREBASE_API_KEY,
             firebaseAuthDomain = ApiConfig.FIREBASE_AUTH_DOMAIN,
             firebaseProjectId = ApiConfig.FIREBASE_PROJECT_ID,

@@ -50,10 +50,7 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
 import org.example.project.config.SchemaFeatures
-import org.example.project.data.AiRepository
 import org.example.project.data.ai.AiPrefs
-import org.example.project.data.ai.AiProviderId
-import org.example.project.data.ai.AiProviderMode
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ProviderUsage
 import org.example.project.data.ai.SessionUsage
@@ -64,7 +61,6 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.AppShapes
 import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
-import kotlin.time.TimeSource
 
 
 private enum class ResultKind { IDLE, SUCCESS, WARNING, ERROR }
@@ -84,14 +80,11 @@ fun SettingsScreen(
     onSignOut: () -> Unit = {},
 ) {
     val repository = remember { TransactionRepository() }
-    val aiRepository = remember { AiRepository() }
     val coroutineScope = rememberCoroutineScope()
     var result by remember { mutableStateOf(TestResult.Idle) }
     var isLoading by remember { mutableStateOf(false) }
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
-    val providerMode by AiPrefs.providerMode.collectAsState()
-    var switchStatus by remember { mutableStateOf<AiSwitchStatus>(AiSwitchStatus.Idle) }
     val authState by Session.state.collectAsState()
     val isGuest = (authState as? AuthState.Authenticated)?.user?.isGuest == true
     // Tracker 2 has no analysis sheets yet, so the AI section is hidden there (same flag the chat uses).
@@ -129,26 +122,6 @@ fun SettingsScreen(
 
         if (aiAvailable) {
             SettingsSection(title = "AI Assistant") {
-                AiProviderCard(
-                    selectedMode = providerMode,
-                    geminiAvailable = aiRepository.isGeminiAvailable,
-                    interactive = !isGuest,
-                    status = switchStatus,
-                    onSelect = { mode ->
-                        AiPrefs.setProviderMode(mode)
-                        switchStatus = AiSwitchStatus.Checking(mode)
-                        coroutineScope.launch {
-                            val mark = TimeSource.Monotonic.markNow()
-                            val reply = aiRepository.chat("Reply with the single word: OK.")
-                            val ms = mark.elapsedNow().inWholeMilliseconds
-                            switchStatus = if (reply.isError) {
-                                AiSwitchStatus.Failed(reply.text)
-                            } else {
-                                AiSwitchStatus.Ok(reply.provider, reply.model, ms)
-                            }
-                        }
-                    },
-                )
                 PerMessageTokensToggleRow(
                     checked = showPerMessageTokens,
                     enabled = !isGuest,
@@ -384,12 +357,6 @@ private fun AiUsageCard(usage: SessionUsage, onReset: () -> Unit, canReset: Bool
                 color = accent,
                 label = "Gemini",
                 usage = usage.gemini,
-            )
-            ProviderSplitRow(
-                color = MaterialTheme.colorScheme.tertiary,
-                label = "Ollama",
-                usage = usage.ollama,
-                suffix = " (fallback)",
             )
         }
 
@@ -661,172 +628,6 @@ private fun groupThousands(n: Int): String {
         sb.append(s[i])
     }
     return sb.toString()
-}
-
-/** Outcome of a manual provider switch + verification probe. */
-private sealed interface AiSwitchStatus {
-    data object Idle : AiSwitchStatus
-    data class Checking(val mode: AiProviderMode) : AiSwitchStatus
-    data class Ok(val provider: AiProviderId, val model: String, val ms: Long) : AiSwitchStatus
-    data class Failed(val message: String) : AiSwitchStatus
-}
-
-/** Manual AI provider selector + live "did it switch?" verification. */
-@Composable
-private fun AiProviderCard(
-    selectedMode: AiProviderMode,
-    geminiAvailable: Boolean,
-    status: AiSwitchStatus,
-    onSelect: (AiProviderMode) -> Unit,
-    interactive: Boolean = true,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AppShapes.card)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = "AI Provider",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = "Pick which assistant answers. Auto uses Firebase AI, then Ollama if it fails.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            AiProviderMode.entries.forEach { mode ->
-                val enabled = interactive && (mode != AiProviderMode.GEMINI || geminiAvailable)
-                ProviderModeChip(
-                    label = mode.label,
-                    selected = selectedMode == mode,
-                    enabled = enabled,
-                    onClick = { onSelect(mode) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-        if (!geminiAvailable) {
-            Text(
-                text = "Firebase AI is unavailable on this build/config.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.tertiary,
-            )
-        }
-        SwitchStatusRow(status = status)
-    }
-}
-
-@Composable
-private fun ProviderModeChip(
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    val bg by animateColorAsState(
-        targetValue = if (selected) accent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "chipBg",
-    )
-    val borderColor = if (selected) accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
-    val textColor = when {
-        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-        selected -> MaterialTheme.colorScheme.onSurface
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val bounce = rememberPressBounce(pressedScale = 0.96f)
-    Box(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(AppShapes.field)
-            .background(bg)
-            .border(1.dp, borderColor, AppShapes.field)
-            .clickable(
-                interactionSource = bounce.interactionSource,
-                indication = null,
-                enabled = enabled,
-                onClick = onClick,
-            )
-            .then(bounce.modifier)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Medium,
-            color = textColor,
-        )
-    }
-}
-
-@Composable
-private fun SwitchStatusRow(status: AiSwitchStatus) {
-    when (status) {
-        AiSwitchStatus.Idle -> Text(
-            text = "Tap a provider to switch and verify it responds.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        is AiSwitchStatus.Checking -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = "Checking ${status.mode.label}…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-
-        is AiSwitchStatus.Ok -> SwitchStatusLine(
-            color = IncomeGreen,
-            text = "Switched to ${status.provider.displayName} · ${status.model.removePrefix("gemini-")} · ${status.ms} ms",
-        )
-
-        is AiSwitchStatus.Failed -> SwitchStatusLine(
-            color = MaterialTheme.colorScheme.error,
-            text = status.message,
-        )
-    }
-}
-
-@Composable
-private fun SwitchStatusLine(color: Color, text: String) {
-    Row(
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(top = 5.dp)
-                .size(8.dp)
-                .clip(AppShapes.pill)
-                .background(color),
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
 }
 
 @Composable

@@ -302,22 +302,14 @@ private fun StatusPill(isLoading: Boolean, isLoaded: Boolean) {
     }
 }
 
-/** Which AI backend answered last — sage for Gemini, amber for the Ollama fallback. */
 @Composable
 private fun ProviderPill(provider: AiProviderId, model: String?) {
-    val targetColor = when (provider) {
-        AiProviderId.GEMINI -> MaterialTheme.colorScheme.secondary
-        AiProviderId.OLLAMA -> MaterialTheme.colorScheme.tertiary
-    }
     val color by animateColorAsState(
-        targetValue = targetColor,
+        targetValue = MaterialTheme.colorScheme.secondary,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "providerColor",
     )
-    val label = when (provider) {
-        AiProviderId.GEMINI -> "Gemini" + (model?.let { " · ${shortModel(it)}" } ?: "")
-        AiProviderId.OLLAMA -> "Ollama · fallback"
-    }
+    val label = "Gemini" + (model?.let { " · ${shortModel(it)}" } ?: "")
     Row(
         modifier = Modifier
             .clip(AppShapes.pill)

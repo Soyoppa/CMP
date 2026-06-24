@@ -8,8 +8,6 @@ import org.example.project.data.OllamaMessage
  * Implementations are intentionally "dumb": the orchestrator ([org.example.project.data.AiRepository])
  * owns budget→prompt construction and passes a ready-made [systemPrompt]. A provider only forwards
  * the conversation to its backend and returns the assistant text.
- *
- * The app composes providers as primary + fallback (Firebase AI Logic → Ollama).
  */
 interface AiProvider {
 

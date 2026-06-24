@@ -3,7 +3,6 @@ package org.example.project.data.ai
 /** Which backend produced a reply. */
 enum class AiProviderId(val displayName: String) {
     GEMINI("Gemini"),
-    OLLAMA("Ollama"),
 }
 
 /**

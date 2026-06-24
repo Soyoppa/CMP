@@ -38,7 +38,6 @@ class AiViewModel(
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
 
-    // Conversation history for context (Ollama format)
     private val conversationHistory = mutableListOf<OllamaMessage>()
 
     private var budget: List<CategorySummary> = emptyList()
