@@ -38,7 +38,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.app_logo
 import kotlinproject.composeapp.generated.resources.chart_label
@@ -516,7 +515,6 @@ private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary,
-                    letterSpacing = 1.5.sp,
                 )
             }
             Text(

@@ -239,7 +239,6 @@ private fun SettingsSection(
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = 0.8.sp,
             modifier = Modifier.padding(start = 4.dp),
         )
         content()
