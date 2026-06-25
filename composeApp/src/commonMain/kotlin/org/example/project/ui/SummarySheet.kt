@@ -438,7 +438,6 @@ private fun RowScope.BarColumn(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            fontSize = 9.sp,
             maxLines = 1,
         )
 
@@ -459,7 +458,6 @@ private fun RowScope.BarColumn(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = labelColor,
-            fontSize = 10.sp,
         )
     }
 }
@@ -655,7 +653,6 @@ private fun CategoryRow(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 9.sp,
                         )
                     }
                     if (hasBudget) {
@@ -728,7 +725,6 @@ private fun BudgetStatusPill(
             style = MaterialTheme.typography.labelSmall,
             color = color,
             fontWeight = FontWeight.Medium,
-            fontSize = 9.sp,
         )
     }
 }
@@ -767,7 +763,7 @@ private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit) {
             ) {
                 Text(
                     text = "Refresh",
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
