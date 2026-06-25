@@ -264,7 +264,7 @@ fun TransactionInputScreen(
         val descriptionFieldColors = fieldColors()
         OutlinedTextField(
             value = formState.description,
-            onValueChange = onDescriptionChanged,
+            onValueChange = { if (it.length <= MAX_DESCRIPTION_LENGTH) onDescriptionChanged(it) },
             label = { Text("Description") },
             placeholder = {
                 Text(if (isListening) "Listening… speak now" else "e.g. Groceries at SM")
@@ -292,10 +292,6 @@ fun TransactionInputScreen(
                             }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
-                            }
-                            .semantics {
-                                role = Role.Button
-                                contentDescription = "Clear description"
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -795,6 +791,9 @@ private fun SegmentLabel(
 // Matches the validation in TransactionFormReducer so the field can reject anything it would drop.
 private val AmountInputRegex = Regex("^\\d*\\.?\\d{0,2}$")
 
+// Must match TransactionFormReducer's description.take(200) cap so the UI and VM stay in lockstep.
+private const val MAX_DESCRIPTION_LENGTH = 200
+
 @Composable
 private fun HeroAmountField(
     amount: String,
@@ -914,10 +913,6 @@ private fun HeroAmountField(
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
-                        }
-                        .semantics {
-                            role = Role.Button
-                            contentDescription = "Clear amount"
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -996,9 +991,9 @@ private fun ChoiceField(
                 color = borderColor,
                 shape = AppShapes.field,
             )
-            .semantics {
+            .semantics(mergeDescendants = true) {
                 role = Role.Button
-                contentDescription = if (selected.isNotBlank()) "$label: $selected" else "$label: $placeholder"
+                contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
                 stateDescription = if (isExpanded) "expanded" else "collapsed"
             }
             .clickable(
@@ -1007,10 +1002,6 @@ private fun ChoiceField(
                 enabled = isEnabled,
                 onClick = onToggle,
             )
-            .semantics(mergeDescendants = true) {
-                role = Role.Button
-                contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
-            }
             .then(bounce.modifier)
             .graphicsLayer { alpha = containerAlpha }
             .padding(horizontal = 16.dp, vertical = 14.dp),

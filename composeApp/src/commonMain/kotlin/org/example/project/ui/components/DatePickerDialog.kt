@@ -52,7 +52,8 @@ fun DatePickerDialog(
                 ) {
                     val yearPrevBounce = rememberPressBounce(pressedScale = 0.85f)
                     TextButton(
-                        onClick = { selectedYear-- },
+                        onClick = { if (selectedYear > MIN_YEAR) selectedYear-- },
+                        enabled = selectedYear > MIN_YEAR,
                         modifier = yearPrevBounce.modifier,
                         interactionSource = yearPrevBounce.interactionSource,
                     ) {
@@ -64,7 +65,8 @@ fun DatePickerDialog(
                     )
                     val yearNextBounce = rememberPressBounce(pressedScale = 0.85f)
                     TextButton(
-                        onClick = { selectedYear++ },
+                        onClick = { if (selectedYear < MAX_YEAR) selectedYear++ },
+                        enabled = selectedYear < MAX_YEAR,
                         modifier = yearNextBounce.modifier,
                         interactionSource = yearNextBounce.interactionSource,
                     ) {
@@ -241,3 +243,8 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 private fun isLeapYear(year: Int): Boolean {
     return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
+
+// Inclusive bounds for year selection — prevents unbounded increment/decrement
+// from producing nonsensical dates that would be stored in the sheet as-is.
+private const val MIN_YEAR = 1900
+private const val MAX_YEAR = 2100

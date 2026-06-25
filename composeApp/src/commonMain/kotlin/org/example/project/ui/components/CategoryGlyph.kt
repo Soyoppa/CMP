@@ -26,6 +26,11 @@ import androidx.compose.ui.unit.dp
  * the requested size; stroke colour is the caller's (usually the category's accent), so the icon
  * carries the same colour coding as the legacy dot it replaces.
  */
+
+// Hoisted outside the composable so it is allocated once at class-load time instead of on
+// every recomposition / draw frame. Width, cap, and join are fixed constants for all glyphs.
+private val GlyphStroke = Stroke(width = 1.9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+
 enum class CategoryGlyphKind {
     HOME, FOOD, BOLT, CAR, PLANE, WALLET, COINS, GIFT, RECEIPT, CHURCH, SHIRT, USER, BOX, TAG
 }
@@ -61,24 +66,23 @@ fun CategoryGlyph(
 ) {
     Canvas(modifier = modifier.size(size)) {
         val u = this.size.minDimension / 24f
-        // Stroke is authored in grid units; scale() multiplies it up to device pixels.
-        val stroke = Stroke(width = 1.9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        // GlyphStroke is a file-level constant; scale() multiplies its width up to device pixels.
         scale(scaleX = u, scaleY = u, pivot = Offset.Zero) {
             when (kind) {
-                CategoryGlyphKind.HOME -> drawHome(color, stroke)
-                CategoryGlyphKind.FOOD -> drawCart(color, stroke)
-                CategoryGlyphKind.BOLT -> drawBolt(color, stroke)
-                CategoryGlyphKind.CAR -> drawCar(color, stroke)
-                CategoryGlyphKind.PLANE -> drawPlane(color, stroke)
-                CategoryGlyphKind.WALLET -> drawWallet(color, stroke)
-                CategoryGlyphKind.COINS -> drawCoins(color, stroke)
-                CategoryGlyphKind.GIFT -> drawGift(color, stroke)
-                CategoryGlyphKind.RECEIPT -> drawReceipt(color, stroke)
-                CategoryGlyphKind.CHURCH -> drawChurch(color, stroke)
-                CategoryGlyphKind.SHIRT -> drawShirt(color, stroke)
-                CategoryGlyphKind.USER -> drawUser(color, stroke)
-                CategoryGlyphKind.BOX -> drawBox(color, stroke)
-                CategoryGlyphKind.TAG -> drawTag(color, stroke)
+                CategoryGlyphKind.HOME -> drawHome(color, GlyphStroke)
+                CategoryGlyphKind.FOOD -> drawCart(color, GlyphStroke)
+                CategoryGlyphKind.BOLT -> drawBolt(color, GlyphStroke)
+                CategoryGlyphKind.CAR -> drawCar(color, GlyphStroke)
+                CategoryGlyphKind.PLANE -> drawPlane(color, GlyphStroke)
+                CategoryGlyphKind.WALLET -> drawWallet(color, GlyphStroke)
+                CategoryGlyphKind.COINS -> drawCoins(color, GlyphStroke)
+                CategoryGlyphKind.GIFT -> drawGift(color, GlyphStroke)
+                CategoryGlyphKind.RECEIPT -> drawReceipt(color, GlyphStroke)
+                CategoryGlyphKind.CHURCH -> drawChurch(color, GlyphStroke)
+                CategoryGlyphKind.SHIRT -> drawShirt(color, GlyphStroke)
+                CategoryGlyphKind.USER -> drawUser(color, GlyphStroke)
+                CategoryGlyphKind.BOX -> drawBox(color, GlyphStroke)
+                CategoryGlyphKind.TAG -> drawTag(color, GlyphStroke)
             }
         }
     }
