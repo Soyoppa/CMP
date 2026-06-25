@@ -264,7 +264,7 @@ fun TransactionInputScreen(
         val descriptionFieldColors = fieldColors()
         OutlinedTextField(
             value = formState.description,
-            onValueChange = onDescriptionChanged,
+            onValueChange = { if (it.length <= MAX_DESCRIPTION_LENGTH) onDescriptionChanged(it) },
             label = { Text("Description") },
             placeholder = {
                 Text(if (isListening) "Listening… speak now" else "e.g. Groceries at SM")
@@ -790,6 +790,9 @@ private fun SegmentLabel(
 // Allowed money input: optional digits, an optional single decimal point, up to 2 decimal places.
 // Matches the validation in TransactionFormReducer so the field can reject anything it would drop.
 private val AmountInputRegex = Regex("^\\d*\\.?\\d{0,2}$")
+
+// Must match TransactionFormReducer's description.take(200) cap so the UI and VM stay in lockstep.
+private const val MAX_DESCRIPTION_LENGTH = 200
 
 @Composable
 private fun HeroAmountField(
