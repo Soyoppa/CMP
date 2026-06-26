@@ -68,7 +68,7 @@ class GoogleAppsScriptRepository {
         if (scriptUrl.isBlank() || scriptUrl == "BUILD_TIME_SCRIPT_URL") {
             return AddTransactionResult(
                 success = false,
-                errorMessage = "Script URL not configured: '$scriptUrl'",
+                errorMessage = "Script URL not configured.",
                 urlUsed = scriptUrl
             )
         }
