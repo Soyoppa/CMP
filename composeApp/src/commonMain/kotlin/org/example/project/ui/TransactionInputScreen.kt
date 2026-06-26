@@ -286,10 +286,6 @@ fun TransactionInputScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .semantics {
-                                role = Role.Button
-                                contentDescription = "Clear description"
-                            }
                             .clickable(enabled = !formState.isLoading) {
                                 onDescriptionChanged("")
                             }
@@ -907,10 +903,6 @@ private fun HeroAmountField(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(48.dp)
-                        .semantics {
-                            role = Role.Button
-                            contentDescription = "Clear amount"
-                        }
                         .clickable(enabled = isEnabled) {
                             fieldValue = TextFieldValue("")
                             onAmountChanged("")
@@ -996,11 +988,6 @@ private fun ChoiceField(
                 color = borderColor,
                 shape = AppShapes.field,
             )
-            .semantics {
-                role = Role.Button
-                contentDescription = if (selected.isNotBlank()) "$label: $selected" else "$label: $placeholder"
-                stateDescription = if (isExpanded) "expanded" else "collapsed"
-            }
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
@@ -1010,6 +997,8 @@ private fun ChoiceField(
             .semantics(mergeDescendants = true) {
                 role = Role.Button
                 contentDescription = if (hasValue) "$label: $selected" else "$label: $placeholder"
+                stateDescription = if (isExpanded) "expanded" else "collapsed"
+                onClick(label = if (isExpanded) "Collapse" else "Expand") { onToggle(); true }
             }
             .then(bounce.modifier)
             .graphicsLayer { alpha = containerAlpha }
