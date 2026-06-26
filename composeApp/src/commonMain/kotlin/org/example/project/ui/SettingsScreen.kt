@@ -43,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -281,6 +283,9 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
                     indication = null,
                     onClick = onSignOut,
                 )
+                .semantics(mergeDescendants = true) {
+                    contentDescription = if (isGuest) "Exit guest" else "Sign out"
+                }
                 .then(bounce.modifier)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center,
@@ -552,6 +557,9 @@ private fun ResetChip(onReset: () -> Unit) {
                 indication = null,
                 onClick = onReset,
             )
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Reset AI usage"
+            }
             .then(bounce.modifier)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
@@ -746,14 +754,12 @@ private fun ResultCard(result: TestResult) {
     }
 
 
-    val borderBrush = remember(animatedAccent) {
-        Brush.verticalGradient(
-            listOf(
-                animatedAccent.copy(alpha = 0.55f),
-                animatedAccent.copy(alpha = 0.18f),
-            ),
-        )
-    }
+    val borderBrush = Brush.verticalGradient(
+        listOf(
+            animatedAccent.copy(alpha = 0.55f),
+            animatedAccent.copy(alpha = 0.18f),
+        ),
+    )
 
     Column(
         modifier = Modifier
