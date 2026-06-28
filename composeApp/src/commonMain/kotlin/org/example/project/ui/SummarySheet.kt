@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -224,7 +225,9 @@ private fun SummaryContent(
     val chartAccent = if (byCategory) categoryColors[activeCategory!!.category] ?: MaterialTheme.colorScheme.primary
                       else MaterialTheme.colorScheme.primary
 
-    val selectedTotal = selectedMonth?.let { chartTotals[it] } ?: chartTotals.values.sum()
+    val selectedTotal = remember(chartTotals, selectedMonth) {
+        selectedMonth?.let { chartTotals[it] } ?: chartTotals.values.sum()
+    }
     val isOverBudget = chartBudget > 0 && selectedMonth != null && selectedTotal > chartBudget
 
     val cardLabel = buildString {
@@ -499,7 +502,7 @@ private fun ViewModeToggle(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(AppShapes.pill)
-                        .clickable(indication = null, interactionSource = null) {
+                        .clickable(indication = null, interactionSource = null, role = Role.Tab) {
                             onModeSelected(optionMode)
                         },
                     contentAlignment = Alignment.Center,
@@ -567,13 +570,14 @@ private fun CategoryChip(
     Row(
         modifier = Modifier
             .then(bounce.modifier)
-            .heightIn(min = 40.dp)
+            .heightIn(min = 48.dp)
             .clip(AppShapes.pill)
             .background(bg)
             .border(width = 1.dp, color = borderColor, shape = AppShapes.pill)
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
+                role = Role.Button,
                 onClick = onClick,
             )
             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -980,6 +984,8 @@ private fun CategoryRow(
             .clickable(
                 interactionSource = bounce.interactionSource,
                 indication = null,
+                role = Role.Button,
+                onClickLabel = "Toggle budget details",
                 onClick = onTap,
             )
             .padding(horizontal = 12.dp, vertical = 10.dp),
