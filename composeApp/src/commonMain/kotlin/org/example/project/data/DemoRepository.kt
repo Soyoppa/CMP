@@ -40,6 +40,43 @@ object DemoRepository : SheetRepository {
             )
         }
 
+    // Plausible line-item names per category, used to fan each monthly total into a few
+    // individual transactions so the per-category drill-down has believable data.
+    private val demoLineItems = mapOf(
+        "BILLS"  to listOf("Meralco", "Maynilad", "PLDT Fibr"),
+        "FOOD"   to listOf("SM Supermarket", "Wet Market", "Dining out"),
+        "THING"  to listOf("Lazada order", "Hardware store", "Gadget"),
+        "TRAVEL" to listOf("Grab rides", "Domestic flight", "Hotel"),
+        "CHURCH" to listOf("Sunday offering", "Tithe"),
+        "GIFTS"  to listOf("Birthday gift", "Anniversary"),
+    )
+
+    /** Descending split weights so each fanned-out total reads high→low. */
+    private fun splitWeights(n: Int): List<Double> = when (n) {
+        1 -> listOf(1.0)
+        2 -> listOf(0.62, 0.38)
+        else -> listOf(0.5, 0.32, 0.18)
+    }
+
+    override suspend fun getTransactions(): List<CategoryTransaction> =
+        summaryData.flatMap { (category, values) ->
+            val names = demoLineItems[category] ?: listOf(category)
+            values.flatMapIndexed { monthIndex, total ->
+                if (total <= 0.0) return@flatMapIndexed emptyList()
+                val weights = splitWeights(names.size)
+                names.mapIndexedNotNull { i, name ->
+                    val amount = (total * weights[i])
+                    if (amount < 1.0) null
+                    else CategoryTransaction(
+                        description = name,
+                        amount = amount,
+                        category = category,
+                        monthNumber = monthIndex + 1,
+                    )
+                }
+            }
+        }
+
     private val allRecentTransactions = listOf(
         RecentTransaction("Monthly Salary",        55000.0, isInflow = true),
         RecentTransaction("SM Supermarket",         3250.0, isInflow = false),

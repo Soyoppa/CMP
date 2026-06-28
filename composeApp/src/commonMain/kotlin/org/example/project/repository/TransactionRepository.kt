@@ -1,6 +1,7 @@
 package org.example.project.repository
 
 import org.example.project.data.AddTransactionResult
+import org.example.project.data.CategoryTransaction
 import org.example.project.data.RecentTransaction
 import org.example.project.data.SheetRepository
 import org.example.project.data.SheetRepositoryFactory
@@ -21,6 +22,9 @@ class TransactionRepository(
 
     /** The most recent [limit] entries (newest first) for read diagnostics. */
     suspend fun getRecent(limit: Int): List<RecentTransaction> = sheet.getRecentTransactions(limit)
+
+    /** Every expense row with category + month, for the per-category drill-down. */
+    suspend fun getTransactions(): List<CategoryTransaction> = sheet.getTransactions()
 
     suspend fun addTransaction(transaction: Transaction): Boolean =
         sheet.addTransaction(transaction).success
