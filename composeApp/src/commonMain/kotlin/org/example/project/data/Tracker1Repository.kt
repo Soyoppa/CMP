@@ -48,7 +48,7 @@ internal fun sheetsErrorMessage(body: String, httpStatus: Int): String {
     }.getOrNull()
     return when {
         !msg.isNullOrBlank() -> "Sheets API error (HTTP $httpStatus): $msg"
-        body.isNotBlank() -> "Sheets API returned HTTP $httpStatus. ${body.take(200)}"
+        body.isNotBlank() -> "Sheets API returned HTTP $httpStatus with an unexpected response body."
         else -> "Sheets API returned HTTP $httpStatus with an empty body."
     }
 }
