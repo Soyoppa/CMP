@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
+import org.example.project.util.DateUtils
 
 @Serializable
 data class SheetsResponse(
@@ -114,6 +115,39 @@ class Tracker1Repository(
                 )
             }
             .reversed()
+    }
+
+    /**
+     * Every expense row from the 'Data Dump' tab (A:H) with its category and month.
+     * Columns: Date | Description | Inflow | Outflow | Category | …
+     * Income rows (outflow == 0) and blank rows are skipped. Exceptions propagate so the
+     * caller can surface a real error rather than an empty "success".
+     */
+    override suspend fun getTransactions(): List<CategoryTransaction> {
+        val config = ConfigManager.getConfig()
+        val resp = client.get(
+            "https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${config.sheetRange}"
+        ) {
+            parameter("key", config.apiKey)
+        }
+        if (!resp.status.isSuccess()) {
+            throw IllegalStateException(sheetsErrorMessage(resp.bodyAsText(), resp.status.value))
+        }
+        val response: SheetsResponse = resp.body()
+
+        val rows = response.values ?: return emptyList()
+        return rows.drop(1) // header
+            .mapNotNull { row ->
+                val description = row.getOrNull(1)?.trim().orEmpty()
+                val outflow = parseAmount(row.getOrNull(3))
+                if (description.isBlank() || outflow <= 0.0) return@mapNotNull null
+                CategoryTransaction(
+                    description = description,
+                    amount = outflow,
+                    category = row.getOrNull(4)?.trim().orEmpty(),
+                    monthNumber = DateUtils.monthNumberFromDate(row.getOrNull(0)),
+                )
+            }
     }
 
     /**

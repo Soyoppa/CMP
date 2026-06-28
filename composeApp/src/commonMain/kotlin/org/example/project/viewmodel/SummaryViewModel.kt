@@ -8,9 +8,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.Session
+import org.example.project.data.CategoryTransaction
 import org.example.project.data.DemoRepository
 import org.example.project.model.CategorySummary
 import org.example.project.repository.TransactionRepository
+import org.example.project.util.DateUtils
+
+/** Whether the bar chart plots every category summed, or one category's trend across months. */
+enum class SummaryViewMode { TOTAL, BY_CATEGORY }
 
 data class SummaryUiState(
     val isLoading: Boolean = false,
@@ -19,6 +24,11 @@ data class SummaryUiState(
     val selectedMonth: String? = null,
     val totalMonthlyBudget: Double = 0.0,
     val budgetByCategory: Map<String, Double> = emptyMap(),
+    val viewMode: SummaryViewMode = SummaryViewMode.TOTAL,
+    val selectedCategory: String? = null,
+    val transactions: List<CategoryTransaction> = emptyList(),
+    val transactionsLoading: Boolean = false,
+    val transactionsError: String? = null,
     val error: String? = null,
 )
 
@@ -29,13 +39,25 @@ class SummaryViewModel(
     private val _uiState = MutableStateFlow(SummaryUiState())
     val uiState: StateFlow<SummaryUiState> = _uiState.asStateFlow()
 
+    // Drill-down transactions load lazily the first time the user opens "By Category",
+    // then refresh whenever the summary itself is reloaded.
+    private var transactionsLoaded = false
+
     init {
         load()
     }
 
     fun load() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            transactionsLoaded = false
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    error = null,
+                    transactions = emptyList(),
+                    transactionsError = null,
+                )
+            }
             try {
                 val categories = if (Session.isGuest) DemoRepository.getSummary()
                                  else repository.getSummary()
@@ -50,10 +72,21 @@ class SummaryViewModel(
                         months = months,
                         totalMonthlyBudget = totalMonthlyBudget,
                         budgetByCategory = budgetByCategory,
-                        selectedMonth = months.lastOrNull { m ->
+                        // Default to the current calendar month; if the sheet has no column
+                        // for it, fall back to the latest month that actually has data.
+                        selectedMonth = months.firstOrNull { m ->
+                            DateUtils.monthNumberFromName(m) == DateUtils.currentMonthNumber()
+                        } ?: months.lastOrNull { m ->
                             categories.any { c -> c.spentIn(m) > 0.0 }
                         },
+                        // Pre-pick the biggest spender so the "By Category" view has data the
+                        // instant the user switches to it — no empty intermediate state.
+                        selectedCategory = categories.maxByOrNull { it.totalSpent }?.category,
                     )
+                }
+                // Refreshing while the drill-down is open should reload its rows too.
+                if (_uiState.value.viewMode == SummaryViewMode.BY_CATEGORY) {
+                    ensureTransactionsLoaded()
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -63,5 +96,34 @@ class SummaryViewModel(
 
     fun selectMonth(month: String) {
         _uiState.update { it.copy(selectedMonth = month) }
+    }
+
+    fun selectViewMode(mode: SummaryViewMode) {
+        _uiState.update { state ->
+            val category = state.selectedCategory
+                ?: state.categories.maxByOrNull { it.totalSpent }?.category
+            state.copy(viewMode = mode, selectedCategory = category)
+        }
+        if (mode == SummaryViewMode.BY_CATEGORY) ensureTransactionsLoaded()
+    }
+
+    fun selectCategory(category: String) {
+        _uiState.update { it.copy(selectedCategory = category) }
+    }
+
+    /** Loads the drill-down transactions once; no-op if already loaded or in flight. */
+    private fun ensureTransactionsLoaded() {
+        if (transactionsLoaded || _uiState.value.transactionsLoading) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(transactionsLoading = true, transactionsError = null) }
+            try {
+                val txns = if (Session.isGuest) DemoRepository.getTransactions()
+                           else repository.getTransactions()
+                transactionsLoaded = true
+                _uiState.update { it.copy(transactions = txns, transactionsLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(transactionsLoading = false, transactionsError = e.message) }
+            }
+        }
     }
 }

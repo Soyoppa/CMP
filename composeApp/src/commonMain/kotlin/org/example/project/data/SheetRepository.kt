@@ -14,6 +14,18 @@ data class RecentTransaction(
 )
 
 /**
+ * A single expense row reduced to what the per-category drill-down needs: a label, a
+ * magnitude, its category, and the month it falls in ([monthNumber] 1..12, 0 if unknown).
+ * Income rows are excluded by the producers.
+ */
+data class CategoryTransaction(
+    val description: String,
+    val amount: Double,
+    val category: String,
+    val monthNumber: Int,
+)
+
+/**
  * Schema-agnostic read+write interface over the backing spreadsheet.
  *
  * Each fork picks one implementation via [SheetRepositoryFactory], driven by
@@ -30,6 +42,12 @@ interface SheetRepository {
 
     /** The most recent [limit] entries (newest first), read from the data tab. */
     suspend fun getRecentTransactions(limit: Int): List<RecentTransaction>
+
+    /**
+     * Every expense row with its category + month, for the Summary sheet's per-category
+     * drill-down. Defaults to empty for schemas without a granular data tab.
+     */
+    suspend fun getTransactions(): List<CategoryTransaction> = emptyList()
 
     // Write
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult

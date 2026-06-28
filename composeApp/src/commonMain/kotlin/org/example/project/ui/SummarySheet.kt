@@ -3,22 +3,28 @@ package org.example.project.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import org.example.project.ui.effects.rememberPressBounce
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -46,6 +52,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.example.project.data.CategoryTransaction
+import org.example.project.model.CategoryGroups
 import org.example.project.model.CategorySummary
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
@@ -57,6 +65,8 @@ import org.example.project.ui.theme.GoldenYellow
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.SageBright
 import org.example.project.ui.theme.SageGreen
+import org.example.project.util.DateUtils
+import org.example.project.viewmodel.SummaryViewMode
 import org.example.project.viewmodel.SummaryViewModel
 import org.example.project.viewmodel.createSummaryViewModel
 
@@ -161,7 +171,14 @@ fun SummarySheet(
                         selectedMonth = uiState.selectedMonth,
                         totalMonthlyBudget = uiState.totalMonthlyBudget,
                         budgetByCategory = uiState.budgetByCategory,
+                        viewMode = uiState.viewMode,
+                        selectedCategory = uiState.selectedCategory,
+                        transactions = uiState.transactions,
+                        transactionsLoading = uiState.transactionsLoading,
+                        transactionsError = uiState.transactionsError,
                         onMonthSelected = viewModel::selectMonth,
+                        onViewModeSelected = viewModel::selectViewMode,
+                        onCategorySelected = viewModel::selectCategory,
                     )
                 }
                 Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
@@ -179,43 +196,404 @@ private fun SummaryContent(
     selectedMonth: String?,
     totalMonthlyBudget: Double,
     budgetByCategory: Map<String, Double>,
+    viewMode: SummaryViewMode,
+    selectedCategory: String?,
+    transactions: List<CategoryTransaction>,
+    transactionsLoading: Boolean,
+    transactionsError: String?,
     onMonthSelected: (String) -> Unit,
+    onViewModeSelected: (SummaryViewMode) -> Unit,
+    onCategorySelected: (String) -> Unit,
 ) {
+    // Stable accent per category (by load order), shared by the selector chips, the trend
+    // chart, and the breakdown — so a category keeps the same colour everywhere it appears.
+    val categoryColors = remember(categories) {
+        categories.mapIndexed { i, c -> c.category to colorForIndex(i) }.toMap()
+    }
     val monthlyTotals = remember(categories, months) {
         months.associateWith { month -> categories.sumOf { it.spentIn(month) } }
     }
-    val selectedTotal = selectedMonth?.let { monthlyTotals[it] }
-        ?: monthlyTotals.values.sum()
-    val isOverBudget = totalMonthlyBudget > 0 && selectedMonth != null && selectedTotal > totalMonthlyBudget
+
+    val activeCategory = categories.firstOrNull { it.category == selectedCategory }
+    val byCategory = viewMode == SummaryViewMode.BY_CATEGORY && activeCategory != null
+
+    // The bar chart is generic over a month→amount map; we just feed it a different series,
+    // budget line, and accent depending on the mode.
+    val chartTotals = if (byCategory) activeCategory!!.monthlySpend else monthlyTotals
+    val chartBudget = if (byCategory) activeCategory!!.monthlyBudget else totalMonthlyBudget
+    val chartAccent = if (byCategory) categoryColors[activeCategory!!.category] ?: MaterialTheme.colorScheme.primary
+                      else MaterialTheme.colorScheme.primary
+
+    val selectedTotal = selectedMonth?.let { chartTotals[it] } ?: chartTotals.values.sum()
+    val isOverBudget = chartBudget > 0 && selectedMonth != null && selectedTotal > chartBudget
+
+    val cardLabel = buildString {
+        if (byCategory) append("${activeCategory!!.category} · ")
+        append(if (selectedMonth != null) "$selectedMonth Total" else "All Months Total")
+    }
 
     TotalExpenseCard(
-        label = if (selectedMonth != null) "$selectedMonth Total" else "All Months Total",
+        label = cardLabel,
         total = selectedTotal,
-        budget = if (selectedMonth != null) totalMonthlyBudget else 0.0,
+        budget = if (selectedMonth != null) chartBudget else 0.0,
         isOverBudget = isOverBudget,
     )
 
+    ViewModeToggle(
+        mode = viewMode,
+        onModeSelected = onViewModeSelected,
+    )
+
+    AnimatedVisibility(
+        visible = viewMode == SummaryViewMode.BY_CATEGORY,
+        enter = fadeIn(tween(180)) + expandVertically(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+        ),
+        exit = fadeOut(tween(140)) + shrinkVertically(tween(160)),
+    ) {
+        CategorySelector(
+            categories = categories,
+            selectedCategory = selectedCategory,
+            categoryColors = categoryColors,
+            onCategorySelected = onCategorySelected,
+        )
+    }
+
     MonthBarChart(
         months = months,
-        totals = monthlyTotals,
+        totals = chartTotals,
         selectedMonth = selectedMonth,
-        totalMonthlyBudget = totalMonthlyBudget,
+        totalMonthlyBudget = chartBudget,
+        selectedBarColor = chartAccent,
         onMonthSelected = onMonthSelected,
     )
 
-    if (totalMonthlyBudget > 0) {
-        BudgetLegend(totalMonthlyBudget = totalMonthlyBudget)
+    if (chartBudget > 0) {
+        BudgetLegend(totalMonthlyBudget = chartBudget)
     }
 
     Spacer(Modifier.height(20.dp))
 
-    CategoryBreakdown(
-        categories = categories,
-        selectedMonth = selectedMonth,
-        budgetByCategory = budgetByCategory,
-    )
+    // Total mode → the category breakdown for the month. By Category mode → the actual
+    // line-items for the selected category + month, ranked high→low.
+    AnimatedContent(
+        targetState = byCategory,
+        transitionSpec = {
+            (fadeIn(tween(200)) togetherWith fadeOut(tween(120))).using(SizeTransform(clip = false))
+        },
+        label = "breakdownSwap",
+    ) { showTransactions ->
+        if (showTransactions && activeCategory != null) {
+            CategoryTransactions(
+                transactions = transactions,
+                isLoading = transactionsLoading,
+                error = transactionsError,
+                category = activeCategory.category,
+                monthNumber = selectedMonth?.let { DateUtils.monthNumberFromName(it) } ?: 0,
+                monthLabel = selectedMonth,
+                accent = chartAccent,
+            )
+        } else {
+            CategoryBreakdown(
+                categories = categories,
+                selectedMonth = selectedMonth,
+                budgetByCategory = budgetByCategory,
+                categoryColors = categoryColors,
+            )
+        }
+    }
 
     Spacer(Modifier.height(8.dp))
+}
+
+// ─── Per-category transactions (drill-down) ───────────────────────────────────
+
+@Composable
+private fun CategoryTransactions(
+    transactions: List<CategoryTransaction>,
+    isLoading: Boolean,
+    error: String?,
+    category: String,
+    monthNumber: Int,
+    monthLabel: String?,
+    accent: Color,
+) {
+    val items = remember(transactions, category, monthNumber) {
+        transactions
+            .filter {
+                CategoryGroups.matches(it.category, category) &&
+                    (monthNumber == 0 || it.monthNumber == monthNumber)
+            }
+            .sortedByDescending { it.amount }
+    }
+    val whenLabel = monthLabel?.take(3) ?: "all months"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CategoryGlyph(kind = categoryGlyphKind(category), color = accent, size = 18.dp)
+                Text(
+                    text = "$category · $whenLabel",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            if (items.isNotEmpty()) {
+                Text(
+                    text = "high → low",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
+        }
+
+        when {
+            isLoading -> Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    color = accent,
+                    strokeWidth = 2.5.dp,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+
+            error != null -> TransactionsNotice(
+                text = "Couldn't load transactions.\n$error",
+            )
+
+            items.isEmpty() -> TransactionsNotice(
+                text = "No transactions recorded for $category in ${monthLabel ?: "this period"}.",
+            )
+
+            else -> items.forEach { txn ->
+                TransactionRow(
+                    description = txn.description,
+                    amount = txn.amount,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransactionsNotice(text: String) {
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun TransactionRow(
+    description: String,
+    amount: Double,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f))
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = formatAmount(amount),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
+}
+
+// ─── View-mode toggle ─────────────────────────────────────────────────────────
+
+@Composable
+private fun ViewModeToggle(
+    mode: SummaryViewMode,
+    onModeSelected: (SummaryViewMode) -> Unit,
+) {
+    val options = listOf(
+        SummaryViewMode.TOTAL to "Total",
+        SummaryViewMode.BY_CATEGORY to "By Category",
+    )
+    val selectedIndex = options.indexOfFirst { it.first == mode }.coerceAtLeast(0)
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 4.dp)
+            .height(40.dp)
+            .clip(AppShapes.pill)
+            .background(MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        val segmentWidth = maxWidth / options.size
+        // The sliding pill IS the feedback — no ripple needed on the segments themselves.
+        val indicatorOffset by animateDpAsState(
+            targetValue = segmentWidth * selectedIndex,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+            label = "toggleIndicator",
+        )
+
+        Box(
+            modifier = Modifier
+                .width(segmentWidth)
+                .fillMaxHeight()
+                .offset(x = indicatorOffset)
+                .padding(4.dp)
+                .clip(AppShapes.pill)
+                .background(MaterialTheme.colorScheme.primary),
+        )
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            options.forEach { (optionMode, label) ->
+                val selected = optionMode == mode
+                val textColor by animateColorAsState(
+                    targetValue = if (selected) MaterialTheme.colorScheme.onPrimary
+                                  else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(200),
+                    label = "toggleText",
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(AppShapes.pill)
+                        .clickable(indication = null, interactionSource = null) {
+                            onModeSelected(optionMode)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = textColor,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─── Category selector ────────────────────────────────────────────────────────
+
+@Composable
+private fun CategorySelector(
+    categories: List<CategorySummary>,
+    selectedCategory: String?,
+    categoryColors: Map<String, Color>,
+    onCategorySelected: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        categories.forEach { summary ->
+            CategoryChip(
+                category = summary.category,
+                color = categoryColors[summary.category] ?: MaterialTheme.colorScheme.primary,
+                selected = summary.category == selectedCategory,
+                onClick = { onCategorySelected(summary.category) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryChip(
+    category: String,
+    color: Color,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg by animateColorAsState(
+        targetValue = if (selected) color.copy(alpha = 0.16f)
+                      else MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f),
+        animationSpec = tween(200),
+        label = "chipBg",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) color.copy(alpha = 0.55f) else Color.Transparent,
+        animationSpec = tween(200),
+        label = "chipBorder",
+    )
+
+    val bounce = rememberPressBounce(pressedScale = 0.94f)
+    Row(
+        modifier = Modifier
+            .then(bounce.modifier)
+            .heightIn(min = 40.dp)
+            .clip(AppShapes.pill)
+            .background(bg)
+            .border(width = 1.dp, color = borderColor, shape = AppShapes.pill)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        CategoryGlyph(
+            kind = categoryGlyphKind(category),
+            color = color,
+            size = 16.dp,
+        )
+        Text(
+            text = category,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
 }
 
 // ─── Total expense card ───────────────────────────────────────────────────────
@@ -331,6 +709,7 @@ private fun MonthBarChart(
     totals: Map<String, Double>,
     selectedMonth: String?,
     totalMonthlyBudget: Double,
+    selectedBarColor: Color,
     onMonthSelected: (String) -> Unit,
 ) {
     val maxActual = totals.values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
@@ -391,6 +770,7 @@ private fun MonthBarChart(
                     amount = total,
                     fraction = (total / maxY).toFloat(),
                     isSelected = month == selectedMonth,
+                    selectedColor = selectedBarColor,
                 )
             }
         }
@@ -404,6 +784,7 @@ private fun RowScope.BarColumn(
     amount: Double,
     fraction: Float,
     isSelected: Boolean,
+    selectedColor: Color,
 ) {
     // Grow each bar up from the baseline, staggered left-to-right on first load — the
     // data "arrives" rather than appearing fully formed (Monarch Money's chart intro).
@@ -421,9 +802,15 @@ private fun RowScope.BarColumn(
         label = "bar_$month",
     )
 
-    val barColor = if (isSelected) MaterialTheme.colorScheme.primary
-                   else MaterialTheme.colorScheme.surfaceContainerHighest
-    val labelColor = if (isSelected) MaterialTheme.colorScheme.primary
+    // Animate the accent so switching category/mode re-tints the selected bar smoothly
+    // rather than snapping between palette colours.
+    val barColor by animateColorAsState(
+        targetValue = if (isSelected) selectedColor
+                      else MaterialTheme.colorScheme.surfaceContainerHighest,
+        animationSpec = tween(220),
+        label = "barColor_$month",
+    )
+    val labelColor = if (isSelected) selectedColor
                      else MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(
@@ -437,7 +824,7 @@ private fun RowScope.BarColumn(
             text = if (isSelected) abbreviateAmount(amount) else "",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+            color = labelColor,
             fontSize = 9.sp,
             maxLines = 1,
         )
@@ -500,6 +887,7 @@ private fun CategoryBreakdown(
     categories: List<CategorySummary>,
     selectedMonth: String?,
     budgetByCategory: Map<String, Double>,
+    categoryColors: Map<String, Color>,
 ) {
     val sorted = remember(categories, selectedMonth, budgetByCategory) {
         categories.sortedByDescending { c ->
@@ -537,7 +925,7 @@ private fun CategoryBreakdown(
                 amount = amount,
                 fallbackFraction = fallbackFraction,
                 monthlyBudget = budget,
-                barColor = colorForIndex(index),
+                barColor = categoryColors[summary.category] ?: colorForIndex(index),
                 showPills = showPills,
                 onTap = { showPills = !showPills },
             )
