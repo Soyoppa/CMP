@@ -81,6 +81,11 @@ private val CategoryBarColors = listOf(
 
 private fun colorForIndex(index: Int): Color = CategoryBarColors[index % CategoryBarColors.size]
 
+private val ViewModeOptions = listOf(
+    SummaryViewMode.TOTAL to "Total",
+    SummaryViewMode.BY_CATEGORY to "By Category",
+)
+
 private fun formatAmount(amount: Double): String {
     if (amount == 0.0) return "—"
     val whole = amount.toLong()
@@ -449,10 +454,7 @@ private fun ViewModeToggle(
     mode: SummaryViewMode,
     onModeSelected: (SummaryViewMode) -> Unit,
 ) {
-    val options = listOf(
-        SummaryViewMode.TOTAL to "Total",
-        SummaryViewMode.BY_CATEGORY to "By Category",
-    )
+    val options = ViewModeOptions
     val selectedIndex = options.indexOfFirst { it.first == mode }.coerceAtLeast(0)
 
     BoxWithConstraints(

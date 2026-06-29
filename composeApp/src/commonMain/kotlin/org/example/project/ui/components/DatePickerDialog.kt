@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
+import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.util.DateUtils
 
@@ -151,20 +152,19 @@ fun DatePickerDialog(
                             Spacer(modifier = Modifier.aspectRatio(1f))
                             return@items
                         }
-                        val dayBounce = rememberPressBounce(pressedScale = 0.86f)
                         Surface(
                             modifier = Modifier
+                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                                 .aspectRatio(1f)
-                                .then(dayBounce.modifier)
                                 .clickable(
-                                    interactionSource = dayBounce.interactionSource,
+                                    interactionSource = null,
                                     indication = LocalIndication.current,
                                 ) { selectedDay = day },
                             color = if (day == selectedDay)
                                 MaterialTheme.colorScheme.primary
                             else
                                 MaterialTheme.colorScheme.surfaceVariant,
-                            shape = MaterialTheme.shapes.small
+                            shape = AppShapes.field
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
