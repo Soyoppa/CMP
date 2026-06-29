@@ -435,7 +435,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
             ) {
                 Image(
                     painter = painterResource(Res.drawable.app_logo),
-                    contentDescription = null,
+                    contentDescription = "AI Treasurer avatar",
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -501,7 +501,7 @@ private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp
             ) {
                 Image(
                     painter = painterResource(Res.drawable.app_logo),
-                    contentDescription = null,
+                    contentDescription = "App logo",
                     modifier = Modifier.size(46.dp),
                 )
             }
@@ -563,7 +563,7 @@ private fun EmptyState(
         ) {
             Image(
                 painter = painterResource(Res.drawable.app_logo),
-                contentDescription = null,
+                contentDescription = "App logo",
                 modifier = Modifier.size(40.dp),
             )
         }
