@@ -1,6 +1,10 @@
 html {
     width: 100%;
     height: 100%;
+    /* Suppress the mobile browser's tap-flash and press-and-hold callout
+       (copy/lookup menu) over the Compose canvas. */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
 }
 
 body {
@@ -9,6 +13,10 @@ body {
     margin: 0;
     box-sizing: border-box;
     overflow: hidden;
+    /* Center the width-capped app; the gutters on wide/landscape viewports
+       show the background color below as letterboxing. */
+    display: flex;
+    justify-content: center;
     /* Notch/home-indicator gutter color — matches the app's background so the
        inset blends with the Compose canvas. */
     background-color: #FCFAF6;
@@ -30,5 +38,17 @@ body {
 
 #root {
     width: 100%;
+    /* Cap at a phone-like width so wide/landscape browser windows render the
+       app as a centered mobile column instead of stretching full-bleed. */
+    max-width: 480px;
     height: 100%;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#root canvas {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
