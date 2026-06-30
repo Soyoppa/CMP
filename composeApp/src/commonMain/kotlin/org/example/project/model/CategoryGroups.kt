@@ -21,8 +21,10 @@ object CategoryGroups {
         "food" to setOf("food", "grocery", "wet market"),
     )
 
+    private val whitespaceRegex = Regex("\\s+")
+
     private fun normalize(value: String): String =
-        value.trim().lowercase().split(Regex("\\s+")).joinToString(" ")
+        value.trim().lowercase().split(whitespaceRegex).joinToString(" ")
 
     /** True when [transactionCategory] belongs to the Summary [bucket]. */
     fun matches(transactionCategory: String, bucket: String): Boolean {
