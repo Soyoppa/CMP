@@ -52,6 +52,10 @@ fun categoryGlyphKind(name: String): CategoryGlyphKind {
     }
 }
 
+// Authored on a 24-unit grid; scale() in the draw call multiplies it up to device pixels.
+// Constant: hoisted to avoid allocating a new Stroke object on every recomposition.
+private val GlyphStroke = Stroke(width = 1.9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+
 @Composable
 fun CategoryGlyph(
     kind: CategoryGlyphKind,
@@ -61,8 +65,7 @@ fun CategoryGlyph(
 ) {
     Canvas(modifier = modifier.size(size)) {
         val u = this.size.minDimension / 24f
-        // Stroke is authored in grid units; scale() multiplies it up to device pixels.
-        val stroke = Stroke(width = 1.9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val stroke = GlyphStroke
         scale(scaleX = u, scaleY = u, pivot = Offset.Zero) {
             when (kind) {
                 CategoryGlyphKind.HOME -> drawHome(color, stroke)
