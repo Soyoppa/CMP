@@ -52,7 +52,7 @@ fun DatePickerDialog(
                 ) {
                     val yearPrevBounce = rememberPressBounce(pressedScale = 0.85f)
                     TextButton(
-                        onClick = { selectedYear-- },
+                        onClick = { if (selectedYear > 2000) selectedYear-- },
                         modifier = yearPrevBounce.modifier,
                         interactionSource = yearPrevBounce.interactionSource,
                     ) {
@@ -64,7 +64,7 @@ fun DatePickerDialog(
                     )
                     val yearNextBounce = rememberPressBounce(pressedScale = 0.85f)
                     TextButton(
-                        onClick = { selectedYear++ },
+                        onClick = { if (selectedYear < 2100) selectedYear++ },
                         modifier = yearNextBounce.modifier,
                         interactionSource = yearNextBounce.interactionSource,
                     ) {

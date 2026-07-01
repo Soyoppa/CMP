@@ -95,8 +95,8 @@ class Tracker2Repository : SheetRepository {
         if (scriptUrl.isBlank()) {
             return AddTransactionResult(
                 success = false,
-                errorMessage = "Script URL not configured: '$scriptUrl'",
-                urlUsed = scriptUrl,
+                errorMessage = "Script URL not configured. Check WRITE_SCRIPT_URL in local.properties.",
+                urlUsed = null,  // do not echo the raw (possibly partial) URL value
             )
         }
 
@@ -188,7 +188,8 @@ class Tracker2Repository : SheetRepository {
         return try {
             val response = client.get(ConfigManager.getConfig().writeScriptUrl)
             val responseBody = response.body<String>()
-            "Connection test - Status: ${response.status}, Body: $responseBody"
+            // Truncate to prevent large/sensitive server responses from surfacing in the UI.
+            "Connection test - Status: ${response.status}, Body: ${responseBody.take(200)}"
         } catch (e: Exception) {
             "Connection failed: ${e.message}"
         }
