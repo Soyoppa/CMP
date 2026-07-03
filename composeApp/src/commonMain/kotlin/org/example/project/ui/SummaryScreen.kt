@@ -31,9 +31,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -49,6 +46,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,85 +102,57 @@ private fun abbreviateAmount(amount: Double): String = when {
     else -> "${amount.toLong()}"
 }
 
-// ─── Sheet entry ─────────────────────────────────────────────────────────────
+// ─── Screen entry ────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The spending summary as a full nav screen (it used to be a [ModalBottomSheet] launched
+ * from the chat). [bottomPadding] reserves room under the scroll content so the floating
+ * nav pill never covers the last category row.
+ */
 @Composable
-fun SummarySheet(
-    onDismiss: () -> Unit,
+fun SummaryScreen(
+    modifier: Modifier = Modifier,
+    bottomPadding: Dp = 0.dp,
     viewModel: SummaryViewModel = createSummaryViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = AppShapes.card,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(AppShapes.pill)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)),
-            )
-        },
-    ) {
-        // Absorbs any remaining downward drag after child scrollables are exhausted,
-        // so it never reaches the sheet's dismiss gesture handler.
-        val blockDismiss = remember {
-            object : NestedScrollConnection {
-                override fun onPostScroll(
-                    consumed: Offset,
-                    available: Offset,
-                    source: NestedScrollSource,
-                ): Offset = if (available.y > 0f) available else Offset.Zero
-            }
-        }
+    Column(modifier = modifier.fillMaxSize()) {
+        SummaryHeader(
+            hasData = uiState.categories.isNotEmpty(),
+            onRetry = viewModel::load,
+        )
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // ── Dismiss zone: drag handle (above) + header ───────────────────
-            // Sheet drag-to-dismiss works normally here.
-            SummaryHeader(
-                hasData = uiState.categories.isNotEmpty(),
-                onRetry = viewModel::load,
-            )
-
-            // ── Protected zone: chart + categories ───────────────────────────
-            // nestedScroll blocker sits between this content and the sheet,
-            // eating leftover downward scroll so the sheet never dismisses.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .nestedScroll(blockDismiss)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                when {
-                    uiState.isLoading -> SummaryLoading()
-                    uiState.error != null -> SummaryError(
-                        message = uiState.error!!,
-                        onRetry = viewModel::load,
-                    )
-                    uiState.categories.isEmpty() -> SummaryEmpty()
-                    else -> SummaryContent(
-                        categories = uiState.categories,
-                        months = uiState.months,
-                        selectedMonth = uiState.selectedMonth,
-                        totalMonthlyBudget = uiState.totalMonthlyBudget,
-                        budgetByCategory = uiState.budgetByCategory,
-                        viewMode = uiState.viewMode,
-                        selectedCategory = uiState.selectedCategory,
-                        transactions = uiState.transactions,
-                        transactionsLoading = uiState.transactionsLoading,
-                        transactionsError = uiState.transactionsError,
-                        onMonthSelected = viewModel::selectMonth,
-                        onViewModeSelected = viewModel::selectViewMode,
-                        onCategorySelected = viewModel::selectCategory,
-                    )
-                }
-                Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            when {
+                uiState.isLoading -> SummaryLoading()
+                uiState.error != null -> SummaryError(
+                    message = uiState.error!!,
+                    onRetry = viewModel::load,
+                )
+                uiState.categories.isEmpty() -> SummaryEmpty()
+                else -> SummaryContent(
+                    categories = uiState.categories,
+                    months = uiState.months,
+                    selectedMonth = uiState.selectedMonth,
+                    totalMonthlyBudget = uiState.totalMonthlyBudget,
+                    budgetByCategory = uiState.budgetByCategory,
+                    viewMode = uiState.viewMode,
+                    selectedCategory = uiState.selectedCategory,
+                    transactions = uiState.transactions,
+                    transactionsLoading = uiState.transactionsLoading,
+                    transactionsError = uiState.transactionsError,
+                    onMonthSelected = viewModel::selectMonth,
+                    onViewModeSelected = viewModel::selectViewMode,
+                    onCategorySelected = viewModel::selectCategory,
+                )
             }
+            Spacer(Modifier.height(bottomPadding))
         }
     }
 }
@@ -1128,7 +1098,7 @@ private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+            .padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {

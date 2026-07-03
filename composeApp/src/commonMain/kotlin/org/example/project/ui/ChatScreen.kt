@@ -16,6 +16,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -30,7 +31,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +44,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.app_logo
-import kotlinproject.composeapp.generated.resources.chart_label
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
@@ -69,6 +71,9 @@ fun ChatScreen(
     viewModel: AiViewModel = createAiViewModel(),
     bottomPadding: Dp = 0.dp,
     onRequestSignUp: () -> Unit = {},
+    // When the chat is hosted in the floating modal, this collapses it back to the bubble.
+    // Null on a full-screen host (no collapse affordance is shown).
+    onClose: (() -> Unit)? = null,
 ) {
     // Some schemas (e.g. Tracker 2) have no analysis sheets yet — show a "coming soon" state.
     val aiAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
@@ -87,7 +92,6 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
-    var showSummarySheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
@@ -107,6 +111,7 @@ fun ChatScreen(
             provider = usage.lastProvider,
             model = usage.lastModel,
             onClearChat = viewModel::clearChat,
+            onClose = onClose,
         )
 
         Box(modifier = Modifier.weight(1f)) {
@@ -115,7 +120,6 @@ fun ChatScreen(
                     onSuggestionClick = { suggestion ->
                         if (isGuest) viewModel.sendMessage(suggestion) else inputText = suggestion
                     },
-                    onShowSummary = { showSummarySheet = true },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
@@ -170,10 +174,6 @@ fun ChatScreen(
                 hint = "Ask about your finances…",
             )
         }
-    }
-
-    if (showSummarySheet) {
-        SummarySheet(onDismiss = { showSummarySheet = false })
     }
 }
 
@@ -242,13 +242,19 @@ private fun ChatHeader(
     provider: AiProviderId?,
     model: String?,
     onClearChat: () -> Unit,
+    onClose: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(start = 16.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Leading collapse — only when hosted in the floating modal.
+        if (onClose != null) {
+            CollapseButton(onClick = onClose)
+            Spacer(Modifier.width(12.dp))
+        }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -281,6 +287,32 @@ private fun ChatHeader(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/**
+ * Circular header button with a downward chevron — collapses the chat modal back toward
+ * the bubble it grew from. Drawn with [Canvas] so it needs no chevron asset and tints itself.
+ */
+@Composable
+private fun CollapseButton(onClick: () -> Unit) {
+    val chevron = MaterialTheme.colorScheme.onSurfaceVariant
+    BounceSurface(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp),
+        shape = AppShapes.pill,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        pressedScale = 0.9f,
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Canvas(modifier = Modifier.size(18.dp)) {
+            val w = size.width
+            val h = size.height
+            val stroke = 2.dp.toPx()
+            // ⌄ — points down, toward where the bubble lives.
+            drawLine(chevron, Offset(w * 0.22f, h * 0.40f), Offset(w * 0.5f, h * 0.66f), stroke, cap = StrokeCap.Round)
+            drawLine(chevron, Offset(w * 0.5f, h * 0.66f), Offset(w * 0.78f, h * 0.40f), stroke, cap = StrokeCap.Round)
         }
     }
 }
@@ -540,7 +572,6 @@ private fun AiComingSoon(modifier: Modifier = Modifier, bottomPadding: Dp = 0.dp
 @Composable
 private fun EmptyState(
     onSuggestionClick: (String) -> Unit,
-    onShowSummary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val suggestions = remember {
@@ -568,7 +599,6 @@ private fun EmptyState(
             )
         }
 
-        // Summary shortcut — opens the spending-by-category sheet
         Text(
             text = "Try one of these to get started",
             style = MaterialTheme.typography.bodySmall,
@@ -583,15 +613,8 @@ private fun EmptyState(
         Spacer(Modifier.height(4.dp))
         // Stagger the chips in so the empty state assembles itself rather than snapping in —
         // the standard onboarding reveal in Monarch / Copilot.
-        StaggeredChip(index = 0) {
-            SuggestionChip(
-                text = "Show spending by category",
-                onClick = onShowSummary,
-                highlighted = true,
-            )
-        }
         suggestions.forEachIndexed { i, suggestion ->
-            StaggeredChip(index = i + 1) {
+            StaggeredChip(index = i) {
                 SuggestionChip(text = suggestion, onClick = { onSuggestionClick(suggestion) })
             }
         }

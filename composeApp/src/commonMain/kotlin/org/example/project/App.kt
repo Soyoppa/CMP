@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.dp
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
 import kotlinproject.composeapp.generated.resources.app_logo
-import kotlinproject.composeapp.generated.resources.chat_bubble
+import kotlinproject.composeapp.generated.resources.chart_bar
 import kotlinproject.composeapp.generated.resources.dots
 import kotlinproject.composeapp.generated.resources.failed
 import kotlinproject.composeapp.generated.resources.success
@@ -69,13 +69,16 @@ import org.example.project.auth.AuthState
 import org.example.project.auth.Session
 import org.example.project.auth.createAuthRepository
 import org.example.project.config.FeatureFlagStore
+import org.example.project.config.SchemaFeatures
 import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
-import org.example.project.ui.ChatScreen
+import org.example.project.ui.ChatBubble
+import org.example.project.ui.ChatModal
 import org.example.project.ui.LoginScreen
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.SettingsScreen
+import org.example.project.ui.SummaryScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.AuthViewModel
@@ -88,7 +91,7 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private enum class NavTab { CHAT, ADD, SETTINGS }
+private enum class NavTab { SUMMARY, ADD, SETTINGS }
 
 @Immutable
 private data class NavItem(
@@ -98,7 +101,7 @@ private data class NavItem(
 )
 
 private val NavItems: List<NavItem> = listOf(
-    NavItem(NavTab.CHAT, Res.drawable.chat_bubble, "Chat"),
+    NavItem(NavTab.SUMMARY, Res.drawable.chart_bar, "Spending Summary"),
     NavItem(NavTab.ADD, Res.drawable.add, "Add Transaction"),
     NavItem(NavTab.SETTINGS, Res.drawable.dots, "Settings"),
 )
@@ -119,6 +122,10 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
     FinanceTrackerTheme(darkTheme = resolvedDark) {
         val snackbarHostState = remember { SnackbarHostState() }
         var selectedTab by remember { mutableStateOf(NavTab.ADD) }
+        // The AI chat now lives in a floating modal summoned from a bubble, not a nav tab.
+        var chatOpen by remember { mutableStateOf(false) }
+        // The Summary screen only has data on schemas with analysis sheets (Tracker 1).
+        val summaryAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
         val aiViewModel = createAiViewModel()
 
         val authRepository = remember { createAuthRepository() }
@@ -136,9 +143,9 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
             if (authState is AuthState.Authenticated) selectedTab = NavTab.ADD
         }
 
-        // If chat is remotely disabled while it's the active tab, fall back to Add.
+        // If chat is remotely disabled while the modal is open, collapse it.
         LaunchedEffect(featureFlags.chatEnabled) {
-            if (!featureFlags.chatEnabled && selectedTab == NavTab.CHAT) selectedTab = NavTab.ADD
+            if (!featureFlags.chatEnabled) chatOpen = false
         }
 
         // Guest → "Create account": flip to sign-up, sign the guest out so the gate shows Login.
@@ -211,11 +218,9 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                         }
                         Box(modifier = Modifier.weight(1f)) {
                             when (selectedTab) {
-                                NavTab.CHAT -> ChatScreen(
+                                NavTab.SUMMARY -> SummaryScreen(
                                     modifier = Modifier.fillMaxSize(),
-                                    viewModel = aiViewModel,
                                     bottomPadding = 100.dp, // clears the floating nav pill
-                                    onRequestSignUp = requestSignUp,
                                 )
                                 NavTab.ADD -> TransactionInputScreen(
                                     viewModel = viewModel,
@@ -232,8 +237,8 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                         }
                     }
 
-                    val visibleNavItems = remember(featureFlags.chatEnabled) {
-                        NavItems.filter { it.tab != NavTab.CHAT || featureFlags.chatEnabled }
+                    val visibleNavItems = remember(summaryAvailable) {
+                        NavItems.filter { it.tab != NavTab.SUMMARY || summaryAvailable }
                     }
                     FloatingNavPill(
                         items = visibleNavItems,
@@ -242,6 +247,23 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
+                    )
+
+                    // Floating AI assistant — a chat-head bubble (Messenger-style) that opens
+                    // the chat as a modal growing from this corner. Hidden while it's open.
+                    ChatBubble(
+                        visible = featureFlags.chatEnabled && !chatOpen,
+                        onClick = { chatOpen = true },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 20.dp, bottom = 112.dp),
+                    )
+
+                    ChatModal(
+                        visible = chatOpen,
+                        onClose = { chatOpen = false },
+                        viewModel = aiViewModel,
+                        onRequestSignUp = requestSignUp,
                     )
 
                     SnackbarHost(
