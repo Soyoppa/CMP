@@ -47,3 +47,5 @@ credentials*.json
 
 **/tracker_1.gs
 **/tracker_2.gs
+
+CLAUDE.md
