@@ -28,6 +28,7 @@ private data class FbAuthUser(
     val signedIn: Boolean = false,
     val email: String? = null,
     val isGuest: Boolean = false,
+    val uid: String? = null,
 )
 
 private val authJson = Json { encodeDefaults = true; ignoreUnknownKeys = true }
@@ -60,7 +61,7 @@ internal class FirebaseAuthRepository : AuthRepository {
 
     private fun applyUser(rawJson: String) {
         val u = authJson.decodeFromString(FbAuthUser.serializer(), rawJson)
-        if (u.signedIn) Session.setAuthenticated(AppUser(email = u.email, isGuest = u.isGuest))
+        if (u.signedIn) Session.setAuthenticated(AppUser(email = u.email, isGuest = u.isGuest, uid = u.uid))
         else Session.setSignedOut()
     }
 

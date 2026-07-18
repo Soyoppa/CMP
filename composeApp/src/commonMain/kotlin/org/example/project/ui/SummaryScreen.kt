@@ -113,6 +113,7 @@ private fun abbreviateAmount(amount: Double): String = when {
 fun SummaryScreen(
     modifier: Modifier = Modifier,
     bottomPadding: Dp = 0.dp,
+    onOpenBudgets: (() -> Unit)? = null,
     viewModel: SummaryViewModel = createSummaryViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -121,6 +122,7 @@ fun SummaryScreen(
         SummaryHeader(
             hasData = uiState.categories.isNotEmpty(),
             onRetry = viewModel::load,
+            onEditBudgets = onOpenBudgets,
         )
 
         Column(
@@ -1094,12 +1096,13 @@ private fun BudgetStatusPill(
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit) {
+private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit, onEditBudgets: (() -> Unit)?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -1113,6 +1116,23 @@ private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        if (onEditBudgets != null) {
+            BounceSurface(
+                onClick = onEditBudgets,
+                modifier = Modifier.heightIn(min = 48.dp),
+                shape = AppShapes.pill,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                pressedScale = 0.92f,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Budgets",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
         if (hasData) {
             BounceSurface(

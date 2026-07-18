@@ -31,11 +31,11 @@ expect fun createAuthRepository(): AuthRepository
  */
 internal class BypassAuthRepository : AuthRepository {
     override suspend fun restoreSession() {
-        Session.setAuthenticated(AppUser(email = "local@device", isGuest = false))
+        Session.setAuthenticated(AppUser(email = "local@device", isGuest = false, uid = "local"))
     }
 
     override suspend fun signIn(email: String, password: String): Result<Unit> {
-        Session.setAuthenticated(AppUser(email = email, isGuest = false))
+        Session.setAuthenticated(AppUser(email = email, isGuest = false, uid = "local"))
         return Result.success(Unit)
     }
 

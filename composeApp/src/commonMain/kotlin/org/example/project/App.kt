@@ -72,6 +72,7 @@ import org.example.project.config.FeatureFlagStore
 import org.example.project.config.SchemaFeatures
 import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
+import org.example.project.ui.BudgetScreen
 import org.example.project.ui.ChatBubble
 import org.example.project.ui.ChatModal
 import org.example.project.ui.LoginScreen
@@ -84,6 +85,7 @@ import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.AuthViewModel
 import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.viewmodel.createAiViewModel
+import org.example.project.viewmodel.createSummaryViewModel
 import org.example.project.viewmodel.createTransactionViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -124,9 +126,13 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         var selectedTab by remember { mutableStateOf(NavTab.ADD) }
         // The AI chat now lives in a floating modal summoned from a bubble, not a nav tab.
         var chatOpen by remember { mutableStateOf(false) }
+        // The budget editor is a full-screen modal overlay reachable from Summary + Settings.
+        var budgetOpen by remember { mutableStateOf(false) }
         // The Summary screen only has data on schemas with analysis sheets (Tracker 1).
         val summaryAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
         val aiViewModel = createAiViewModel()
+        // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
+        val summaryViewModel = createSummaryViewModel()
 
         val authRepository = remember { createAuthRepository() }
         val authViewModel = remember { AuthViewModel(authRepository) }
@@ -217,10 +223,15 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                             )
                         }
                         Box(modifier = Modifier.weight(1f)) {
+                            // Budgets are per-account cloud data — only real users may edit them.
+                            val openBudgets: (() -> Unit)? =
+                                if (auth.user.isGuest) null else ({ budgetOpen = true })
                             when (selectedTab) {
                                 NavTab.SUMMARY -> SummaryScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     bottomPadding = 100.dp, // clears the floating nav pill
+                                    onOpenBudgets = openBudgets,
+                                    viewModel = summaryViewModel,
                                 )
                                 NavTab.ADD -> TransactionInputScreen(
                                     viewModel = viewModel,
@@ -232,6 +243,7 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                                     onDarkThemeChange = { darkThemeOverride = it },
                                     accountEmail = auth.user.email,
                                     onSignOut = signOut,
+                                    onOpenBudgets = { budgetOpen = true },
                                 )
                             }
                         }
@@ -263,6 +275,18 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                         viewModel = aiViewModel,
                         onRequestSignUp = requestSignUp,
                     )
+
+                    // Full-screen budget editor modal. Refreshes the summary on close so any saved
+                    // changes are reflected in the chart's budget line + per-category breakdown.
+                    if (budgetOpen && !auth.user.isGuest) {
+                        BudgetScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = {
+                                budgetOpen = false
+                                summaryViewModel.load()
+                            },
+                        )
+                    }
 
                     SnackbarHost(
                         hostState = snackbarHostState,

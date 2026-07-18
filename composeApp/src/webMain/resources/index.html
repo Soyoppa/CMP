@@ -103,6 +103,7 @@
             signedIn: !!u,
             email: (u && u.email) || null,
             isGuest: !!(u && u.isAnonymous),
+            uid: (u && u.uid) || null,
           });
         },
         _friendly(e) {
@@ -204,6 +205,55 @@
             console.error("[financeFlags] fetch failed, using defaults", e);
             return JSON.stringify(DEFAULTS);
           }
+        },
+      };
+    </script>
+
+    <!--
+      Firebase Cloud Firestore bridge. Exposes window.__financeDb.{get, set};
+      called from FirebaseBudgetStore (wasmJsMain) to persist per-user budgets at
+      users/{uid}/settings/budget. Shares the single Firebase app with the auth/AI bridges.
+      The firestore SDK is imported lazily on first use, so it adds no startup cost.
+    -->
+    <script type="module">
+      const SDK = "https://www.gstatic.com/firebasejs/12.13.0";
+      window.__financeDb = {
+        _db: null,
+        _lib: null,
+        _ready: null,
+        _ensure(configJson) {
+          if (this._ready) return this._ready;
+          const config = JSON.parse(configJson);
+          this._ready = (async () => {
+            const appMod = await import(`${SDK}/firebase-app.js`);
+            const fsMod = await import(`${SDK}/firebase-firestore.js`);
+            this._lib = fsMod;
+            const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
+            this._db = fsMod.getFirestore(app);
+            return true;
+          })().catch((e) => {
+            console.error("[financeDb] init failed", e);
+            this._ready = null; // allow a later retry
+            throw e;
+          });
+          return this._ready;
+        },
+        _ref(uid) {
+          // users/{uid}/settings/budget
+          return this._lib.doc(this._db, "users", uid, "settings", "budget");
+        },
+        /** Reads the budget doc. Returns the stored JSON object as a string, or "{}" if absent. */
+        async get(configJson, uid) {
+          await this._ensure(configJson);
+          const snap = await this._lib.getDoc(this._ref(uid));
+          return JSON.stringify(snap.exists() ? snap.data() : {});
+        },
+        /** Writes (merges) the budget doc from a JSON string of { bucket: amount, ... }. */
+        async set(configJson, uid, dataJson) {
+          await this._ensure(configJson);
+          const data = JSON.parse(dataJson);
+          await this._lib.setDoc(this._ref(uid), data, { merge: true });
+          return "ok";
         },
       };
     </script>

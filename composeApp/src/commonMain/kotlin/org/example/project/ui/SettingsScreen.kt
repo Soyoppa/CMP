@@ -78,6 +78,7 @@ fun SettingsScreen(
     onDarkThemeChange: (Boolean) -> Unit = {},
     accountEmail: String? = null,
     onSignOut: () -> Unit = {},
+    onOpenBudgets: () -> Unit = {},
 ) {
     val repository = remember { TransactionRepository() }
     val coroutineScope = rememberCoroutineScope()
@@ -118,6 +119,17 @@ fun SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
             )
+        }
+
+        // Budgets are per-account cloud data — hidden for guests (who can't save them).
+        if (!isGuest && aiAvailable) {
+            SettingsSection(title = "Budgets") {
+                NavigationRow(
+                    title = "Category budgets",
+                    subtitle = "Set your monthly budget per category",
+                    onClick = onOpenBudgets,
+                )
+            }
         }
 
         if (aiAvailable) {
@@ -292,6 +304,45 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** A tappable settings row that navigates elsewhere (title + subtitle + chevron). */
+@Composable
+private fun NavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
+    val bounce = rememberPressBounce(pressedScale = 0.97f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .then(bounce.modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = "›",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

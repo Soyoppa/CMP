@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wasmjs-dev",
+      "runtimeExecutable": "C:\\Users\\SOY\\Desktop\\KotlinProject\\gradlew.bat",
+      "runtimeArgs": [":composeApp:wasmJsBrowserDevelopmentRun"],
+      "port": 8080
+    }
+  ]
+}

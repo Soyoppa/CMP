@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class AppUser(
     val email: String?,
     val isGuest: Boolean,
+    /** Firebase Auth uid — the key for per-user cloud data (budgets). Null on bypass/dev targets. */
+    val uid: String? = null,
 ) {
     val displayName: String get() = email ?: "Guest"
 }

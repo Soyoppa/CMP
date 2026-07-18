@@ -1,5 +1,17 @@
 {
   "projects": {
-    "default": "your-firebase-project-id"
+    "default": "soy-cmp-c10ca"
+  },
+  "targets": {
+    "soy-cmp-c10ca": {
+      "hosting": {
+        "tracker1": [
+          "soy-cmp-c10ca"
+        ],
+        "tracker2": [
+          "noceco-bills"
+        ]
+      }
+    }
   }
 }

@@ -2,6 +2,7 @@ package org.example.project.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,7 +11,9 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.Session
 import org.example.project.data.CategoryTransaction
 import org.example.project.data.DemoRepository
+import org.example.project.model.BudgetSummaryMapper
 import org.example.project.model.CategorySummary
+import org.example.project.repository.BudgetRepository
 import org.example.project.repository.TransactionRepository
 import org.example.project.util.DateUtils
 
@@ -34,6 +37,7 @@ data class SummaryUiState(
 
 class SummaryViewModel(
     private val repository: TransactionRepository = TransactionRepository(),
+    private val budgetRepository: BudgetRepository = BudgetRepository(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SummaryUiState())
@@ -59,8 +63,16 @@ class SummaryViewModel(
                 )
             }
             try {
-                val categories = if (Session.isGuest) DemoRepository.getSummary()
-                                 else repository.getSummary()
+                // Real users: build the summary from the raw 'Data Dump' ledger (single source of
+                // truth, always in sync with the drill-down) with budgets from the cloud store.
+                // Guests: the self-contained demo dataset (no ledger, no cloud).
+                val categories = if (Session.isGuest) {
+                    DemoRepository.getSummary()
+                } else {
+                    val txnsDeferred = async { repository.getTransactions() }
+                    val budgetsDeferred = async { budgetRepository.getBudgets() }
+                    BudgetSummaryMapper.build(txnsDeferred.await(), budgetsDeferred.await())
+                }
                 val months = categories.firstOrNull()?.months ?: emptyList()
                 val totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
                 val budgetByCategory = categories.associate { it.category.lowercase() to it.monthlyBudget }

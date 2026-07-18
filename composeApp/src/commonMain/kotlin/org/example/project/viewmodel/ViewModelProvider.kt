@@ -10,3 +10,6 @@ expect fun createAiViewModel(): AiViewModel
 
 @Composable
 expect fun createSummaryViewModel(): SummaryViewModel
+
+@Composable
+expect fun createBudgetViewModel(): BudgetViewModel

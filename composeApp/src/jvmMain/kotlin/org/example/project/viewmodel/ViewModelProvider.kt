@@ -17,3 +17,8 @@ actual fun createAiViewModel(): AiViewModel {
 actual fun createSummaryViewModel(): SummaryViewModel {
     return remember { SummaryViewModel() }
 }
+
+@Composable
+actual fun createBudgetViewModel(): BudgetViewModel {
+    return remember { BudgetViewModel() }
+}
