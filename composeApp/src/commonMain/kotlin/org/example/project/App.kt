@@ -249,14 +249,12 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                             .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
                     )
 
-                    // Floating AI assistant — a chat-head bubble (Messenger-style) that opens
-                    // the chat as a modal growing from this corner. Hidden while it's open.
+                    // Floating AI assistant — a draggable chat-head bubble (Messenger-style) that
+                    // opens the chat as a modal growing from its corner. Hidden while the modal is open.
                     ChatBubble(
                         visible = featureFlags.chatEnabled && !chatOpen,
                         onClick = { chatOpen = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 20.dp, bottom = 112.dp),
+                        modifier = Modifier.fillMaxSize(),
                     )
 
                     ChatModal(

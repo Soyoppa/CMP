@@ -11,14 +11,13 @@ import org.example.project.auth.Session
 import org.example.project.auth.aiCharLimit
 import org.example.project.auth.aiMessageLimit
 import org.example.project.data.AiRepository
+import org.example.project.data.CategoryTransaction
 import org.example.project.data.OllamaMessage
 import org.example.project.data.ai.AiUsageTracker
-import org.example.project.model.CategorySummary
 import org.example.project.model.ChatMessage
 import org.example.project.repository.TransactionRepository
 import kotlinx.datetime.Clock
 import org.example.project.config.ConfigManager
-import org.example.project.config.SchemaFeatures
 
 data class AiUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -40,26 +39,25 @@ class AiViewModel(
 
     private val conversationHistory = mutableListOf<OllamaMessage>()
 
-    private var budget: List<CategorySummary> = emptyList()
-
     // Guest allowance tracking.
     private var guestMessagesSent = 0
 
     init {
         ConfigManager.reset()
-        // Skip the budget fetch when this schema has no analysis data — the UI shows "coming soon".
-        if (SchemaFeatures.current().aiAnalysisAvailable) loadData()
+        // No eager fetch here — 'Data Dump' is read fresh per message in sendMessage() so the
+        // AI always answers off current data instead of a snapshot taken when the chat opened.
     }
 
-    private fun loadData() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingTransactions = true) }
-            try {
-                budget = transactionRepository.getSummary()
-                _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = true) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = false) }
+    /** Fresh read of 'Data Dump' for this turn's context. Empty (not thrown) on failure. */
+    private suspend fun fetchTransactions(): List<CategoryTransaction> {
+        _uiState.update { it.copy(isLoadingTransactions = true) }
+        return try {
+            transactionRepository.getTransactions().also {
+                _uiState.update { s -> s.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isLoadingTransactions = false, transactionsLoaded = false) }
+            emptyList()
         }
     }
 
@@ -103,9 +101,10 @@ class AiViewModel(
 
         viewModelScope.launch {
             try {
+                val transactions = fetchTransactions()
                 val result = aiRepository.chat(
                     userMessage = userInput.trim(),
-                    budget = budget,
+                    transactions = transactions,
                     history = conversationHistory.toList()
                 )
 

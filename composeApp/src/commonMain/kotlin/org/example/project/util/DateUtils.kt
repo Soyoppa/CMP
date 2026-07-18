@@ -67,6 +67,10 @@ object DateUtils {
         return monthNames.indexOfFirst { it.startsWith(key) } + 1
     }
 
+    /** Full month name for a 1..12 number ("May"). Returns "" for out-of-range input. */
+    fun monthName(number: Int): String =
+        monthNames.getOrNull(number - 1)?.replaceFirstChar { it.uppercase() } ?: ""
+
     /**
      * Best-effort month extraction from a Data Dump date cell. Handles the app's own
      * `M/d/yyyy`, ISO `yyyy-MM-dd`, and any string containing a month name. Returns 0 if unknown.

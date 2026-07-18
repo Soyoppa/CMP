@@ -14,8 +14,10 @@ data class RecentTransaction(
 )
 
 /**
- * A single expense row reduced to what the per-category drill-down needs: a label, a
- * magnitude, its category, and the month it falls in ([monthNumber] 1..12, 0 if unknown).
+ * A single expense row reduced to what the per-category drill-down (and the AI chat's
+ * 'Data Dump' context) needs: a label, a magnitude, its category, and the month it falls
+ * in ([monthNumber] 1..12, 0 if unknown). [date] is the raw sheet date cell, kept as-is for
+ * display in the AI's transaction ledger; empty when not populated by a producer.
  * Income rows are excluded by the producers.
  */
 data class CategoryTransaction(
@@ -23,6 +25,7 @@ data class CategoryTransaction(
     val amount: Double,
     val category: String,
     val monthNumber: Int,
+    val date: String = "",
 )
 
 /**

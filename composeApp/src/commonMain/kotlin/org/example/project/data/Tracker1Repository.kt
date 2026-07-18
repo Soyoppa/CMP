@@ -146,6 +146,7 @@ class Tracker1Repository(
                     amount = outflow,
                     category = row.getOrNull(4)?.trim().orEmpty(),
                     monthNumber = DateUtils.monthNumberFromDate(row.getOrNull(0)),
+                    date = row.getOrNull(0)?.trim().orEmpty(),
                 )
             }
     }
