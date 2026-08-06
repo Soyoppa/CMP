@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -146,10 +146,10 @@ fun DatePickerDialog(
                     // (Sun=0..Sat=6), giving the count of blank leading cells before day 1.
                     val leadingBlanks = (LocalDate(selectedYear, selectedMonth, 1).dayOfWeek.ordinal + 1) % 7
                     val cells: List<Int?> = List(leadingBlanks) { null } + (1..daysInMonth).toList()
-                    items(cells) { day ->
+                    itemsIndexed(cells, key = { index, _ -> index }) { _, day ->
                         if (day == null) {
                             Spacer(modifier = Modifier.aspectRatio(1f))
-                            return@items
+                            return@itemsIndexed
                         }
                         val dayBounce = rememberPressBounce(pressedScale = 0.86f)
                         Surface(
