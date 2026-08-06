@@ -95,7 +95,7 @@ class Tracker2Repository : SheetRepository {
         if (scriptUrl.isBlank()) {
             return AddTransactionResult(
                 success = false,
-                errorMessage = "Script URL not configured: '$scriptUrl'",
+                errorMessage = "Script URL not configured.",
                 urlUsed = scriptUrl,
             )
         }
