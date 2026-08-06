@@ -44,7 +44,9 @@
             // Ready — no console.log; avoid leaking SDK/backend hints to devtools.
             return true;
           })().catch((e) => {
-            console.error("[financeAi] init failed", e);
+            // Do NOT log `e` directly — Firebase SDK errors can embed the apiKey or
+            // project config in their message/stack on some SDK versions.
+            console.error("[financeAi] init failed");
             this._ready = null; // allow a later retry
             throw e;
           });
@@ -202,7 +204,8 @@
               chat_enabled: this._lib.getValue(this._rc, "chat_enabled").asBoolean(),
             });
           } catch (e) {
-            console.error("[financeFlags] fetch failed, using defaults", e);
+            // Do NOT log `e` directly — Firebase SDK errors can embed config details.
+            console.error("[financeFlags] fetch failed, using defaults");
             return JSON.stringify(DEFAULTS);
           }
         },
