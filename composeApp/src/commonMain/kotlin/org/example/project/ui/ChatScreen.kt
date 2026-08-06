@@ -467,7 +467,7 @@ private fun MessageBubble(message: ChatMessage, showTokens: Boolean) {
             ) {
                 Image(
                     painter = painterResource(Res.drawable.app_logo),
-                    contentDescription = null,
+                    contentDescription = "AI assistant",
                     modifier = Modifier.size(20.dp),
                 )
             }
