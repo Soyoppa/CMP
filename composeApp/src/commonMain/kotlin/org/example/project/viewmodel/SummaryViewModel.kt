@@ -101,7 +101,9 @@ class SummaryViewModel(
                     ensureTransactionsLoaded()
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                // Do not forward e.message — Ktor network exceptions can embed the full
+                // request URL including the ?key=<API_KEY> query parameter.
+                _uiState.update { it.copy(isLoading = false, error = "Failed to load data. Please try again.") }
             }
         }
     }

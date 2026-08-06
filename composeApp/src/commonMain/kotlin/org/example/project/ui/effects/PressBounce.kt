@@ -23,9 +23,11 @@ fun rememberPressBounce(pressedScale: Float = 0.94f): PressBounce {
         ),
         label = "pressBounce",
     )
-    val modifier = Modifier.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+    val modifier = remember(scale) {
+        Modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
     }
     return PressBounce(source, modifier)
 }
