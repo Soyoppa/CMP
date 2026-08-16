@@ -22,6 +22,7 @@ import org.example.project.domain.transaction.VoiceAiUsage
 import org.example.project.model.PaymentMode
 import org.example.project.model.Transaction
 import org.example.project.model.TransactionCategory
+import org.example.project.repository.UserListRepository
 import org.example.project.util.DateUtils
 import org.example.project.voice.VoiceInputController
 import org.example.project.voice.VoiceState
@@ -42,6 +43,8 @@ class TransactionViewModel(
     private val addTransactionUseCase: AddTransactionUseCase = AddTransactionUseCase(),
     private val voiceController: VoiceInputController = provideVoiceInputController(),
     private val aiRepository: AiRepository = AiRepository(),
+    private val categoryRepository: UserListRepository = UserListRepository(listId = "categories"),
+    private val paymentModeRepository: UserListRepository = UserListRepository(listId = "paymentModes"),
 ) : ViewModel() {
 
     private val _formState = MutableStateFlow(createInitialFormState())
@@ -54,6 +57,23 @@ class TransactionViewModel(
         if (voiceController.isSupported) {
             _formState.update { it.copy(isVoiceSupported = true) }
             observeVoice()
+        }
+        refreshOptions()
+    }
+
+    /**
+     * Re-fetches the user's cloud-saved category/payment-mode lists, falling back to the schema
+     * defaults already seeding [TransactionFormState]. Called at init, and again by the caller
+     * after the Manage Categories/Payment Modes screens close so edits show up without a restart.
+     */
+    fun refreshOptions() {
+        viewModelScope.launch {
+            val categories = categoryRepository.getItems(SchemaFeatures.current().categoryOptions)
+            _formState.update { it.copy(categoryOptions = categories) }
+        }
+        viewModelScope.launch {
+            val paymentModes = paymentModeRepository.getItems(PaymentMode.entries.map { it.displayName })
+            _formState.update { it.copy(paymentModeOptions = paymentModes) }
         }
     }
 
@@ -114,9 +134,11 @@ class TransactionViewModel(
         // First pass detects the income/expense cue so we can pick the correct category list.
         val probe = VoiceTransactionParser.parse(transcript, emptyList(), features.showIncomeOption)
         val income = probe.isIncome ?: _formState.value.isIncome
+        // Income categories are still schema-static; expense categories reflect the user's
+        // custom (or default) list currently loaded in the form.
         val options =
             if (features.showIncomeOption && income) features.incomeCategoryOptions
-            else features.categoryOptions
+            else _formState.value.categoryOptions
 
         val parsed = VoiceTransactionParser.parse(transcript, options, features.showIncomeOption)
 
@@ -217,7 +239,14 @@ class TransactionViewModel(
 
     /** Clears the form back to defaults and signals the UI to drop focus/keyboard. */
     private suspend fun resetForm() {
-        _formState.value = createInitialFormState().copy(isVoiceSupported = voiceController.isSupported)
+        val loadedOptions = _formState.value
+        _formState.value = createInitialFormState().copy(
+            isVoiceSupported = voiceController.isSupported,
+            // Keep whatever category/payment lists are currently loaded — otherwise every save
+            // would silently revert the pickers back to schema defaults until the next refresh.
+            categoryOptions = loadedOptions.categoryOptions,
+            paymentModeOptions = loadedOptions.paymentModeOptions,
+        )
         _effects.emit(TransactionFormEffect.FormCleared)
     }
 
@@ -247,5 +276,8 @@ class TransactionViewModel(
         selectedDate = DateUtils.getCurrentDateFormatted(),
         selectedCategory = TransactionCategory.OTHER.displayName,
         selectedPaymentMode = PaymentMode.OTHER.displayName,
+        // Instant defaults so the form is usable before refreshOptions()'s cloud fetch resolves.
+        categoryOptions = SchemaFeatures.current().categoryOptions,
+        paymentModeOptions = PaymentMode.entries.map { it.displayName },
     )
 }

@@ -79,6 +79,8 @@ fun SettingsScreen(
     accountEmail: String? = null,
     onSignOut: () -> Unit = {},
     onOpenBudgets: () -> Unit = {},
+    onOpenCategories: () -> Unit = {},
+    onOpenPaymentModes: () -> Unit = {},
 ) {
     val repository = remember { TransactionRepository() }
     val coroutineScope = rememberCoroutineScope()
@@ -90,6 +92,7 @@ fun SettingsScreen(
     val isGuest = (authState as? AuthState.Authenticated)?.user?.isGuest == true
     // Tracker 2 has no analysis sheets yet, so the AI section is hidden there (same flag the chat uses).
     val aiAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
+    val categoryLabel = remember { SchemaFeatures.current().categoryLabel }
 
     Column(
         modifier = modifier
@@ -119,6 +122,22 @@ fun SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
             )
+        }
+
+        // Category/payment-mode lists are per-account cloud data — hidden for guests (who can't save them).
+        if (!isGuest) {
+            SettingsSection(title = "$categoryLabel & payment") {
+                NavigationRow(
+                    title = "Manage ${categoryLabel.lowercase()}s",
+                    subtitle = "Add or remove options in the ${categoryLabel.lowercase()} picker",
+                    onClick = onOpenCategories,
+                )
+                NavigationRow(
+                    title = "Manage payment modes",
+                    subtitle = "Add or remove options in the payment picker",
+                    onClick = onOpenPaymentModes,
+                )
+            }
         }
 
         // Budgets are per-account cloud data — hidden for guests (who can't save them).

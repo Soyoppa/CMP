@@ -13,3 +13,9 @@ expect fun createSummaryViewModel(): SummaryViewModel
 
 @Composable
 expect fun createBudgetViewModel(): BudgetViewModel
+
+@Composable
+expect fun createCategoryListViewModel(): CategoryListViewModel
+
+@Composable
+expect fun createPaymentModeListViewModel(): PaymentModeListViewModel

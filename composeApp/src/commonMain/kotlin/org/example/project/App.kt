@@ -73,9 +73,11 @@ import org.example.project.config.SchemaFeatures
 import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.BudgetScreen
+import org.example.project.ui.CategoryManagementScreen
 import org.example.project.ui.ChatBubble
 import org.example.project.ui.ChatModal
 import org.example.project.ui.LoginScreen
+import org.example.project.ui.PaymentModeManagementScreen
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.SettingsScreen
@@ -128,6 +130,9 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         var chatOpen by remember { mutableStateOf(false) }
         // The budget editor is a full-screen modal overlay reachable from Summary + Settings.
         var budgetOpen by remember { mutableStateOf(false) }
+        // Category/payment-mode editors are full-screen modal overlays reachable from Settings.
+        var categoriesOpen by remember { mutableStateOf(false) }
+        var paymentModesOpen by remember { mutableStateOf(false) }
         // The Summary screen only has data on schemas with analysis sheets (Tracker 1).
         val summaryAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
         val aiViewModel = createAiViewModel()
@@ -244,6 +249,8 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                                     accountEmail = auth.user.email,
                                     onSignOut = signOut,
                                     onOpenBudgets = { budgetOpen = true },
+                                    onOpenCategories = { categoriesOpen = true },
+                                    onOpenPaymentModes = { paymentModesOpen = true },
                                 )
                             }
                         }
@@ -284,6 +291,28 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                             onClose = {
                                 budgetOpen = false
                                 summaryViewModel.load()
+                            },
+                        )
+                    }
+
+                    // Full-screen category / payment-mode editors. Refresh the Add Transaction
+                    // form's option lists on close so edits show up in its pickers immediately.
+                    if (categoriesOpen && !auth.user.isGuest) {
+                        CategoryManagementScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = {
+                                categoriesOpen = false
+                                viewModel.refreshOptions()
+                            },
+                        )
+                    }
+
+                    if (paymentModesOpen && !auth.user.isGuest) {
+                        PaymentModeManagementScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = {
+                                paymentModesOpen = false
+                                viewModel.refreshOptions()
                             },
                         )
                     }

@@ -211,9 +211,10 @@
 
     <!--
       Firebase Cloud Firestore bridge. Exposes window.__financeDb.{get, set};
-      called from FirebaseBudgetStore (wasmJsMain) to persist per-user budgets at
-      users/{uid}/settings/budget. Shares the single Firebase app with the auth/AI bridges.
-      The firestore SDK is imported lazily on first use, so it adds no startup cost.
+      called from FirebaseBudgetStore + FirebaseUserListStore (wasmJsMain) to persist per-user
+      docs at users/{uid}/settings/{docId} (e.g. "budget", "categories", "paymentModes").
+      Shares the single Firebase app with the auth/AI bridges. The firestore SDK is imported
+      lazily on first use, so it adds no startup cost.
     -->
     <script type="module">
       const SDK = "https://www.gstatic.com/firebasejs/12.13.0";
@@ -238,21 +239,21 @@
           });
           return this._ready;
         },
-        _ref(uid) {
-          // users/{uid}/settings/budget
-          return this._lib.doc(this._db, "users", uid, "settings", "budget");
+        _ref(uid, docId) {
+          // users/{uid}/settings/{docId}
+          return this._lib.doc(this._db, "users", uid, "settings", docId);
         },
-        /** Reads the budget doc. Returns the stored JSON object as a string, or "{}" if absent. */
-        async get(configJson, uid) {
+        /** Reads the given settings doc. Returns the stored JSON object as a string, or "{}" if absent. */
+        async get(configJson, uid, docId) {
           await this._ensure(configJson);
-          const snap = await this._lib.getDoc(this._ref(uid));
+          const snap = await this._lib.getDoc(this._ref(uid, docId));
           return JSON.stringify(snap.exists() ? snap.data() : {});
         },
-        /** Writes (merges) the budget doc from a JSON string of { bucket: amount, ... }. */
-        async set(configJson, uid, dataJson) {
+        /** Writes (merges) the given settings doc from a JSON string. */
+        async set(configJson, uid, docId, dataJson) {
           await this._ensure(configJson);
           const data = JSON.parse(dataJson);
-          await this._lib.setDoc(this._ref(uid), data, { merge: true });
+          await this._lib.setDoc(this._ref(uid, docId), data, { merge: true });
           return "ok";
         },
       };

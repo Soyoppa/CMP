@@ -107,7 +107,6 @@ import org.example.project.config.SchemaFeatures
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.VoiceAiUsage
-import org.example.project.model.PaymentMode
 import org.example.project.util.DateUtils
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
@@ -352,9 +351,11 @@ fun TransactionInputScreen(
         val useIncomeCategories = schemaFeatures.showIncomeOption && formState.isIncome
         val categoryPickerTitle =
             if (useIncomeCategories) schemaFeatures.incomeCategoryPickerTitle else schemaFeatures.categoryPickerTitle
+        // Expense categories and payment modes are the user's cloud-saved lists (schema
+        // defaults until that loads); income categories are still schema-static.
         val categoryOptions =
-            if (useIncomeCategories) schemaFeatures.incomeCategoryOptions else schemaFeatures.categoryOptions
-        val paymentOptions = remember { PaymentMode.entries.map { it.displayName } }
+            if (useIncomeCategories) schemaFeatures.incomeCategoryOptions else formState.categoryOptions
+        val paymentOptions = formState.paymentModeOptions
 
         // Category + Payment are the same kind of decision (how to file this transaction),
         // so they sit together as a two-up row — chevron-less tiles matching the Date tile above.

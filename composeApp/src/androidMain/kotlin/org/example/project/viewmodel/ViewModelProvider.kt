@@ -22,3 +22,13 @@ actual fun createSummaryViewModel(): SummaryViewModel {
 actual fun createBudgetViewModel(): BudgetViewModel {
     return viewModel()
 }
+
+@Composable
+actual fun createCategoryListViewModel(): CategoryListViewModel {
+    return viewModel()
+}
+
+@Composable
+actual fun createPaymentModeListViewModel(): PaymentModeListViewModel {
+    return viewModel()
+}

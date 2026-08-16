@@ -1,23 +1,24 @@
 @file:OptIn(ExperimentalWasmJsInterop::class, kotlin.time.ExperimentalTime::class)
 
-package org.example.project.data.budget
+package org.example.project.data.lists
 
 import kotlinx.coroutines.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.example.project.config.ConfigManager
-import org.example.project.model.CategoryGroups
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsString
 import kotlin.js.Promise
 import kotlin.time.Clock
 
-actual fun createBudgetStore(): BudgetStore = FirebaseBudgetStore()
+actual fun createUserListStore(): UserListStore = FirebaseUserListStore()
 
 @Serializable
 private data class FbConfig(
@@ -36,11 +37,11 @@ private fun dbSet(configJson: String, uid: String, docId: String, dataJson: Stri
     js("window.__financeDb.set(configJson, uid, docId, dataJson)")
 
 /**
- * Cloud Firestore budget store for the deployed web target. Reads/writes a single small doc
- * at `users/{uid}/settings/budget`. Only the known buckets are extracted on read; `updatedAt`
- * and any other stray fields are ignored.
+ * Cloud Firestore list store for the deployed web target. Reads/writes a single small doc at
+ * `users/{uid}/settings/{listId}` shaped `{ items: [...], updatedAt }` — same bridge and doc
+ * family as [org.example.project.data.budget.FirebaseBudgetStore], keyed by a different docId.
  */
-internal class FirebaseBudgetStore : BudgetStore {
+internal class FirebaseUserListStore : UserListStore {
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true; isLenient = true }
 
@@ -59,22 +60,21 @@ internal class FirebaseBudgetStore : BudgetStore {
         )
     }
 
-    override suspend fun load(uid: String): Map<String, Double> {
-        val raw: JsString = dbGet(configJson(), uid, "budget").await()
+    override suspend fun load(uid: String, listId: String): List<String>? {
+        val raw: JsString = dbGet(configJson(), uid, listId).await()
         val root = json.parseToJsonElement(raw.toString()).jsonObject
-        val keys = CategoryGroups.buckets + CategoryGroups.OTHER
-        return keys.mapNotNull { key ->
-            val amount = root[key]?.jsonPrimitive?.doubleOrNull
-            if (amount != null) key to amount else null
-        }.toMap()
+        // Absent "items" means no doc has ever been saved -> null tells the caller to seed
+        // defaults. An empty array means the user saved a deliberately-cleared list.
+        val items = root["items"]?.jsonArray ?: return null
+        return items.mapNotNull { it.jsonPrimitive.content.takeIf(String::isNotBlank) }
     }
 
-    override suspend fun save(uid: String, budgets: Map<String, Double>) {
+    override suspend fun save(uid: String, listId: String, items: List<String>) {
         val payload = buildJsonObject {
-            budgets.forEach { (bucket, amount) -> put(bucket, amount) }
+            put("items", buildJsonArray { items.forEach { add(it) } })
             put("updatedAt", Clock.System.now().toEpochMilliseconds())
         }
         // Explicit type: Promise<T>.await() can't infer T when the result is unused (see auth bridge).
-        val ignored: JsString = dbSet(configJson(), uid, "budget", payload.toString()).await()
+        val ignored: JsString = dbSet(configJson(), uid, listId, payload.toString()).await()
     }
 }

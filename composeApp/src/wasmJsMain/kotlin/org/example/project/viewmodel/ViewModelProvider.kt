@@ -22,3 +22,13 @@ actual fun createSummaryViewModel(): SummaryViewModel {
 actual fun createBudgetViewModel(): BudgetViewModel {
     return remember { BudgetViewModel() }
 }
+
+@Composable
+actual fun createCategoryListViewModel(): CategoryListViewModel {
+    return remember { CategoryListViewModel() }
+}
+
+@Composable
+actual fun createPaymentModeListViewModel(): PaymentModeListViewModel {
+    return remember { PaymentModeListViewModel() }
+}
