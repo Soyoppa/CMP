@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthRepository
-import org.example.project.auth.createAuthRepository
+import org.example.project.AppContainer
 import org.example.project.util.toUserMessage
 
 /**
@@ -17,7 +17,7 @@ import org.example.project.util.toUserMessage
  * effects here; the gate reacts to Session state.
  */
 class AuthViewModel(
-    private val repository: AuthRepository = createAuthRepository(),
+    private val repository: AuthRepository = AppContainer.authRepository,
 ) : ViewModel() {
 
     enum class Mode { SIGN_IN, SIGN_UP }
@@ -73,5 +73,9 @@ class AuthViewModel(
                     _state.update { it.copy(isSubmitting = false, error = e.toUserMessage("Couldn't start guest mode.")) }
                 }
         }
+    }
+
+    fun signOut() {
+        viewModelScope.launch { repository.signOut() }
     }
 }

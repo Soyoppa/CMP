@@ -1,6 +1,7 @@
 package org.example.project.ui
 
 import androidx.compose.animation.AnimatedContent
+import org.example.project.config.LedgerProfile
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
@@ -50,8 +51,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.example.project.data.CategoryTransaction
-import org.example.project.model.CategoryGroups
+import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.SpendingBuckets
 import org.example.project.model.CategorySummary
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
@@ -178,7 +179,7 @@ private fun SummaryContent(
     budgetByCategory: Map<String, Double>,
     viewMode: SummaryViewMode,
     selectedCategory: String?,
-    transactions: List<CategoryTransaction>,
+    transactions: List<LedgerEntry>,
     transactionsLoading: Boolean,
     transactionsError: String?,
     onMonthSelected: (String) -> Unit,
@@ -293,7 +294,7 @@ private fun SummaryContent(
 
 @Composable
 private fun CategoryTransactions(
-    transactions: List<CategoryTransaction>,
+    transactions: List<LedgerEntry>,
     isLoading: Boolean,
     error: String?,
     category: String,
@@ -304,7 +305,7 @@ private fun CategoryTransactions(
     val items = remember(transactions, category, monthNumber) {
         transactions
             .filter {
-                CategoryGroups.matches(it.category, category) &&
+                LedgerProfile.current().spendingBuckets.matches(it.category, category) &&
                     (monthNumber == 0 || it.monthNumber == monthNumber)
             }
             .sortedByDescending { it.amount }

@@ -39,7 +39,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -66,10 +65,14 @@ import kotlinproject.composeapp.generated.resources.dots
 import kotlinproject.composeapp.generated.resources.failed
 import kotlinproject.composeapp.generated.resources.success
 import org.example.project.auth.AuthState
+import org.example.project.ui.SessionScope
+import org.example.project.ui.PlatformBackHandler
+import org.example.project.ui.DeleteAccountDialog
+import org.example.project.auth.AppUser
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.example.project.auth.Session
-import org.example.project.auth.createAuthRepository
 import org.example.project.config.FeatureFlagStore
-import org.example.project.config.SchemaFeatures
+import org.example.project.config.LedgerProfile
 import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.ui.BudgetScreen
@@ -86,7 +89,6 @@ import org.example.project.ui.SummaryScreen
 import org.example.project.ui.TransactionInputScreen
 import org.example.project.ui.theme.FinanceTrackerTheme
 import org.example.project.viewmodel.AuthViewModel
-import org.example.project.viewmodel.TransactionViewModel
 import org.example.project.viewmodel.createAiViewModel
 import org.example.project.viewmodel.createSummaryViewModel
 import org.example.project.viewmodel.createTransactionViewModel
@@ -120,81 +122,18 @@ private val PillItemHeight = 56.dp
 
 @Composable
 @Preview
-fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
+fun App() {
     var darkThemeOverride by remember { mutableStateOf<Boolean?>(null) }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val resolvedDark = darkThemeOverride ?: systemDark
     FinanceTrackerTheme(darkTheme = resolvedDark) {
-        val snackbarHostState = remember { SnackbarHostState() }
-        var selectedTab by remember { mutableStateOf(NavTab.ADD) }
-        // The AI chat now lives in a floating modal summoned from a bubble, not a nav tab.
-        var chatOpen by remember { mutableStateOf(false) }
-        // The budget editor is a full-screen modal overlay reachable from Summary + Settings.
-        var budgetOpen by remember { mutableStateOf(false) }
-        // Category/payment-mode editors are full-screen modal overlays reachable from Settings.
-        var categoriesOpen by remember { mutableStateOf(false) }
-        var paymentModesOpen by remember { mutableStateOf(false) }
-        // Paid & Unpaid reads the ledger's Paid column, which only tracker_1 records.
-        var paymentStatusOpen by remember { mutableStateOf(false) }
-        val paidStatusAvailable = remember { SchemaFeatures.current().showPaidToggle }
-        // The Summary screen only has data on schemas with analysis sheets (Tracker 1).
-        val summaryAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
-        val aiViewModel = createAiViewModel()
-        // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
-        val summaryViewModel = createSummaryViewModel()
-
-        val authRepository = remember { createAuthRepository() }
-        val authViewModel = remember { AuthViewModel(authRepository) }
+        val authRepository = AppContainer.authRepository
+        val authViewModel = viewModel { AuthViewModel(authRepository) }
         val authState by Session.state.collectAsState()
-        val featureFlags by FeatureFlagStore.state.collectAsState()
-        val scope = rememberCoroutineScope()
 
         // Restore any persisted session and fetch remote feature flags once at startup.
         LaunchedEffect(Unit) { authRepository.restoreSession() }
         LaunchedEffect(Unit) { createFeatureFlagLoader().load() }
-
-        // Always land on ADD when a session starts (sign-in or guest).
-        LaunchedEffect(authState) {
-            if (authState is AuthState.Authenticated) selectedTab = NavTab.ADD
-        }
-
-        // If chat is remotely disabled while the modal is open, collapse it.
-        LaunchedEffect(featureFlags.chatEnabled) {
-            if (!featureFlags.chatEnabled) chatOpen = false
-        }
-
-        // Guest → "Create account": flip to sign-up, sign the guest out so the gate shows Login.
-        val requestSignUp: () -> Unit = {
-            authViewModel.setMode(AuthViewModel.Mode.SIGN_UP)
-            scope.launch { authRepository.signOut() }
-            Unit
-        }
-        val signOut: () -> Unit = {
-            scope.launch { authRepository.signOut() }
-            Unit
-        }
-
-        LaunchedEffect(viewModel) {
-            viewModel.effects.collect { effect ->
-                val visuals = when (effect) {
-                    is TransactionFormEffect.ShowSuccess ->
-                        FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
-                    is TransactionFormEffect.ShowError ->
-                        FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
-                    TransactionFormEffect.FormCleared -> null
-                }
-                if (visuals != null) {
-                    // A quick half-second flash: pull it down from under showSnackbar's
-                    // suspend so the message confirms-and-vanishes instead of lingering.
-                    val autoDismiss = launch {
-                        delay(1000)
-                        snackbarHostState.currentSnackbarData?.dismiss()
-                    }
-                    snackbarHostState.showSnackbar(visuals)
-                    autoDismiss.cancel()
-                }
-            }
-        }
 
         when (val auth = authState) {
             AuthState.Loading -> AuthSplash()
@@ -204,142 +143,233 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                 modifier = Modifier.fillMaxSize(),
             )
 
-            is AuthState.Authenticated -> Scaffold(
-                snackbarHost = {}
-            ) { paddingValues ->
-                val focusManager = LocalFocusManager.current
-                val keyboardController = LocalSoftwareKeyboardController.current
-                val dismissInteractionSource = remember { MutableInteractionSource() }
+            // Everything behind the gate lives in a per-session scope: signing out (or in as
+            // someone else) discards every ViewModel, so no data survives into the next session.
+            is AuthState.Authenticated -> SessionScope(sessionKey = auth.user.uid) {
+                SignedInApp(
+                    user = auth.user,
+                    isDarkTheme = resolvedDark,
+                    onDarkThemeChange = { darkThemeOverride = it },
+                    onRequestSignUp = {
+                        // Guest -> "Create account": flip to sign-up, then sign the guest out so the gate shows Login.
+                        authViewModel.setMode(AuthViewModel.Mode.SIGN_UP)
+                        authViewModel.signOut()
+                    },
+                    onSignOut = authViewModel::signOut,
+                )
+            }
+        }
+    }
+}
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background)
-                        .padding(paddingValues)
-                        .clickable(
-                            interactionSource = dismissInteractionSource,
-                            indication = null,
-                        ) {
-                            focusManager.clearFocus()
-                            keyboardController?.hide()
-                        }
+@Composable
+private fun SignedInApp(
+    user: AppUser,
+    isDarkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    onRequestSignUp: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val profile = remember(user) { LedgerProfile.forUser(user) }
+    val transactionViewModel = createTransactionViewModel()
+    val aiViewModel = createAiViewModel()
+    // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
+    val summaryViewModel = createSummaryViewModel()
+    val featureFlags by FeatureFlagStore.state.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Every session lands on ADD.
+    var selectedTab by remember { mutableStateOf(NavTab.ADD) }
+    // The AI chat lives in a floating modal summoned from a bubble, not a nav tab.
+    var chatOpen by remember { mutableStateOf(false) }
+    // Full-screen modal overlays: budgets (Summary + Settings), list editors and Paid & Unpaid (Settings).
+    var budgetOpen by remember { mutableStateOf(false) }
+    var categoriesOpen by remember { mutableStateOf(false) }
+    var paymentModesOpen by remember { mutableStateOf(false) }
+    var paymentStatusOpen by remember { mutableStateOf(false) }
+    var deleteAccountOpen by remember { mutableStateOf(false) }
+    val anyOverlayOpen = chatOpen || budgetOpen || categoriesOpen || paymentModesOpen ||
+        paymentStatusOpen || deleteAccountOpen
+
+    // System back closes the top-most overlay instead of leaving the app.
+    PlatformBackHandler(enabled = anyOverlayOpen) {
+        when {
+            deleteAccountOpen -> deleteAccountOpen = false
+            paymentStatusOpen -> paymentStatusOpen = false
+            paymentModesOpen -> paymentModesOpen = false
+            categoriesOpen -> categoriesOpen = false
+            budgetOpen -> budgetOpen = false
+            chatOpen -> chatOpen = false
+        }
+    }
+
+    // If chat is remotely disabled while the modal is open, collapse it.
+    LaunchedEffect(featureFlags.chatEnabled) {
+        if (!featureFlags.chatEnabled) chatOpen = false
+    }
+
+    LaunchedEffect(transactionViewModel) {
+        transactionViewModel.effects.collect { effect ->
+            val visuals = when (effect) {
+                is TransactionFormEffect.ShowSuccess ->
+                    FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
+                is TransactionFormEffect.ShowError ->
+                    FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
+                TransactionFormEffect.FormCleared -> null
+            }
+            if (visuals != null) {
+                // A quick flash: pull it down from under showSnackbar's suspend so the message
+                // confirms-and-vanishes instead of lingering.
+                val autoDismiss = launch {
+                    delay(1000)
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                }
+                snackbarHostState.showSnackbar(visuals)
+                autoDismiss.cancel()
+            }
+        }
+    }
+
+    Scaffold(snackbarHost = {}) { paddingValues ->
+        val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
+        val dismissInteractionSource = remember { MutableInteractionSource() }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(paddingValues)
+                .clickable(
+                    interactionSource = dismissInteractionSource,
+                    indication = null,
                 ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        if (auth.user.isGuest) {
-                            GuestBanner(
-                                onCreateAccount = requestSignUp,
-                                signupEnabled = featureFlags.signupEnabled,
-                            )
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            // Budgets are per-account cloud data — only real users may edit them.
-                            val openBudgets: (() -> Unit)? =
-                                if (auth.user.isGuest) null else ({ budgetOpen = true })
-                            when (selectedTab) {
-                                NavTab.SUMMARY -> SummaryScreen(
-                                    modifier = Modifier.fillMaxSize(),
-                                    bottomPadding = 100.dp, // clears the floating nav pill
-                                    onOpenBudgets = openBudgets,
-                                    onOpenPaymentStatus = if (paidStatusAvailable) ({ paymentStatusOpen = true }) else null,
-                                    viewModel = summaryViewModel,
-                                )
-                                NavTab.ADD -> TransactionInputScreen(
-                                    viewModel = viewModel,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                                NavTab.SETTINGS -> SettingsScreen(
-                                    modifier = Modifier.fillMaxSize(),
-                                    isDarkTheme = resolvedDark,
-                                    onDarkThemeChange = { darkThemeOverride = it },
-                                    accountEmail = auth.user.email,
-                                    onSignOut = signOut,
-                                    onOpenBudgets = { budgetOpen = true },
-                                    onOpenCategories = { categoriesOpen = true },
-                                    onOpenPaymentModes = { paymentModesOpen = true },
-                                    onOpenPaymentStatus = if (paidStatusAvailable) ({ paymentStatusOpen = true }) else null,
-                                )
-                            }
-                        }
-                    }
-
-                    val visibleNavItems = remember(summaryAvailable) {
-                        NavItems.filter { it.tab != NavTab.SUMMARY || summaryAvailable }
-                    }
-                    FloatingNavPill(
-                        items = visibleNavItems,
-                        selectedTab = selectedTab,
-                        onTabSelected = { selectedTab = it },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                }
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (user.isGuest) {
+                    GuestBanner(
+                        onCreateAccount = onRequestSignUp,
+                        signupEnabled = featureFlags.signupEnabled,
                     )
-
-                    // Floating AI assistant — a draggable chat-head bubble (Messenger-style) that
-                    // opens the chat as a modal growing from its corner. Hidden while the modal is open.
-                    ChatBubble(
-                        visible = featureFlags.chatEnabled && !chatOpen,
-                        onClick = { chatOpen = true },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-
-                    ChatModal(
-                        visible = chatOpen,
-                        onClose = { chatOpen = false },
-                        viewModel = aiViewModel,
-                        onRequestSignUp = requestSignUp,
-                    )
-
-                    // Full-screen budget editor modal. Refreshes the summary on close so any saved
-                    // changes are reflected in the chart's budget line + per-category breakdown.
-                    if (budgetOpen && !auth.user.isGuest) {
-                        BudgetScreen(
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    // Budgets and option lists are per-account cloud data — only real users may edit them.
+                    val openBudgets: (() -> Unit)? =
+                        if (user.isGuest) null else ({ budgetOpen = true })
+                    val openPaymentStatus: (() -> Unit)? =
+                        if (profile.showPaidToggle) ({ paymentStatusOpen = true }) else null
+                    when (selectedTab) {
+                        NavTab.SUMMARY -> SummaryScreen(
                             modifier = Modifier.fillMaxSize(),
-                            onClose = {
-                                budgetOpen = false
-                                summaryViewModel.load()
-                            },
+                            bottomPadding = 100.dp, // clears the floating nav pill
+                            onOpenBudgets = openBudgets,
+                            onOpenPaymentStatus = openPaymentStatus,
+                            viewModel = summaryViewModel,
                         )
-                    }
-
-                    // Full-screen category / payment-mode editors. Refresh the Add Transaction
-                    // form's option lists on close so edits show up in its pickers immediately.
-                    if (categoriesOpen && !auth.user.isGuest) {
-                        CategoryManagementScreen(
+                        NavTab.ADD -> TransactionInputScreen(
+                            viewModel = transactionViewModel,
                             modifier = Modifier.fillMaxSize(),
-                            onClose = {
-                                categoriesOpen = false
-                                viewModel.refreshOptions()
-                            },
                         )
-                    }
-
-                    if (paymentModesOpen && !auth.user.isGuest) {
-                        PaymentModeManagementScreen(
+                        NavTab.SETTINGS -> SettingsScreen(
                             modifier = Modifier.fillMaxSize(),
-                            onClose = {
-                                paymentModesOpen = false
-                                viewModel.refreshOptions()
-                            },
+                            isDarkTheme = isDarkTheme,
+                            onDarkThemeChange = onDarkThemeChange,
+                            accountEmail = user.email,
+                            onSignOut = onSignOut,
+                            onDeleteAccount = { deleteAccountOpen = true },
+                            onOpenBudgets = { budgetOpen = true },
+                            onOpenCategories = { categoriesOpen = true },
+                            onOpenPaymentModes = { paymentModesOpen = true },
+                            onOpenPaymentStatus = openPaymentStatus,
                         )
-                    }
-
-                    // Read-only ledger view, so guests get it too (backed by the demo dataset).
-                    if (paymentStatusOpen && paidStatusAvailable) {
-                        PaymentStatusScreen(
-                            modifier = Modifier.fillMaxSize(),
-                            onClose = { paymentStatusOpen = false },
-                        )
-                    }
-
-                    SnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 12.dp, start = 32.dp, end = 32.dp),
-                    ) { data ->
-                        FeedbackSnackbar(data)
                     }
                 }
+            }
+
+            val visibleNavItems = remember(profile) {
+                NavItems.filter { it.tab != NavTab.SUMMARY || profile.summaryAvailable }
+            }
+            FloatingNavPill(
+                items = visibleNavItems,
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp, start = 50.dp, end = 50.dp),
+            )
+
+            // Floating AI assistant — a draggable chat-head bubble (Messenger-style) that
+            // opens the chat as a modal growing from its corner. Hidden while the modal is open.
+            ChatBubble(
+                visible = featureFlags.chatEnabled && !chatOpen,
+                onClick = { chatOpen = true },
+                modifier = Modifier.fillMaxSize(),
+            )
+
+            ChatModal(
+                visible = chatOpen,
+                onClose = { chatOpen = false },
+                viewModel = aiViewModel,
+                onRequestSignUp = onRequestSignUp,
+            )
+
+            // Refreshes the summary on close so saved budgets show in the chart + breakdown.
+            if (budgetOpen && !user.isGuest) {
+                BudgetScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    onClose = {
+                        budgetOpen = false
+                        summaryViewModel.load()
+                    },
+                )
+            }
+
+            // Refresh the Add Transaction pickers on close so edits show up immediately.
+            if (categoriesOpen && !user.isGuest) {
+                CategoryManagementScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    onClose = {
+                        categoriesOpen = false
+                        transactionViewModel.refreshOptions()
+                    },
+                )
+            }
+
+            if (paymentModesOpen && !user.isGuest) {
+                PaymentModeManagementScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    onClose = {
+                        paymentModesOpen = false
+                        transactionViewModel.refreshOptions()
+                    },
+                )
+            }
+
+            // Read-only ledger view, so guests get it too (backed by the demo dataset).
+            if (paymentStatusOpen && profile.showPaidToggle) {
+                PaymentStatusScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    onClose = { paymentStatusOpen = false },
+                )
+            }
+
+            if (deleteAccountOpen) {
+                DeleteAccountDialog(
+                    isGuest = user.isGuest,
+                    onDismiss = { deleteAccountOpen = false },
+                )
+            }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp, start = 32.dp, end = 32.dp),
+            ) { data ->
+                FeedbackSnackbar(data)
             }
         }
     }

@@ -7,8 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.data.CategoryTransaction
-import org.example.project.repository.TransactionRepository
+import org.example.project.data.ledger.LedgerEntry
+import org.example.project.repository.LedgerRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
@@ -36,7 +36,7 @@ data class PaymentStatusUiState(
     val selectedMonth: String? = null,
     val statusFilter: PaymentStatusFilter = PaymentStatusFilter.ALL,
     /** Rows matching mode + month + status, unpaid first then high → low. */
-    val entries: List<CategoryTransaction> = emptyList(),
+    val entries: List<LedgerEntry> = emptyList(),
     val paidTotal: Double = 0.0,
     val paidCount: Int = 0,
     val unpaidTotal: Double = 0.0,
@@ -51,19 +51,19 @@ const val UNASSIGNED_MODE = "Unassigned"
 /**
  * Backs the Paid & Unpaid screen.
  *
- * Reads the same 'Data Dump' expense rows as the Summary drill-down ([TransactionRepository.getTransactions])
+ * Reads the same 'Data Dump' expense rows as the Summary drill-down ([LedgerRepository.getTransactions])
  * and slices them by the ledger's Paid checkbox, filtered by mode of payment and month. Read-only:
  * flipping a row's Paid state is a sheet write and isn't part of this screen.
  */
 class PaymentStatusViewModel(
-    private val repository: TransactionRepository = TransactionRepository(),
+    private val repository: LedgerRepository = LedgerRepository(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PaymentStatusUiState())
     val uiState: StateFlow<PaymentStatusUiState> = _uiState.asStateFlow()
 
     /** The unfiltered ledger; every selection change re-derives the visible slice from this. */
-    private var allEntries: List<CategoryTransaction> = emptyList()
+    private var allEntries: List<LedgerEntry> = emptyList()
 
     init {
         load()
@@ -73,7 +73,7 @@ class PaymentStatusViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val entries = repository.getTransactions()
+                val entries = repository.getExpenses()
                 val spelling = canonicalSpellings(entries)
                 allEntries = entries.map { txn ->
                     val key = txn.modeOfPayment.trim().lowercase()
@@ -135,14 +135,14 @@ class PaymentStatusViewModel(
         val state = _uiState.value
         val monthNumber = state.selectedMonth?.let { DateUtils.monthNumberFromName(it) } ?: 0
 
-        fun inMonth(txn: CategoryTransaction) = monthNumber == 0 || txn.monthNumber == monthNumber
+        fun inMonth(txn: LedgerEntry) = monthNumber == 0 || txn.monthNumber == monthNumber
 
         // Chips list every mode in the ledger (stable ordering by overall usage) but counts only
         // what's outstanding in the month on screen.
         val modes = allEntries
             .groupBy { it.modeOfPayment }
             .entries
-            .sortedWith(compareByDescending<Map.Entry<String, List<CategoryTransaction>>> { it.value.size }
+            .sortedWith(compareByDescending<Map.Entry<String, List<LedgerEntry>>> { it.value.size }
                 .thenBy { it.key })
             .map { (name, rows) ->
                 PaymentModeOption(
@@ -163,7 +163,7 @@ class PaymentStatusViewModel(
         }.sortedWith(
             // Unpaid first — what needs action — soonest due at the top; paid history reads the
             // other way round, most recent first. Biggest amount breaks ties within a month.
-            compareBy<CategoryTransaction> { it.isPaid }
+            compareBy<LedgerEntry> { it.isPaid }
                 .thenBy { if (it.isPaid) -it.monthNumber else it.monthNumber }
                 .thenByDescending { it.amount }
         )
@@ -187,7 +187,7 @@ class PaymentStatusViewModel(
      * Returns lower-cased mode -> the spelling to display, picking whichever variant the ledger
      * uses most so the winner is the one the user already recognises.
      */
-    private fun canonicalSpellings(entries: List<CategoryTransaction>): Map<String, String> =
+    private fun canonicalSpellings(entries: List<LedgerEntry>): Map<String, String> =
         entries.map { it.modeOfPayment.trim() }
             .groupBy { it.lowercase() }
             .mapValues { (_, variants) ->

@@ -1,12 +1,12 @@
 package org.example.project.model
 
-import org.example.project.data.CategoryTransaction
+import org.example.project.data.ledger.LedgerEntry
 import org.example.project.util.DateUtils
 
 /**
- * Builds the Summary screen's [CategorySummary] rows from the raw 'Data Dump' ledger instead of
- * the hand-maintained 'Summary Trend' tab. Each transaction is rolled up into its display bucket
- * ([CategoryGroups.bucketFor]) and summed per month; budgets come from the cloud budget store.
+ * Builds the Summary screen's [CategorySummary] rows from the raw ledger. Each entry is rolled up
+ * into its display bucket ([SpendingBuckets.bucketFor]) and summed per month; budgets come from
+ * the user's saved budgets.
  *
  * Pure and deterministic so it stays trivially testable and cheap to run off the ledger.
  */
@@ -16,31 +16,31 @@ object BudgetSummaryMapper {
     private val monthNames: List<String> = (1..12).map { DateUtils.monthName(it) }
 
     /**
-     * @param transactions expense rows from `getTransactions()` (income already excluded upstream).
-     * @param budgets bucket display name -> monthly budget (from [org.example.project.repository.BudgetRepository]).
+     * @param entries expense rows (income already excluded upstream).
+     * @param budgets bucket name -> monthly budget.
+     * @param buckets the roll-up used by the current ledger profile.
      */
     fun build(
-        transactions: List<CategoryTransaction>,
+        entries: List<LedgerEntry>,
         budgets: Map<String, Double>,
+        buckets: SpendingBuckets,
     ): List<CategorySummary> {
-        // Seed the six canonical buckets so they always appear (even at zero) in a stable order.
+        // Seed the canonical buckets so they always appear (even at zero) in a stable order.
         val spendByBucket = LinkedHashMap<String, MutableMap<String, Double>>()
-        CategoryGroups.buckets.forEach { bucket ->
-            spendByBucket[bucket] = zeroedMonths()
-        }
+        buckets.names.forEach { bucket -> spendByBucket[bucket] = zeroedMonths() }
 
-        transactions.forEach { txn ->
-            if (txn.monthNumber !in 1..12) return@forEach
-            val bucket = CategoryGroups.bucketFor(txn.category)
-            val month = DateUtils.monthName(txn.monthNumber)
+        entries.forEach { entry ->
+            if (entry.monthNumber !in 1..12) return@forEach
+            val bucket = buckets.bucketFor(entry.category)
+            val month = DateUtils.monthName(entry.monthNumber)
             val months = spendByBucket.getOrPut(bucket) { zeroedMonths() }
-            months[month] = (months[month] ?: 0.0) + txn.amount
+            months[month] = (months[month] ?: 0.0) + entry.amount
         }
 
         return spendByBucket.entries
             // "Other" only earns a row when it actually holds spend (or a budget) — never as noise.
             .filter { (bucket, spend) ->
-                bucket != CategoryGroups.OTHER ||
+                bucket != SpendingBuckets.OTHER ||
                     spend.values.any { it > 0.0 } ||
                     (budgets[bucket] ?: 0.0) > 0.0
             }

@@ -9,11 +9,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.Session
-import org.example.project.data.CategoryTransaction
+import org.example.project.config.LedgerProfile
+import org.example.project.data.ledger.LedgerEntry
 import org.example.project.model.BudgetSummaryMapper
 import org.example.project.model.CategorySummary
 import org.example.project.repository.BudgetRepository
-import org.example.project.repository.TransactionRepository
+import org.example.project.repository.LedgerRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
@@ -29,14 +30,14 @@ data class SummaryUiState(
     val budgetByCategory: Map<String, Double> = emptyMap(),
     val viewMode: SummaryViewMode = SummaryViewMode.TOTAL,
     val selectedCategory: String? = null,
-    val transactions: List<CategoryTransaction> = emptyList(),
+    val transactions: List<LedgerEntry> = emptyList(),
     val transactionsLoading: Boolean = false,
     val transactionsError: String? = null,
     val error: String? = null,
 )
 
 class SummaryViewModel(
-    private val repository: TransactionRepository = TransactionRepository(),
+    private val repository: LedgerRepository = LedgerRepository(),
     private val budgetRepository: BudgetRepository = BudgetRepository(),
 ) : ViewModel() {
 
@@ -67,11 +68,15 @@ class SummaryViewModel(
                 // truth, always in sync with the drill-down) with budgets from the cloud store.
                 // Guests: the self-contained demo dataset (no ledger, no cloud).
                 val categories = if (Session.isGuest) {
-                    repository.getSummary()
+                    repository.getDemoSummary()
                 } else {
-                    val txnsDeferred = async { repository.getTransactions() }
+                    val txnsDeferred = async { repository.getExpenses() }
                     val budgetsDeferred = async { budgetRepository.getBudgets() }
-                    BudgetSummaryMapper.build(txnsDeferred.await(), budgetsDeferred.await())
+                    BudgetSummaryMapper.build(
+                        txnsDeferred.await(),
+                        budgetsDeferred.await(),
+                        LedgerProfile.current().spendingBuckets,
+                    )
                 }
                 val months = categories.firstOrNull()?.months ?: emptyList()
                 val totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
@@ -129,7 +134,7 @@ class SummaryViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(transactionsLoading = true, transactionsError = null) }
             try {
-                val txns = repository.getTransactions()
+                val txns = repository.getExpenses()
                 transactionsLoaded = true
                 _uiState.update { it.copy(transactions = txns, transactionsLoading = false) }
             } catch (e: Exception) {

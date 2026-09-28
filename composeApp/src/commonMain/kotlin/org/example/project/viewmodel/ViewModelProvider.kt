@@ -1,24 +1,29 @@
 package org.example.project.viewmodel
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
+
+// ViewModels are scoped to the nearest LocalViewModelStoreOwner — the per-session store set up by
+// SessionScope — so they survive recomposition and configuration changes, and are cleared on
+// sign-out on every platform.
 
 @Composable
-expect fun createTransactionViewModel(): TransactionViewModel
+fun createTransactionViewModel(): TransactionViewModel = viewModel { TransactionViewModel() }
 
 @Composable
-expect fun createAiViewModel(): AiViewModel
+fun createAiViewModel(): AiViewModel = viewModel { AiViewModel() }
 
 @Composable
-expect fun createSummaryViewModel(): SummaryViewModel
+fun createSummaryViewModel(): SummaryViewModel = viewModel { SummaryViewModel() }
 
 @Composable
-expect fun createBudgetViewModel(): BudgetViewModel
+fun createBudgetViewModel(): BudgetViewModel = viewModel { BudgetViewModel() }
 
 @Composable
-expect fun createCategoryListViewModel(): CategoryListViewModel
+fun createCategoryListViewModel(): CategoryListViewModel = viewModel { CategoryListViewModel() }
 
 @Composable
-expect fun createPaymentModeListViewModel(): PaymentModeListViewModel
+fun createPaymentModeListViewModel(): PaymentModeListViewModel = viewModel { PaymentModeListViewModel() }
 
 @Composable
-expect fun createPaymentStatusViewModel(): PaymentStatusViewModel
+fun createPaymentStatusViewModel(): PaymentStatusViewModel = viewModel { PaymentStatusViewModel() }

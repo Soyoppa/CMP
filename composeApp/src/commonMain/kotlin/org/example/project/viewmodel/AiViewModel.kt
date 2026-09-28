@@ -10,12 +10,12 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.Session
 import org.example.project.auth.aiCharLimit
 import org.example.project.auth.aiMessageLimit
-import org.example.project.data.AiRepository
-import org.example.project.data.CategoryTransaction
-import org.example.project.data.OllamaMessage
+import org.example.project.data.ai.AiRepository
+import org.example.project.data.ledger.LedgerEntry
+import org.example.project.data.ai.ChatTurn
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.model.ChatMessage
-import org.example.project.repository.TransactionRepository
+import org.example.project.repository.LedgerRepository
 import kotlinx.datetime.Clock
 import org.example.project.config.ConfigManager
 
@@ -31,13 +31,13 @@ data class AiUiState(
 
 class AiViewModel(
     private val aiRepository: AiRepository = AiRepository(),
-    private val transactionRepository: TransactionRepository = TransactionRepository()
+    private val transactionRepository: LedgerRepository = LedgerRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
 
-    private val conversationHistory = mutableListOf<OllamaMessage>()
+    private val conversationHistory = mutableListOf<ChatTurn>()
 
     // Guest allowance tracking.
     private var guestMessagesSent = 0
@@ -49,10 +49,10 @@ class AiViewModel(
     }
 
     /** Fresh read of 'Data Dump' for this turn's context. Empty (not thrown) on failure. */
-    private suspend fun fetchTransactions(): List<CategoryTransaction> {
+    private suspend fun fetchTransactions(): List<LedgerEntry> {
         _uiState.update { it.copy(isLoadingTransactions = true) }
         return try {
-            transactionRepository.getTransactions().also {
+            transactionRepository.getExpenses().also {
                 _uiState.update { s -> s.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             }
         } catch (e: Exception) {
@@ -112,8 +112,8 @@ class AiViewModel(
                 if (!result.isError) AiUsageTracker.record(result)
 
                 // Update conversation history
-                conversationHistory.add(OllamaMessage("user", userInput.trim()))
-                conversationHistory.add(OllamaMessage("assistant", result.text))
+                conversationHistory.add(ChatTurn("user", userInput.trim()))
+                conversationHistory.add(ChatTurn("assistant", result.text))
 
                 // Replace thinking bubble with real response
                 _uiState.update { state ->

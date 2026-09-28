@@ -36,7 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.example.project.config.SchemaFeatures
+import org.example.project.config.LedgerProfile
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.PaymentBadge
@@ -268,7 +268,7 @@ fun CategoryManagementScreen(
     onClose: () -> Unit = {},
     viewModel: CategoryListViewModel = createCategoryListViewModel(),
 ) {
-    val features = remember { SchemaFeatures.current() }
+    val features = remember { LedgerProfile.current() }
     val label = features.categoryLabel.lowercase()
     val uiState by viewModel.uiState.collectAsState()
     ManageListScreen(

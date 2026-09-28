@@ -103,7 +103,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.example.project.config.SchemaFeatures
+import org.example.project.config.LedgerProfile
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.VoiceAiUsage
@@ -133,7 +133,7 @@ fun TransactionInputScreen(
     modifier: Modifier = Modifier,
 ) {
     val formState by viewModel.formState.collectAsState()
-    val schemaFeatures = remember { SchemaFeatures.current() }
+    val schemaFeatures = remember { LedgerProfile.current() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val amountFocusRequester = remember { FocusRequester() }

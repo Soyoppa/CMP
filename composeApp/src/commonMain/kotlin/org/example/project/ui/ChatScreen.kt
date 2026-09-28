@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
 import org.example.project.config.FeatureFlagStore
-import org.example.project.config.SchemaFeatures
+import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
 import org.example.project.data.ai.AiUsageTracker
@@ -76,7 +76,7 @@ fun ChatScreen(
     onClose: (() -> Unit)? = null,
 ) {
     // Some schemas (e.g. Tracker 2) have no analysis sheets yet — show a "coming soon" state.
-    val aiAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
+    val aiAvailable = remember { LedgerProfile.current().summaryAvailable }
     if (!aiAvailable) {
         AiComingSoon(modifier = modifier.fillMaxSize(), bottomPadding = bottomPadding)
         return

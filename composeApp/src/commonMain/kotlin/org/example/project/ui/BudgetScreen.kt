@@ -1,6 +1,7 @@
 package org.example.project.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import org.example.project.config.LedgerProfile
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -35,7 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.example.project.model.CategoryGroups
+import org.example.project.model.SpendingBuckets
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
@@ -146,7 +147,7 @@ fun BudgetScreen(
 
             Spacer(Modifier.height(2.dp))
 
-            CategoryGroups.buckets.forEachIndexed { index, bucket ->
+            LedgerProfile.current().spendingBuckets.names.forEachIndexed { index, bucket ->
                 BudgetRow(
                     bucket = bucket,
                     value = uiState.amounts[bucket].orEmpty(),

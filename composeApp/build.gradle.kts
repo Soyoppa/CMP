@@ -63,6 +63,14 @@ kotlin {
             // Firebase dependencies (Android only)
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
             implementation("com.google.firebase:firebase-auth")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+        }
+
+        iosMain.dependencies {
+            // iOS HTTP client engine (Ktor has no default engine on Apple targets)
+            implementation("io.ktor:ktor-client-darwin:3.0.3")
+            // Keychain-backed storage for the Firebase Auth credential
+            implementation("com.russhwolf:multiplatform-settings:1.3.0")
         }
 
         commonMain.dependencies {
@@ -74,6 +82,8 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            // Multiplatform BackHandler (Android back button/gesture; no-op elsewhere)
+            implementation("org.jetbrains.compose.ui:ui-backhandler:1.9.1")
             
             // Date/Time handling
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
@@ -86,6 +96,8 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation("io.ktor:ktor-client-mock:3.0.3")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)

@@ -56,8 +56,8 @@ window.__financeAi = {
 };
 
 /*
- * Firebase Auth bridge. Exposes window.__financeAuth.{init, signIn, signUp, guest, signOut};
- * called from FirebaseAuthRepository (wasmJsMain). Email/Password + Anonymous (guest) providers,
+ * Firebase Auth bridge. Exposes window.__financeAuth.{init, signIn, signUp, guest, signOut,
+ * idToken, deleteUser}; called from FirebaseJsAuthProvider (wasmJsMain). Email/Password + Anonymous (guest) providers,
  * with browserLocalPersistence so sessions survive restarts until explicit sign-out.
  */
 window.__financeAuth = {
@@ -98,6 +98,8 @@ window.__financeAuth = {
       "auth/too-many-requests": "Too many attempts — try again later.",
       "auth/operation-not-allowed": "Email/Password sign-in isn't enabled in Firebase.",
       "auth/admin-restricted-operation": "Guest mode (Anonymous auth) isn't enabled in Firebase.",
+      "auth/requires-recent-login": "For your security, sign out, sign back in, and try again.",
+      "auth/network-request-failed": "No connection — check your network and try again.",
     };
     // Do NOT fall back to e.message — it can carry internal Firebase details
     // (including the submitted email address in some SDK versions).
@@ -137,6 +139,22 @@ window.__financeAuth = {
     await this._ready;
     await this._lib.signOut(this._auth);
     return "ok";
+  },
+  /** The signed-in user's ID token for Firestore REST calls, or "" when signed out. */
+  async idToken(forceRefresh) {
+    await this._ready;
+    const u = this._auth.currentUser;
+    return u ? await u.getIdToken(!!forceRefresh) : "";
+  },
+  /** Permanently deletes the signed-in account (caller re-authenticates first). */
+  async deleteUser() {
+    await this._ready;
+    const u = this._auth.currentUser;
+    if (!u) throw new Error("You're not signed in.");
+    try {
+      await this._lib.deleteUser(u);
+      return "ok";
+    } catch (e) { throw new Error(this._friendly(e)); }
   },
 };
 
@@ -182,52 +200,5 @@ window.__financeFlags = {
       console.error("[financeFlags] fetch failed, using defaults", e);
       return JSON.stringify(DEFAULTS);
     }
-  },
-};
-
-/*
- * Firebase Cloud Firestore bridge. Exposes window.__financeDb.{get, set};
- * called from FirebaseBudgetStore + FirebaseUserListStore (wasmJsMain) to persist per-user
- * docs at users/{uid}/settings/{docId} (e.g. "budget", "categories", "paymentModes").
- * Shares the single Firebase app with the auth/AI bridges. The firestore SDK is imported
- * lazily on first use, so it adds no startup cost.
- */
-window.__financeDb = {
-  _db: null,
-  _lib: null,
-  _ready: null,
-  _ensure(configJson) {
-    if (this._ready) return this._ready;
-    const config = JSON.parse(configJson);
-    this._ready = (async () => {
-      const appMod = await import(`${SDK}/firebase-app.js`);
-      const fsMod = await import(`${SDK}/firebase-firestore.js`);
-      this._lib = fsMod;
-      const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
-      this._db = fsMod.getFirestore(app);
-      return true;
-    })().catch((e) => {
-      console.error("[financeDb] init failed", e);
-      this._ready = null; // allow a later retry
-      throw e;
-    });
-    return this._ready;
-  },
-  _ref(uid, docId) {
-    // users/{uid}/settings/{docId}
-    return this._lib.doc(this._db, "users", uid, "settings", docId);
-  },
-  /** Reads the given settings doc. Returns the stored JSON object as a string, or "{}" if absent. */
-  async get(configJson, uid, docId) {
-    await this._ensure(configJson);
-    const snap = await this._lib.getDoc(this._ref(uid, docId));
-    return JSON.stringify(snap.exists() ? snap.data() : {});
-  },
-  /** Writes (merges) the given settings doc from a JSON string. */
-  async set(configJson, uid, docId, dataJson) {
-    await this._ensure(configJson);
-    const data = JSON.parse(dataJson);
-    await this._lib.setDoc(this._ref(uid, docId), data, { merge: true });
-    return "ok";
   },
 };

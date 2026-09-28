@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.Session
-import org.example.project.config.SchemaFeatures
-import org.example.project.data.AiRepository
+import org.example.project.config.LedgerProfile
+import org.example.project.data.ai.AiRepository
 import org.example.project.domain.transaction.AddTransactionUseCase
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
@@ -69,7 +69,7 @@ class TransactionViewModel(
      */
     fun refreshOptions() {
         viewModelScope.launch {
-            val categories = categoryRepository.getItems(SchemaFeatures.current().categoryOptions)
+            val categories = categoryRepository.getItems(LedgerProfile.current().categoryOptions)
             _formState.update { it.copy(categoryOptions = categories) }
         }
         viewModelScope.launch {
@@ -130,7 +130,7 @@ class TransactionViewModel(
      * Only when the category is still unknown do we spend an AI round-trip to classify it.
      */
     private suspend fun applyTranscript(transcript: String) {
-        val features = SchemaFeatures.current()
+        val features = LedgerProfile.current()
 
         // First pass detects the income/expense cue so we can pick the correct category list.
         val probe = VoiceTransactionParser.parse(transcript, emptyList(), features.showIncomeOption)
@@ -278,7 +278,7 @@ class TransactionViewModel(
         selectedCategory = TransactionCategory.OTHER.displayName,
         selectedPaymentMode = PaymentMode.OTHER.displayName,
         // Instant defaults so the form is usable before refreshOptions()'s cloud fetch resolves.
-        categoryOptions = SchemaFeatures.current().categoryOptions,
+        categoryOptions = LedgerProfile.current().categoryOptions,
         paymentModeOptions = PaymentMode.entries.map { it.displayName },
     )
 }

@@ -1,6 +1,5 @@
 package org.example.project.data.ai
 
-import org.example.project.data.OllamaMessage
 
 /**
  * A single AI backend the chat feature can talk to.
@@ -28,7 +27,7 @@ interface AiProvider {
      */
     suspend fun chat(
         systemPrompt: String,
-        history: List<OllamaMessage>,
+        history: List<ChatTurn>,
         userMessage: String,
     ): AiResult
 }

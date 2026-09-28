@@ -11,16 +11,6 @@ import kotlin.js.Promise
 
 actual fun createFeatureFlagLoader(): FeatureFlagLoader = RemoteConfigFeatureFlagLoader()
 
-@Serializable
-private data class FbConfig(
-    val apiKey: String,
-    val authDomain: String,
-    val projectId: String,
-    val storageBucket: String,
-    val messagingSenderId: String,
-    val appId: String,
-)
-
 /** Shape returned by the JS flags bridge (snake_case keys mirror the Remote Config parameter names). */
 @Serializable
 private data class FbFlags(
@@ -36,26 +26,11 @@ private fun flagsGet(configJson: String): Promise<JsString> = js("window.__finan
 
 internal class RemoteConfigFeatureFlagLoader : FeatureFlagLoader {
 
-    private fun configJson(): String {
-        val c = ConfigManager.getConfig()
-        return flagJson.encodeToString(
-            FbConfig.serializer(),
-            FbConfig(
-                apiKey = c.firebaseApiKey,
-                authDomain = c.firebaseAuthDomain,
-                projectId = c.firebaseProjectId,
-                storageBucket = c.firebaseStorageBucket,
-                messagingSenderId = c.firebaseMessagingSenderId,
-                appId = c.firebaseAppId,
-            ),
-        )
-    }
-
     override suspend fun load() {
         // The JS bridge swallows its own errors and returns defaults, so this won't throw in practice;
         // runCatching keeps a fail-open posture if the interop itself fails.
         runCatching {
-            val raw: JsString = flagsGet(configJson()).await()
+            val raw: JsString = flagsGet(firebaseWebConfigJson()).await()
             val f = flagJson.decodeFromString(FbFlags.serializer(), raw.toString())
             FeatureFlagStore.set(
                 FeatureFlags(

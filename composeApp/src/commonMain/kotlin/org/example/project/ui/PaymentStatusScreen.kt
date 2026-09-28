@@ -46,7 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.example.project.data.CategoryTransaction
+import org.example.project.data.ledger.LedgerEntry
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.ChoiceField
 import org.example.project.ui.components.ChoicePickerSheet
@@ -321,13 +321,13 @@ private sealed interface ListRow {
         override val key: String get() = "header-$paid"
     }
 
-    data class Entry(val index: Int, val transaction: CategoryTransaction) : ListRow {
+    data class Entry(val index: Int, val transaction: LedgerEntry) : ListRow {
         override val key: String get() = "row-$index"
     }
 }
 
 /** Walks the unpaid-first list once, opening a header each time the paid/unpaid boundary flips. */
-private fun buildListRows(entries: List<CategoryTransaction>): List<ListRow> {
+private fun buildListRows(entries: List<LedgerEntry>): List<ListRow> {
     val unpaidCount = entries.count { !it.isPaid }
     val paidCount = entries.size - unpaidCount
     val rows = ArrayList<ListRow>(entries.size + 2)
@@ -586,7 +586,7 @@ private fun SectionHeader(text: String, accent: Color, count: Int) {
 }
 
 @Composable
-private fun EntryRow(entry: CategoryTransaction) {
+private fun EntryRow(entry: LedgerEntry) {
     val accent = if (entry.isPaid) IncomeGreen else ExpenseTerracotta
     // Paid rows recede; unpaid rows keep a visible edge so they read as the actionable ones.
     Row(
@@ -643,7 +643,7 @@ private fun EntryRow(entry: CategoryTransaction) {
 }
 
 /** "Sep 1 · Subscription · Maya" — the parts of a row that aren't the name or the amount. */
-private fun entryMeta(entry: CategoryTransaction): String =
+private fun entryMeta(entry: LedgerEntry): String =
     listOf(entry.date.trim(), entry.category.trim(), entry.modeOfPayment.trim())
         .filter { it.isNotEmpty() }
         .joinToString(" · ")

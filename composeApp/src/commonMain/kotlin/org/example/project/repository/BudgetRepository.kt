@@ -1,32 +1,29 @@
 package org.example.project.repository
 
+import org.example.project.AppContainer
 import org.example.project.auth.Session
-import org.example.project.data.budget.BudgetStore
-import org.example.project.data.budget.createBudgetStore
+import org.example.project.data.settings.UserSettingsStore
+import org.example.project.util.UserFacingException
 
 /**
- * Thin facade over [BudgetStore] the app talks to for per-user budgets. Resolves the current
- * Firebase uid from [Session] so callers never have to thread it, and keeps reads non-fatal
- * (budgets are optional context for the summary — a failure means "no budgets", not an error).
+ * Per-user monthly budgets. Resolves the current uid from [Session] so callers never thread it,
+ * and keeps reads non-fatal (budgets are optional context for the summary — a failure means
+ * "no budgets", not an error).
  */
 class BudgetRepository(
-    private val store: BudgetStore = createBudgetStore(),
+    private val store: UserSettingsStore = AppContainer.userSettings,
 ) {
-    /** No signed-in uid → nothing to load/save (e.g. guests, who are gated off in the UI anyway). */
     private val uid: String? get() = Session.currentUser?.uid
 
-    /** Saved budgets keyed by bucket display name; empty map when none / not signed in / on error. */
+    /** Saved budgets keyed by bucket name; empty map when none / not signed in / on error. */
     suspend fun getBudgets(): Map<String, Double> {
         val id = uid ?: return emptyMap()
-        return runCatching { store.load(id) }.getOrDefault(emptyMap())
+        return runCatching { store.loadBudgets(id) }.getOrDefault(emptyMap())
     }
 
-    /**
-     * Persists [budgets]. Returns success/failure so the editor can surface a real error instead
-     * of silently dropping the write. Fails cleanly when there is no signed-in user.
-     */
+    /** Persists [budgets]; fails cleanly when nobody is signed in. */
     suspend fun saveBudgets(budgets: Map<String, Double>): Result<Unit> {
-        val id = uid ?: return Result.failure(IllegalStateException("Sign in to save budgets."))
-        return runCatching { store.save(id, budgets) }
+        val id = uid ?: return Result.failure(UserFacingException("Sign in to save budgets."))
+        return runCatching { store.saveBudgets(id, budgets) }
     }
 }

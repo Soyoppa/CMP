@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.config.SchemaFeatures
+import org.example.project.config.LedgerProfile
 import org.example.project.repository.UserListRepository
 
 data class ManagedListUiState(
@@ -20,7 +20,7 @@ data class ManagedListUiState(
 
 /**
  * Backs the "Manage categories" editor (tracker_1's expense categories, or tracker_2's
- * care-of list — whichever [SchemaFeatures.categoryLabel] names). Loads the signed-in user's
+ * care-of list — whichever [LedgerProfile.categoryLabel] names). Loads the signed-in user's
  * saved list, falling back to the schema's built-in defaults on first use, and persists on every
  * add/delete — unlike [BudgetViewModel] there's no numeric field to commit, just list membership,
  * so there's no separate save step to forget.
@@ -29,7 +29,7 @@ class CategoryListViewModel(
     private val repository: UserListRepository = UserListRepository(listId = "categories"),
 ) : ViewModel() {
 
-    private val defaults: List<String> get() = SchemaFeatures.current().categoryOptions
+    private val defaults: List<String> get() = LedgerProfile.current().categoryOptions
 
     private val _uiState = MutableStateFlow(ManagedListUiState())
     val uiState: StateFlow<ManagedListUiState> = _uiState.asStateFlow()

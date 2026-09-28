@@ -8,21 +8,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
-import org.example.project.data.OllamaMessage
+import org.example.project.config.firebaseWebConfigJson
 import kotlin.js.JsString
 import kotlin.js.Promise
 
 internal actual fun geminiProviderOrNull(): AiProvider? = FirebaseAiProvider()
-
-@Serializable
-private data class FirebaseConfig(
-    val apiKey: String,
-    val authDomain: String,
-    val projectId: String,
-    val storageBucket: String,
-    val messagingSenderId: String,
-    val appId: String,
-)
 
 @Serializable
 private data class GeminiPart(val text: String)
@@ -73,25 +63,13 @@ internal class FirebaseAiProvider : AiProvider {
 
     private fun ensureInitialized() {
         if (initialized) return
-        val cfg = ConfigManager.getConfig()
-        val configJson = json.encodeToString(
-            FirebaseConfig.serializer(),
-            FirebaseConfig(
-                apiKey = cfg.firebaseApiKey,
-                authDomain = cfg.firebaseAuthDomain,
-                projectId = cfg.firebaseProjectId,
-                storageBucket = cfg.firebaseStorageBucket,
-                messagingSenderId = cfg.firebaseMessagingSenderId,
-                appId = cfg.firebaseAppId,
-            ),
-        )
-        financeAiInit(configJson)
+        financeAiInit(firebaseWebConfigJson())
         initialized = true
     }
 
     override suspend fun chat(
         systemPrompt: String,
-        history: List<OllamaMessage>,
+        history: List<ChatTurn>,
         userMessage: String,
     ): AiResult {
         ensureInitialized()

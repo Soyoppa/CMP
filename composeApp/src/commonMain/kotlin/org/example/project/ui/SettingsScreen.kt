@@ -49,12 +49,12 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
-import org.example.project.config.SchemaFeatures
+import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ProviderUsage
 import org.example.project.data.ai.SessionUsage
-import org.example.project.repository.TransactionRepository
+import org.example.project.repository.LedgerRepository
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.AppShapes
@@ -77,13 +77,14 @@ fun SettingsScreen(
     onDarkThemeChange: (Boolean) -> Unit = {},
     accountEmail: String? = null,
     onSignOut: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {},
     onOpenBudgets: () -> Unit = {},
     onOpenCategories: () -> Unit = {},
     onOpenPaymentModes: () -> Unit = {},
     /** null on schemas whose ledger has no Paid column, which hides the row entirely. */
     onOpenPaymentStatus: (() -> Unit)? = null,
 ) {
-    val repository = remember { TransactionRepository() }
+    val repository = remember { LedgerRepository() }
     val coroutineScope = rememberCoroutineScope()
     var result by remember { mutableStateOf(TestResult.Idle) }
     var isLoading by remember { mutableStateOf(false) }
@@ -92,8 +93,8 @@ fun SettingsScreen(
     val authState by Session.state.collectAsState()
     val isGuest = (authState as? AuthState.Authenticated)?.user?.isGuest == true
     // Tracker 2 has no analysis sheets yet, so the AI section is hidden there (same flag the chat uses).
-    val aiAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
-    val categoryLabel = remember { SchemaFeatures.current().categoryLabel }
+    val aiAvailable = remember { LedgerProfile.current().summaryAvailable }
+    val categoryLabel = remember { LedgerProfile.current().categoryLabel }
 
     Column(
         modifier = modifier
@@ -115,6 +116,12 @@ fun SettingsScreen(
                 email = accountEmail,
                 isGuest = isGuest,
                 onSignOut = onSignOut,
+            )
+            NavigationRow(
+                title = "Delete account",
+                subtitle = if (isGuest) "Remove this guest session permanently"
+                else "Permanently delete your account and all of its data",
+                onClick = onDeleteAccount,
             )
         }
 

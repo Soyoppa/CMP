@@ -1,19 +1,20 @@
 package org.example.project.viewmodel
 
 import androidx.lifecycle.ViewModel
+import org.example.project.config.LedgerProfile
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.model.CategoryGroups
+import org.example.project.model.SpendingBuckets
 import org.example.project.repository.BudgetRepository
 
 data class BudgetUiState(
     val isLoading: Boolean = false,
     /** bucket display name -> the raw text in its input field (empty = no budget). */
-    val amounts: Map<String, String> = CategoryGroups.buckets.associateWith { "" },
+    val amounts: Map<String, String> = LedgerProfile.current().spendingBuckets.names.associateWith { "" },
     val isSaving: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null,
@@ -40,7 +41,7 @@ class BudgetViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null, saved = false) }
             val saved = budgetRepository.getBudgets()
-            val amounts = CategoryGroups.buckets.associateWith { bucket ->
+            val amounts = LedgerProfile.current().spendingBuckets.names.associateWith { bucket ->
                 saved[bucket]?.takeIf { it > 0.0 }?.let { formatAmount(it) } ?: ""
             }
             _uiState.update { it.copy(isLoading = false, amounts = amounts) }
@@ -57,7 +58,7 @@ class BudgetViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = null, saved = false) }
             // Write every bucket explicitly (0.0 for cleared) so a removed budget is actually cleared.
-            val budgets = CategoryGroups.buckets.associateWith { bucket ->
+            val budgets = LedgerProfile.current().spendingBuckets.names.associateWith { bucket ->
                 _uiState.value.amounts[bucket]?.toDoubleOrNull() ?: 0.0
             }
             val result = budgetRepository.saveBudgets(budgets)
