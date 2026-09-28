@@ -7,11 +7,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.auth.Session
 import org.example.project.data.CategoryTransaction
-import org.example.project.data.DemoRepository
 import org.example.project.repository.TransactionRepository
 import org.example.project.util.DateUtils
+import org.example.project.util.toUserMessage
 
 /** Which side of the ledger the list shows. Totals are always reported for both. */
 enum class PaymentStatusFilter { ALL, UNPAID, PAID }
@@ -74,8 +73,7 @@ class PaymentStatusViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val entries = if (Session.isGuest) DemoRepository.getTransactions()
-                              else repository.getTransactions()
+                val entries = repository.getTransactions()
                 val spelling = canonicalSpellings(entries)
                 allEntries = entries.map { txn ->
                     val key = txn.modeOfPayment.trim().lowercase()
@@ -105,7 +103,7 @@ class PaymentStatusViewModel(
                 recompute()
             } catch (e: Exception) {
                 allEntries = emptyList()
-                _uiState.update { it.copy(isLoading = false, error = e.message ?: "Couldn't load the ledger.") }
+                _uiState.update { it.copy(isLoading = false, error = e.toUserMessage("Couldn't load the ledger.")) }
             }
         }
     }

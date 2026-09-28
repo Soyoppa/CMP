@@ -1,51 +1,35 @@
 package org.example.project.data
 
 import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.plugins.logging.*
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*
-import io.ktor.client.statement.request
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.model.Transaction
 
 @Serializable
-data class ScriptResponse(
+private data class ScriptResponse(
     val success: Boolean,
     val message: String? = null,
     val error: String? = null
 )
 
-/**
- * Rich result type — carries diagnostic info up to the ViewModel
- * so logs print from main thread (visible in Logcat regardless of filter).
- */
+/** Outcome of a ledger write. [errorMessage] is user-facing (never a raw URL or response body). */
 data class AddTransactionResult(
     val success: Boolean,
-    val httpStatus: Int? = null,
-    val responseBody: String? = null,
     val errorMessage: String? = null,
-    val exceptionType: String? = null,
-    val urlUsed: String? = null
 )
 
+private val scriptJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+/**
+ * Writes to the ledger through the schema's Google Apps Script web app (`WRITE_SCRIPT_URL`).
+ * Each schema supplies its own query parameters (see apps-script/tracker_1.gs / tracker_2.gs).
+ */
 class GoogleAppsScriptRepository {
     private val client = HttpClient {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-        install(Logging) {
-            // SECURITY: was LogLevel.ALL which wrote full request URLs (incl. API key query param)
-            // and response bodies to stdout. Downgraded to NONE; re-enable only under a debug flag.
-            level = LogLevel.NONE
-        }
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000  // 30s timeout — prevents infinite loading
             connectTimeoutMillis = 15_000
@@ -53,88 +37,52 @@ class GoogleAppsScriptRepository {
         followRedirects = true
     }
 
-    suspend fun addTransaction(transaction: Transaction): Boolean {
-        return addTransactionDetailed(transaction).success
-    }
+    /** tracker_1 row: Date | Description | Inflow | Outflow | Category | Mode | Paid. */
+    suspend fun addTransaction(transaction: Transaction): AddTransactionResult = append(
+        "date" to transaction.date,
+        "description" to transaction.description,
+        "inflow" to if (transaction.inflow > 0) transaction.inflow.toString() else "",
+        "outflow" to if (transaction.outflow > 0) transaction.outflow.toString() else "",
+        "category" to transaction.category,
+        "modeOfPayment" to transaction.modeOfPayment,
+        "isPaid" to if (transaction.isPaid) "TRUE" else "FALSE",
+    )
 
     /**
-     * Detailed version that returns rich diagnostic info.
-     * Use this when you need to inspect what actually happened.
+     * Sends one append request and interprets the script's JSON reply. Transport details (URL,
+     * status, body) are deliberately kept out of the result — they can carry the deployment URL.
      */
-    suspend fun addTransactionDetailed(transaction: Transaction): AddTransactionResult {
+    suspend fun append(vararg params: Pair<String, String>): AddTransactionResult {
         val scriptUrl = ConfigManager.getConfig().writeScriptUrl
-
-        // Validate URL is configured
-        if (scriptUrl.isBlank() || scriptUrl == "BUILD_TIME_SCRIPT_URL") {
-            return AddTransactionResult(
-                success = false,
-                errorMessage = "Script URL not configured: '$scriptUrl'",
-                urlUsed = scriptUrl
-            )
+        if (scriptUrl.isBlank()) {
+            return AddTransactionResult(success = false, errorMessage = "Saving isn't configured on this build.")
         }
 
         return try {
             val response = client.get(scriptUrl) {
-                parameter("date", transaction.date)
-                parameter("description", transaction.description)
-                parameter("inflow", if (transaction.inflow > 0) transaction.inflow.toString() else "")
-                parameter("outflow", if (transaction.outflow > 0) transaction.outflow.toString() else "")
-                parameter("category", transaction.category)
-                parameter("modeOfPayment", transaction.modeOfPayment)
-                parameter("isPaid", if (transaction.isPaid) "TRUE" else "FALSE")
+                params.forEach { (name, value) -> parameter(name, value) }
             }
-
-            val responseText = response.body<String>()
-            val status = response.status.value
-            val finalUrl = response.request.url.toString()
-
-            if (status !in 200..399) {
+            if (response.status.value !in 200..399) {
                 return AddTransactionResult(
                     success = false,
-                    httpStatus = status,
-                    responseBody = responseText.take(2000),
-                    errorMessage = "HTTP error: ${response.status}",
-                    urlUsed = finalUrl
+                    errorMessage = "The server rejected the save (HTTP ${response.status.value}). Please try again.",
                 )
             }
-
-            // Try to parse as JSON
-            try {
-                val jsonResponse = Json.decodeFromString<ScriptResponse>(responseText)
-                AddTransactionResult(
-                    success = jsonResponse.success,
-                    httpStatus = status,
-                    responseBody = responseText.take(2000),
-                    errorMessage = jsonResponse.error,
-                    urlUsed = finalUrl
-                )
-            } catch (parseError: Exception) {
-                AddTransactionResult(
+            val reply = runCatching {
+                scriptJson.decodeFromString<ScriptResponse>(response.bodyAsText())
+            }.getOrNull()
+                ?: return AddTransactionResult(
                     success = false,
-                    httpStatus = status,
-                    responseBody = responseText.take(500),
-                    errorMessage = "JSON parse failed — response is not JSON (likely HTML auth page). Parser: ${parseError.message}",
-                    exceptionType    = parseError::class.simpleName,
-                    urlUsed = finalUrl
+                    // Non-JSON almost always means an HTML sign-in/error page: the deployment is
+                    // wrong (/edit instead of /exec, or access not set to "Anyone").
+                    errorMessage = "The save service returned an unexpected response. Check the Apps Script deployment.",
                 )
-            }
-        } catch (e: Exception) {
             AddTransactionResult(
-                success = false,
-                errorMessage = e.message ?: "Unknown exception",
-                exceptionType = e::class.simpleName,
-                urlUsed = scriptUrl
+                success = reply.success,
+                errorMessage = if (reply.success) null else "The sheet rejected the save: ${reply.error ?: "unknown error"}",
             )
-        }
-    }
-
-    suspend fun testConnection(): String {
-        return try {
-            val response = client.get(ConfigManager.getConfig().writeScriptUrl)
-            val responseBody = response.body<String>()
-            "Connection test - Status: ${response.status}, Body: $responseBody"
         } catch (e: Exception) {
-            "Connection failed: ${e.message}"
+            AddTransactionResult(success = false, errorMessage = "Couldn't reach the save service. Check your connection and try again.")
         }
     }
 }

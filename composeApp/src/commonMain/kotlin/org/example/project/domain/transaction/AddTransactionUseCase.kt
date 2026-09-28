@@ -7,17 +7,6 @@ import org.example.project.repository.TransactionRepository
 class AddTransactionUseCase(
     private val repository: TransactionRepository = TransactionRepository()
 ) {
-    suspend operator fun invoke(transaction: Transaction): Result<Unit> = runCatching {
-        val success = repository.addTransaction(transaction)
-        if (!success) {
-            throw Exception("Failed to save transaction. Please try again.")
-        }
-    }
-
-    /**
-     * Detailed version — returns rich diagnostic info from the repository.
-     */
-    suspend fun invokeDetailed(transaction: Transaction): AddTransactionResult {
-        return repository.addTransactionDetailed(transaction)
-    }
+    suspend operator fun invoke(transaction: Transaction): AddTransactionResult =
+        repository.addTransaction(transaction)
 }

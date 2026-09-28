@@ -6,6 +6,7 @@ import kotlinx.coroutines.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
+import org.example.project.util.UserFacingException
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsString
 import kotlin.js.Promise
@@ -70,18 +71,24 @@ internal class FirebaseAuthRepository : AuthRepository {
         applyUser(raw.toString())
     }
 
-    override suspend fun signIn(email: String, password: String): Result<Unit> = runCatching {
-        val raw: JsString = authSignIn(email.trim(), password).await()
-        applyUser(raw.toString())
-    }
+    override suspend fun signIn(email: String, password: String): Result<Unit> =
+        authCall { authSignIn(email.trim(), password) }
 
-    override suspend fun signUp(email: String, password: String): Result<Unit> = runCatching {
-        val raw: JsString = authSignUp(email.trim(), password).await()
-        applyUser(raw.toString())
-    }
+    override suspend fun signUp(email: String, password: String): Result<Unit> =
+        authCall { authSignUp(email.trim(), password) }
 
-    override suspend fun continueAsGuest(): Result<Unit> = runCatching {
-        val raw: JsString = authGuest().await()
+    override suspend fun continueAsGuest(): Result<Unit> = authCall { authGuest() }
+
+    /**
+     * Runs one bridge call and applies the resulting user. The bridge only ever rejects with its
+     * own friendly, allow-listed messages (see `_friendly` in index.html), so they're user-facing.
+     */
+    private suspend fun authCall(call: () -> Promise<JsString>): Result<Unit> = runCatching {
+        val raw: JsString = try {
+            call().await()
+        } catch (e: Throwable) {
+            throw UserFacingException(e.message?.takeIf { it.isNotBlank() } ?: "Authentication failed.")
+        }
         applyUser(raw.toString())
     }
 

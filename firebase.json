@@ -36,7 +36,7 @@
           "headers": [
             {
               "key": "Content-Security-Policy",
-              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://script.google.com https://script.googleusercontent.com https://*.firebaseapp.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+              "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://script.google.com https://script.googleusercontent.com https://*.firebaseapp.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
             },
             {
               "key": "X-Content-Type-Options",
@@ -56,7 +56,7 @@
             },
             {
               "key": "Permissions-Policy",
-              "value": "camera=(), microphone=(), geolocation=(), payment=()"
+              "value": "camera=(), microphone=(self), geolocation=(), payment=()"
             }
           ]
         }
@@ -95,7 +95,7 @@
           "headers": [
             {
               "key": "Content-Security-Policy",
-              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://script.google.com https://script.googleusercontent.com https://*.firebaseapp.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+              "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://script.google.com https://script.googleusercontent.com https://*.firebaseapp.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
             },
             {
               "key": "X-Content-Type-Options",
@@ -115,7 +115,7 @@
             },
             {
               "key": "Permissions-Policy",
-              "value": "camera=(), microphone=(), geolocation=(), payment=()"
+              "value": "camera=(), microphone=(self), geolocation=(), payment=()"
             }
           ]
         }

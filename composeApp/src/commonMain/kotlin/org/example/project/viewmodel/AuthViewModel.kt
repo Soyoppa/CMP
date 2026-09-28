@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.AuthRepository
 import org.example.project.auth.createAuthRepository
+import org.example.project.util.toUserMessage
 
 /**
  * Drives the login/sign-up form. On success the [AuthRepository] flips [org.example.project.auth.Session],
@@ -57,7 +58,7 @@ class AuthViewModel(
             result
                 .onSuccess { _state.update { it.copy(isSubmitting = false) } }
                 .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Authentication failed.") }
+                    _state.update { it.copy(isSubmitting = false, error = e.toUserMessage("Authentication failed.")) }
                 }
         }
     }
@@ -69,7 +70,7 @@ class AuthViewModel(
             repository.continueAsGuest()
                 .onSuccess { _state.update { it.copy(isSubmitting = false) } }
                 .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.message ?: "Couldn't start guest mode.") }
+                    _state.update { it.copy(isSubmitting = false, error = e.toUserMessage("Couldn't start guest mode.")) }
                 }
         }
     }

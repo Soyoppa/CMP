@@ -24,6 +24,7 @@ import org.example.project.model.Transaction
 import org.example.project.model.TransactionCategory
 import org.example.project.repository.UserListRepository
 import org.example.project.util.DateUtils
+import org.example.project.util.toUserMessage
 import org.example.project.voice.VoiceInputController
 import org.example.project.voice.VoiceState
 import org.example.project.voice.VoiceStatus
@@ -222,7 +223,7 @@ class TransactionViewModel(
         _formState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
-                val result = addTransactionUseCase.invokeDetailed(buildTransaction(state))
+                val result = addTransactionUseCase(buildTransaction(state))
                 if (result.success) {
                     _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved successfully!"))
                     resetForm()
@@ -231,7 +232,7 @@ class TransactionViewModel(
                     _formState.update { it.copy(isLoading = false) }
                 }
             } catch (e: Exception) {
-                _effects.emit(TransactionFormEffect.ShowError("Error: ${e.message ?: "Unknown error occurred"}"))
+                _effects.emit(TransactionFormEffect.ShowError(e.toUserMessage("Couldn't save the transaction.")))
                 _formState.update { it.copy(isLoading = false) }
             }
         }

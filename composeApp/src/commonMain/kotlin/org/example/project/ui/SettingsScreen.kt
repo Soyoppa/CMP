@@ -54,13 +54,12 @@ import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ProviderUsage
 import org.example.project.data.ai.SessionUsage
-import org.example.project.model.Transaction
 import org.example.project.repository.TransactionRepository
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.AppShapes
-import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
+import org.example.project.util.toUserMessage
 
 
 private enum class ResultKind { IDLE, SUCCESS, WARNING, ERROR }
@@ -176,23 +175,14 @@ fun SettingsScreen(
             }
         }
 
-        SettingsSection(title = "Diagnostics") {
-            if (isGuest) {
-                Text(
-                    text = "Guest mode — diagnostics are read-only. Sign in to enable them.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+        // Diagnostics read the real ledger, so they're for signed-in users only — a guest is an
+        // anonymous session and must never see real rows.
+        if (!isGuest) {
+            SettingsSection(title = "Diagnostics") {
                 TestActionButton(
                     label = "Test Read",
                     isLoading = isLoading,
-                    enabled = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         coroutineScope.launch {
                             isLoading = true
@@ -201,7 +191,7 @@ fun SettingsScreen(
                                 if (recent.isEmpty()) {
                                     TestResult(
                                         ResultKind.WARNING,
-                                        "Read returned HTTP 200 but no data rows. If you expected rows, " +
+                                        "Read succeeded but returned no data rows. If you expected rows, " +
                                             "the range likely points at the wrong/empty tab — check this " +
                                             "schema's SHEET_RANGE tab name and that data sits under the header.",
                                     )
@@ -213,57 +203,14 @@ fun SettingsScreen(
                                     TestResult(ResultKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
                                 }
                             } catch (e: Exception) {
-                                TestResult(ResultKind.ERROR, "Read failed: ${e.message}")
+                                TestResult(ResultKind.ERROR, e.toUserMessage("Read failed. Check your connection and sheet access."))
                             }
                             isLoading = false
                         }
                     },
                 )
-                TestActionButton(
-                    label = "Test Write",
-                    isLoading = isLoading,
-                    enabled = false,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        coroutineScope.launch {
-                            isLoading = true
-                            result = try {
-                                val testTransaction = Transaction(
-                                    date = DateUtils.getCurrentDateFormatted(),
-                                    description = "Test Transaction",
-                                    outflow = 100.0,
-                                    category = "Test",
-                                    modeOfPayment = "Test",
-                                    isPaid = false,
-                                )
-                                if (repository.addTransaction(testTransaction)) {
-                                    TestResult(
-                                        ResultKind.SUCCESS,
-                                        "Write succeeded. Check your Google Sheet to confirm the row.",
-                                    )
-                                } else {
-                                    TestResult(
-                                        ResultKind.WARNING,
-                                        "Write response was unclear. Apps Script sometimes commits even when parsing fails — check your sheet.",
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                TestResult(
-                                    ResultKind.ERROR,
-                                    "Write failed: ${e.message}\nThe row may still have been added — verify in your sheet.",
-                                )
-                            }
-                            isLoading = false
-                        }
-                    },
-                )
+                ResultCard(result = result)
             }
-            Text(
-                text = "Write test is disabled on this build.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ResultCard(result = result)
         }
     }
 }

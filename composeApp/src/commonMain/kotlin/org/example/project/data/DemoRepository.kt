@@ -98,8 +98,7 @@ object DemoRepository : SheetRepository {
     override suspend fun getRecentTransactions(limit: Int): List<RecentTransaction> =
         allRecentTransactions.take(limit)
 
+    /** Demo data is read-only: report success so the flow completes, but nothing is stored. */
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
-        AddTransactionResult(success = true, responseBody = "Demo mode — transaction not saved.")
-
-    override suspend fun testWriteConnection(): String = "Demo mode — write disabled."
+        AddTransactionResult(success = true)
 }

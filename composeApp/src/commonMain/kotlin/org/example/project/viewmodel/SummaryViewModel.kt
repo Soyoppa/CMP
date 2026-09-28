@@ -10,12 +10,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.auth.Session
 import org.example.project.data.CategoryTransaction
-import org.example.project.data.DemoRepository
 import org.example.project.model.BudgetSummaryMapper
 import org.example.project.model.CategorySummary
 import org.example.project.repository.BudgetRepository
 import org.example.project.repository.TransactionRepository
 import org.example.project.util.DateUtils
+import org.example.project.util.toUserMessage
 
 /** Whether the bar chart plots every category summed, or one category's trend across months. */
 enum class SummaryViewMode { TOTAL, BY_CATEGORY }
@@ -67,7 +67,7 @@ class SummaryViewModel(
                 // truth, always in sync with the drill-down) with budgets from the cloud store.
                 // Guests: the self-contained demo dataset (no ledger, no cloud).
                 val categories = if (Session.isGuest) {
-                    DemoRepository.getSummary()
+                    repository.getSummary()
                 } else {
                     val txnsDeferred = async { repository.getTransactions() }
                     val budgetsDeferred = async { budgetRepository.getBudgets() }
@@ -101,7 +101,7 @@ class SummaryViewModel(
                     ensureTransactionsLoaded()
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                _uiState.update { it.copy(isLoading = false, error = e.toUserMessage("Couldn't load your summary.")) }
             }
         }
     }
@@ -129,12 +129,13 @@ class SummaryViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(transactionsLoading = true, transactionsError = null) }
             try {
-                val txns = if (Session.isGuest) DemoRepository.getTransactions()
-                           else repository.getTransactions()
+                val txns = repository.getTransactions()
                 transactionsLoaded = true
                 _uiState.update { it.copy(transactions = txns, transactionsLoading = false) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(transactionsLoading = false, transactionsError = e.message) }
+                _uiState.update {
+                    it.copy(transactionsLoading = false, transactionsError = e.toUserMessage("Couldn't load transactions."))
+                }
             }
         }
     }

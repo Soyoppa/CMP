@@ -59,5 +59,4 @@ interface SheetRepository {
 
     // Write
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult
-    suspend fun testWriteConnection(): String
 }

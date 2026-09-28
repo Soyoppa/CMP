@@ -62,7 +62,6 @@ kotlin {
             
             // Firebase dependencies (Android only)
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
-            implementation("com.google.firebase:firebase-analytics")
             implementation("com.google.firebase:firebase-auth")
         }
 
@@ -84,8 +83,6 @@ kotlin {
             implementation("io.ktor:ktor-client-core:3.0.3")
             implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
-            implementation("io.ktor:ktor-client-auth:3.0.3")
-            implementation("io.ktor:ktor-client-logging:3.0.3")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -93,7 +90,6 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(npm("firebase", "11.0.1"))
             
             // JVM-specific HTTP client engine
             implementation("io.ktor:ktor-client-cio:3.0.3")
