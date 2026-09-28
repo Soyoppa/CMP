@@ -1,5 +1,6 @@
 package org.example.project.viewmodel
 
+import org.example.project.AppContainer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -43,7 +44,7 @@ import org.example.project.voice.provideVoiceInputController
 class TransactionViewModel(
     private val addTransactionUseCase: AddTransactionUseCase = AddTransactionUseCase(),
     private val voiceController: VoiceInputController = provideVoiceInputController(),
-    private val aiRepository: AiRepository = AiRepository(),
+    private val aiRepository: AiRepository = AppContainer.aiRepository,
     private val categoryRepository: UserListRepository = UserListRepository(listId = "categories"),
     private val paymentModeRepository: UserListRepository = UserListRepository(listId = "paymentModes"),
 ) : ViewModel() {

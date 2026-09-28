@@ -5,12 +5,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Remote kill-switches for UI features, sourced from Firebase Remote Config (web) and
- * defaulting to fully-enabled everywhere else. Defaults are "fail-open": if Remote Config
- * is unreachable or hasn't been fetched yet, every feature stays on.
+ * Remote kill-switches for UI features, sourced from Firebase Remote Config (web + Android) and
+ * defaulting to fully-enabled everywhere else. Defaults are "fail-open": if Remote Config is
+ * unreachable or hasn't been fetched yet, every feature stays on.
  */
 data class FeatureFlags(
-    val signupEnabled: Boolean = false,
+    val signupEnabled: Boolean = true,
     val guestModeEnabled: Boolean = true,
     val chatEnabled: Boolean = true,
 )

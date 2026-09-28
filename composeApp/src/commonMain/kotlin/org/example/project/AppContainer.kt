@@ -5,6 +5,7 @@ import org.example.project.auth.AuthRepository
 import org.example.project.auth.Session
 import org.example.project.auth.createAuthProvider
 import org.example.project.config.ConfigManager
+import org.example.project.data.ai.AiRepository
 import org.example.project.data.firestore.FirestoreRestClient
 import org.example.project.data.ledger.FirestoreLedgerDataSource
 import org.example.project.data.ledger.LedgerAccessResolver
@@ -39,6 +40,8 @@ object AppContainer {
     val sheetsLedger: LedgerDataSource by lazy {
         SheetDataSourceFactory.create(SheetsGatewayClient(idToken = { authProvider.idToken(forceRefresh = false) }))
     }
+
+    val aiRepository: AiRepository by lazy { AiRepository() }
 
     val authRepository: AuthRepository by lazy {
         AuthRepository(

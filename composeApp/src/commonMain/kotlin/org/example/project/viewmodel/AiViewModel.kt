@@ -1,5 +1,6 @@
 package org.example.project.viewmodel
 
+import org.example.project.AppContainer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,6 @@ import org.example.project.data.ai.AiUsageTracker
 import org.example.project.model.ChatMessage
 import org.example.project.repository.LedgerRepository
 import kotlinx.datetime.Clock
-import org.example.project.config.ConfigManager
 
 data class AiUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -30,7 +30,7 @@ data class AiUiState(
 )
 
 class AiViewModel(
-    private val aiRepository: AiRepository = AiRepository(),
+    private val aiRepository: AiRepository = AppContainer.aiRepository,
     private val transactionRepository: LedgerRepository = LedgerRepository()
 ) : ViewModel() {
 
@@ -41,12 +41,6 @@ class AiViewModel(
 
     // Guest allowance tracking.
     private var guestMessagesSent = 0
-
-    init {
-        ConfigManager.reset()
-        // No eager fetch here — 'Data Dump' is read fresh per message in sendMessage() so the
-        // AI always answers off current data instead of a snapshot taken when the chat opened.
-    }
 
     /** Fresh read of 'Data Dump' for this turn's context. Empty (not thrown) on failure. */
     private suspend fun fetchTransactions(): List<LedgerEntry> {

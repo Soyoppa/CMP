@@ -63,6 +63,8 @@ kotlin {
             // Firebase dependencies (Android only)
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.5.0"))
             implementation("com.google.firebase:firebase-auth")
+            implementation("com.google.firebase:firebase-config")
+            implementation("com.google.firebase:firebase-ai")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
         }
 

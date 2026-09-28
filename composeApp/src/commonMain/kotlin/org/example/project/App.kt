@@ -176,6 +176,8 @@ private fun SignedInApp(
     // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
     val summaryViewModel = createSummaryViewModel()
     val featureFlags by FeatureFlagStore.state.collectAsState()
+    // Chat needs Gemini on this platform (web + Android) and the remote kill-switch on.
+    val chatAvailable = featureFlags.chatEnabled && AppContainer.aiRepository.isGeminiAvailable
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Every session lands on ADD.
@@ -204,8 +206,8 @@ private fun SignedInApp(
     }
 
     // If chat is remotely disabled while the modal is open, collapse it.
-    LaunchedEffect(featureFlags.chatEnabled) {
-        if (!featureFlags.chatEnabled) chatOpen = false
+    LaunchedEffect(chatAvailable) {
+        if (!chatAvailable) chatOpen = false
     }
 
     LaunchedEffect(transactionViewModel) {
@@ -304,7 +306,7 @@ private fun SignedInApp(
             // Floating AI assistant — a draggable chat-head bubble (Messenger-style) that
             // opens the chat as a modal growing from its corner. Hidden while the modal is open.
             ChatBubble(
-                visible = featureFlags.chatEnabled && !chatOpen,
+                visible = chatAvailable && !chatOpen,
                 onClick = { chatOpen = true },
                 modifier = Modifier.fillMaxSize(),
             )

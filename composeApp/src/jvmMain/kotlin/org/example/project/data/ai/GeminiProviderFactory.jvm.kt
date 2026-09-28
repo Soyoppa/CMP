@@ -1,4 +1,4 @@
 package org.example.project.data.ai
 
-// Desktop/JVM has no Firebase AI Logic bridge; AI falls back to Ollama.
+// Desktop has no Firebase AI Logic binding, so the chat bubble is hidden there.
 internal actual fun geminiProviderOrNull(): AiProvider? = null
