@@ -81,6 +81,8 @@ fun SettingsScreen(
     onOpenBudgets: () -> Unit = {},
     onOpenCategories: () -> Unit = {},
     onOpenPaymentModes: () -> Unit = {},
+    /** null on schemas whose ledger has no Paid column, which hides the row entirely. */
+    onOpenPaymentStatus: (() -> Unit)? = null,
 ) {
     val repository = remember { TransactionRepository() }
     val coroutineScope = rememberCoroutineScope()
@@ -122,6 +124,17 @@ fun SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
             )
+        }
+
+        // Read-only slice of the ledger — available to guests too (they see the demo dataset).
+        if (onOpenPaymentStatus != null) {
+            SettingsSection(title = "Ledger") {
+                NavigationRow(
+                    title = "Paid & unpaid",
+                    subtitle = "See what's settled and what's outstanding, per payment mode",
+                    onClick = onOpenPaymentStatus,
+                )
+            }
         }
 
         // Category/payment-mode lists are per-account cloud data — hidden for guests (who can't save them).

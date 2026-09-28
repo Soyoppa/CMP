@@ -77,6 +77,12 @@ private val CategoryBarColors = listOf(
     SageBright,
 )
 
+/**
+ * Below this width the Summary header stacks its actions under the title. Sized just above the
+ * common small-phone logical width (375dp: iPhone 13 mini, SE) so those devices stack.
+ */
+private val StackedHeaderWidth = 400.dp
+
 private fun colorForIndex(index: Int): Color = CategoryBarColors[index % CategoryBarColors.size]
 
 private fun formatAmount(amount: Double): String {
@@ -114,6 +120,7 @@ fun SummaryScreen(
     modifier: Modifier = Modifier,
     bottomPadding: Dp = 0.dp,
     onOpenBudgets: (() -> Unit)? = null,
+    onOpenPaymentStatus: (() -> Unit)? = null,
     viewModel: SummaryViewModel = createSummaryViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -123,6 +130,7 @@ fun SummaryScreen(
             hasData = uiState.categories.isNotEmpty(),
             onRetry = viewModel::load,
             onEditBudgets = onOpenBudgets,
+            onOpenPaymentStatus = onOpenPaymentStatus,
         )
 
         Column(
@@ -1095,62 +1103,127 @@ private fun BudgetStatusPill(
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
+/**
+ * Title plus up to three action pills, laid out to fit the device.
+ *
+ * On a roomy screen they share one row. Below [StackedHeaderWidth] the pills drop to a row of
+ * their own: three pills plus a serif title on one line leaves the title ~120dp on a small phone
+ * (iPhone 13 mini and friends), which is narrow enough that "Spending Summary" breaks mid-word.
+ * Giving the title the full width costs one row of height and keeps every action reachable —
+ * better than shrinking the type or hiding actions behind an overflow menu.
+ */
 @Composable
-private fun SummaryHeader(hasData: Boolean, onRetry: () -> Unit, onEditBudgets: (() -> Unit)?) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+private fun SummaryHeader(
+    hasData: Boolean,
+    onRetry: () -> Unit,
+    onEditBudgets: (() -> Unit)?,
+    onOpenPaymentStatus: (() -> Unit)?,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val stacked = maxWidth < StackedHeaderWidth
+
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SummaryHeaderTitle()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryHeaderActions(
+                        hasData = hasData,
+                        onRetry = onRetry,
+                        onEditBudgets = onEditBudgets,
+                        onOpenPaymentStatus = onOpenPaymentStatus,
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(modifier = Modifier.weight(1f)) { SummaryHeaderTitle() }
+                SummaryHeaderActions(
+                    hasData = hasData,
+                    onRetry = onRetry,
+                    onEditBudgets = onEditBudgets,
+                    onOpenPaymentStatus = onOpenPaymentStatus,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryHeaderTitle() {
+    Column {
+        Text(
+            text = "Spending Summary",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Tap a bar to filter by month",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** The pills themselves — no Row/Column scope needed, so both layouts can host them. */
+@Composable
+private fun SummaryHeaderActions(
+    hasData: Boolean,
+    onRetry: () -> Unit,
+    onEditBudgets: (() -> Unit)?,
+    onOpenPaymentStatus: (() -> Unit)?,
+) {
+    if (onOpenPaymentStatus != null) {
+        HeaderActionPill(
+            label = "Payments",
+            color = ExpenseTerracotta,
+            onClick = onOpenPaymentStatus,
+        )
+    }
+    if (onEditBudgets != null) {
+        HeaderActionPill(
+            label = "Budgets",
+            color = MaterialTheme.colorScheme.primary,
+            onClick = onEditBudgets,
+        )
+    }
+    if (hasData) {
+        HeaderActionPill(
+            label = "Refresh",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            onClick = onRetry,
+        )
+    }
+}
+
+@Composable
+private fun HeaderActionPill(label: String, color: Color, onClick: () -> Unit) {
+    BounceSurface(
+        onClick = onClick,
+        modifier = Modifier.heightIn(min = 48.dp),
+        shape = AppShapes.pill,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        pressedScale = 0.92f,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Spending Summary",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "Tap a bar to filter by month",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (onEditBudgets != null) {
-            BounceSurface(
-                onClick = onEditBudgets,
-                modifier = Modifier.heightIn(min = 48.dp),
-                shape = AppShapes.pill,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                pressedScale = 0.92f,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "Budgets",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-        if (hasData) {
-            BounceSurface(
-                onClick = onRetry,
-                modifier = Modifier.heightIn(min = 48.dp),
-                shape = AppShapes.pill,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                pressedScale = 0.92f,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "Refresh",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = color,
+            maxLines = 1,
+        )
     }
 }
 

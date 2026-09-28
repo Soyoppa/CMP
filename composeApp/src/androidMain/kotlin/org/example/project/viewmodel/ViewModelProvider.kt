@@ -32,3 +32,8 @@ actual fun createCategoryListViewModel(): CategoryListViewModel {
 actual fun createPaymentModeListViewModel(): PaymentModeListViewModel {
     return viewModel()
 }
+
+@Composable
+actual fun createPaymentStatusViewModel(): PaymentStatusViewModel {
+    return viewModel()
+}

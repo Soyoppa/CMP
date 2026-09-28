@@ -78,6 +78,7 @@ import org.example.project.ui.ChatBubble
 import org.example.project.ui.ChatModal
 import org.example.project.ui.LoginScreen
 import org.example.project.ui.PaymentModeManagementScreen
+import org.example.project.ui.PaymentStatusScreen
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.SettingsScreen
@@ -133,6 +134,9 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
         // Category/payment-mode editors are full-screen modal overlays reachable from Settings.
         var categoriesOpen by remember { mutableStateOf(false) }
         var paymentModesOpen by remember { mutableStateOf(false) }
+        // Paid & Unpaid reads the ledger's Paid column, which only tracker_1 records.
+        var paymentStatusOpen by remember { mutableStateOf(false) }
+        val paidStatusAvailable = remember { SchemaFeatures.current().showPaidToggle }
         // The Summary screen only has data on schemas with analysis sheets (Tracker 1).
         val summaryAvailable = remember { SchemaFeatures.current().aiAnalysisAvailable }
         val aiViewModel = createAiViewModel()
@@ -236,6 +240,7 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                                     modifier = Modifier.fillMaxSize(),
                                     bottomPadding = 100.dp, // clears the floating nav pill
                                     onOpenBudgets = openBudgets,
+                                    onOpenPaymentStatus = if (paidStatusAvailable) ({ paymentStatusOpen = true }) else null,
                                     viewModel = summaryViewModel,
                                 )
                                 NavTab.ADD -> TransactionInputScreen(
@@ -251,6 +256,7 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                                     onOpenBudgets = { budgetOpen = true },
                                     onOpenCategories = { categoriesOpen = true },
                                     onOpenPaymentModes = { paymentModesOpen = true },
+                                    onOpenPaymentStatus = if (paidStatusAvailable) ({ paymentStatusOpen = true }) else null,
                                 )
                             }
                         }
@@ -314,6 +320,14 @@ fun App(viewModel: TransactionViewModel = createTransactionViewModel()) {
                                 paymentModesOpen = false
                                 viewModel.refreshOptions()
                             },
+                        )
+                    }
+
+                    // Read-only ledger view, so guests get it too (backed by the demo dataset).
+                    if (paymentStatusOpen && paidStatusAvailable) {
+                        PaymentStatusScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = { paymentStatusOpen = false },
                         )
                     }
 

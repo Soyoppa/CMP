@@ -19,6 +19,9 @@ data class RecentTransaction(
  * in ([monthNumber] 1..12, 0 if unknown). [date] is the raw sheet date cell, kept as-is for
  * display in the AI's transaction ledger; empty when not populated by a producer.
  * Income rows are excluded by the producers.
+ *
+ * [modeOfPayment] and [isPaid] mirror the ledger's Mode of Payment / Paid columns and power the
+ * Paid & Unpaid screen; schemas without those columns leave the defaults (blank / unpaid).
  */
 data class CategoryTransaction(
     val description: String,
@@ -26,6 +29,8 @@ data class CategoryTransaction(
     val category: String,
     val monthNumber: Int,
     val date: String = "",
+    val modeOfPayment: String = "",
+    val isPaid: Boolean = false,
 )
 
 /**

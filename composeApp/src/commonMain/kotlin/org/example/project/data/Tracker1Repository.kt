@@ -147,6 +147,8 @@ class Tracker1Repository(
                     category = row.getOrNull(4)?.trim().orEmpty(),
                     monthNumber = DateUtils.monthNumberFromDate(row.getOrNull(0)),
                     date = row.getOrNull(0)?.trim().orEmpty(),
+                    modeOfPayment = row.getOrNull(5)?.trim().orEmpty(),
+                    isPaid = parsePaid(row.getOrNull(6)),
                 )
             }
     }
@@ -191,6 +193,14 @@ class Tracker1Repository(
             emptyList()
         }
     }
+
+    /**
+     * The ledger's Paid column (G) is a checkbox, so the API returns "TRUE"/"FALSE" — but the
+     * same column has historically been typed by hand, so accept the obvious human spellings too.
+     * Anything else (blank included) reads as unpaid, which is the safe default for a bill.
+     */
+    private fun parsePaid(raw: String?): Boolean =
+        raw?.trim()?.lowercase() in setOf("true", "yes", "y", "paid", "1")
 
     private fun parseAmount(raw: String?): Double =
         raw?.replace("₱", "")?.replace(",", "")?.trim()?.toDoubleOrNull() ?: 0.0

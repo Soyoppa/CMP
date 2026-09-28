@@ -51,6 +51,9 @@ object DemoRepository : SheetRepository {
         "GIFTS"  to listOf("Birthday gift", "Anniversary"),
     )
 
+    /** Payment methods cycled through the demo ledger so the mode filter has options. */
+    private val demoModes = listOf("BPI", "Gcash", "Maya", "Cash", "Citi Rewards")
+
     /** Descending split weights so each fanned-out total reads high→low. */
     private fun splitWeights(n: Int): List<Double> = when (n) {
         1 -> listOf(1.0)
@@ -72,6 +75,11 @@ object DemoRepository : SheetRepository {
                         amount = amount,
                         category = category,
                         monthNumber = monthIndex + 1,
+                        date = "${months[monthIndex]} ${(i + 1) * 7}",
+                        // Demo modes rotate deterministically, and everything up to April is
+                        // settled — so the Paid & Unpaid screen has both states to show.
+                        modeOfPayment = demoModes[(monthIndex + i) % demoModes.size],
+                        isPaid = monthIndex < 4,
                     )
                 }
             }
