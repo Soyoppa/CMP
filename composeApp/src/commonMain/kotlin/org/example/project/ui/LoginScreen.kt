@@ -26,10 +26,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +52,8 @@ import kotlinproject.composeapp.generated.resources.app_logo
 import org.example.project.config.FeatureFlagStore
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
+import org.example.project.viewmodel.AuthEvent
+import org.example.project.viewmodel.AuthMode
 import org.example.project.viewmodel.AuthViewModel
 import org.jetbrains.compose.resources.painterResource
 
@@ -64,9 +66,9 @@ fun LoginScreen(
     viewModel: AuthViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.uiState.collectAsState()
     val flags by FeatureFlagStore.state.collectAsState()
-    val isSignUp = state.mode == AuthViewModel.Mode.SIGN_UP
+    val isSignUp = state.mode == AuthMode.SIGN_UP
     var passwordVisible by remember { mutableStateOf(false) }
 
     Box(
@@ -110,7 +112,7 @@ fun LoginScreen(
 
             AuthField(
                 value = state.email,
-                onValueChange = viewModel::onEmailChange,
+                onValueChange = { viewModel.onEvent(AuthEvent.EmailChanged(it)) },
                 label = "Email",
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next,
@@ -118,11 +120,11 @@ fun LoginScreen(
             )
             AuthField(
                 value = state.password,
-                onValueChange = viewModel::onPasswordChange,
+                onValueChange = { viewModel.onEvent(AuthEvent.PasswordChanged(it)) },
                 label = "Password (min 6 characters)",
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Done,
-                onImeAction = viewModel::submit,
+                onImeAction = { viewModel.onEvent(AuthEvent.SubmitClicked) },
                 enabled = !state.isSubmitting,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailing = {
@@ -147,7 +149,7 @@ fun LoginScreen(
                 label = if (isSignUp) "Create account" else "Sign in",
                 enabled = state.canSubmit,
                 loading = state.isSubmitting,
-                onClick = viewModel::submit,
+                onClick = { viewModel.onEvent(AuthEvent.SubmitClicked) },
             )
 
             if (flags.signupEnabled) {
@@ -169,7 +171,7 @@ fun LoginScreen(
                             .heightIn(min = 48.dp)
                             .widthIn(min = 48.dp)
                             .clip(AppShapes.pill)
-                            .clickable(enabled = !state.isSubmitting) { viewModel.toggleMode() }
+                            .clickable(enabled = !state.isSubmitting) { viewModel.onEvent(AuthEvent.ModeToggled) }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
@@ -180,7 +182,7 @@ fun LoginScreen(
 
                 GuestButton(
                     enabled = !state.isSubmitting,
-                    onClick = viewModel::continueAsGuest,
+                    onClick = { viewModel.onEvent(AuthEvent.GuestClicked) },
                 )
             }
         }

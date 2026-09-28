@@ -1,7 +1,6 @@
 package org.example.project.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import org.example.project.config.LedgerProfile
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.example.project.model.SpendingBuckets
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
@@ -47,6 +45,7 @@ import org.example.project.ui.theme.GoldenYellow
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.SageBright
 import org.example.project.ui.theme.SageGreen
+import org.example.project.viewmodel.BudgetEvent
 import org.example.project.viewmodel.BudgetViewModel
 import org.example.project.viewmodel.createBudgetViewModel
 
@@ -147,12 +146,12 @@ fun BudgetScreen(
 
             Spacer(Modifier.height(2.dp))
 
-            LedgerProfile.current().spendingBuckets.names.forEachIndexed { index, bucket ->
+            uiState.buckets.forEachIndexed { index, bucket ->
                 BudgetRow(
                     bucket = bucket,
                     value = uiState.amounts[bucket].orEmpty(),
                     accent = colorForIndex(index),
-                    onValueChange = { viewModel.updateBucket(bucket, it) },
+                    onValueChange = { viewModel.onEvent(BudgetEvent.AmountChanged(bucket, it)) },
                 )
             }
 
@@ -160,7 +159,7 @@ fun BudgetScreen(
 
             SaveButton(
                 isSaving = uiState.isSaving,
-                onSave = viewModel::save,
+                onSave = { viewModel.onEvent(BudgetEvent.SaveClicked) },
             )
 
             AnimatedVisibility(

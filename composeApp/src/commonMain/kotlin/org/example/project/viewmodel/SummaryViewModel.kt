@@ -36,6 +36,14 @@ data class SummaryUiState(
     val error: String? = null,
 )
 
+sealed interface SummaryEvent {
+    /** Reload the ledger and budgets (pull-to-refresh, retry, after editing budgets). */
+    data object Refresh : SummaryEvent
+    data class MonthSelected(val month: String) : SummaryEvent
+    data class ViewModeSelected(val mode: SummaryViewMode) : SummaryEvent
+    data class CategorySelected(val category: String) : SummaryEvent
+}
+
 class SummaryViewModel(
     private val repository: LedgerRepository = LedgerRepository(),
     private val budgetRepository: BudgetRepository = BudgetRepository(),
@@ -52,7 +60,16 @@ class SummaryViewModel(
         load()
     }
 
-    fun load() {
+    fun onEvent(event: SummaryEvent) {
+        when (event) {
+            SummaryEvent.Refresh -> load()
+            is SummaryEvent.MonthSelected -> _uiState.update { it.copy(selectedMonth = event.month) }
+            is SummaryEvent.ViewModeSelected -> selectViewMode(event.mode)
+            is SummaryEvent.CategorySelected -> _uiState.update { it.copy(selectedCategory = event.category) }
+        }
+    }
+
+    private fun load() {
         viewModelScope.launch {
             transactionsLoaded = false
             _uiState.update {
@@ -111,21 +128,13 @@ class SummaryViewModel(
         }
     }
 
-    fun selectMonth(month: String) {
-        _uiState.update { it.copy(selectedMonth = month) }
-    }
-
-    fun selectViewMode(mode: SummaryViewMode) {
+    private fun selectViewMode(mode: SummaryViewMode) {
         _uiState.update { state ->
             val category = state.selectedCategory
                 ?: state.categories.maxByOrNull { it.totalSpent }?.category
             state.copy(viewMode = mode, selectedCategory = category)
         }
         if (mode == SummaryViewMode.BY_CATEGORY) ensureTransactionsLoaded()
-    }
-
-    fun selectCategory(category: String) {
-        _uiState.update { it.copy(selectedCategory = category) }
     }
 
     /** Loads the drill-down transactions once; no-op if already loaded or in flight. */

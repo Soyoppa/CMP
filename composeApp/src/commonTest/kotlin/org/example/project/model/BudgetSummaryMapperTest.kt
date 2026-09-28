@@ -1,10 +1,10 @@
 package org.example.project.model
 
-import org.example.project.data.ledger.LedgerEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.example.project.data.ledger.LedgerEntry
 
 class BudgetSummaryMapperTest {
 

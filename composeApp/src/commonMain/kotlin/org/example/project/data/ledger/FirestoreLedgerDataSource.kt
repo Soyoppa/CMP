@@ -1,5 +1,7 @@
 package org.example.project.data.ledger
 
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import org.example.project.data.firestore.FirestoreDocument
 import org.example.project.data.firestore.FirestoreRestClient
 import org.example.project.data.firestore.boolean
@@ -8,8 +10,6 @@ import org.example.project.data.firestore.string
 import org.example.project.model.Transaction
 import org.example.project.util.DateUtils
 import org.example.project.util.UserFacingException
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 /**
  * The default ledger: one Firestore document per transaction at `users/{uid}/transactions/{id}`.

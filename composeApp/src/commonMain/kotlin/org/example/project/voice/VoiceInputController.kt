@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Platform speech-to-text bridge for the add-transaction form.
  *
  * Intentionally tiny + provider-agnostic: an implementation listens to the microphone and
- * pushes [VoiceState] transitions; the orchestrator ([org.example.project.viewmodel.TransactionViewModel])
+ * pushes [VoiceState] transitions; the orchestrator ([org.example.project.viewmodel.TransactionFormViewModel])
  * owns transcript→form parsing and the AI category fallback. Only the **web (wasmJs)** target
  * ships a real implementation today; every other platform gets [UnsupportedVoiceInputController]
  * so the mic is simply hidden there. Adding a platform later means writing one real `actual` for

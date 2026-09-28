@@ -1,34 +1,21 @@
 package org.example.project.util
 
-import kotlin.math.round
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
-/**
- * Cross-platform utility functions for formatting
- */
+/** Cross-platform number formatting (`String.format` isn't available in commonMain). */
 object FormatUtils {
-    
+
     /**
-     * Format a double to 2 decimal places
-     * Works across all Kotlin Multiplatform targets
-     */
-    fun formatCurrency(amount: Double): String {
-        val rounded = round(amount * 100) / 100
-        val integerPart = rounded.toInt()
-        val decimalPart = ((rounded - integerPart) * 100).toInt()
-        
-        return if (decimalPart == 0) {
-            "$integerPart.00"
-        } else if (decimalPart < 10) {
-            "$integerPart.0$decimalPart"
-        } else {
-            "$integerPart.$decimalPart"
-        }
-    }
-    
-    /**
-     * Format amount with peso symbol
+     * [amount] with two decimals and thousands separators, e.g. 1234.5 -> "1,234.50",
+     * -0.29 -> "-0.29". Works in whole cents, so values like 1.29 don't drift to "1.28".
      */
     fun formatPeso(amount: Double): String {
-        return "${formatCurrency(amount)}"
+        val cents = (abs(amount) * 100).roundToLong()
+        val whole = (cents / 100).toString()
+        val fraction = (cents % 100).toString().padStart(2, '0')
+        val grouped = whole.reversed().chunked(3).joinToString(",").reversed()
+        val sign = if (amount < 0 && cents != 0L) "-" else ""
+        return "$sign$grouped.$fraction"
     }
 }

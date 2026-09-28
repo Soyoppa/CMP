@@ -57,8 +57,9 @@ import org.example.project.model.ChatMessage
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
-import org.example.project.viewmodel.AiViewModel
-import org.example.project.viewmodel.createAiViewModel
+import org.example.project.viewmodel.ChatEvent
+import org.example.project.viewmodel.ChatViewModel
+import org.example.project.viewmodel.createChatViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -68,7 +69,7 @@ private val BubbleCorner = 18.dp
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
-    viewModel: AiViewModel = createAiViewModel(),
+    viewModel: ChatViewModel = createChatViewModel(),
     bottomPadding: Dp = 0.dp,
     onRequestSignUp: () -> Unit = {},
     // When the chat is hosted in the floating modal, this collapses it back to the bubble.
@@ -100,7 +101,7 @@ fun ChatScreen(
     }
 
     uiState.error?.let { error ->
-        LaunchedEffect(error) { viewModel.clearError() }
+        LaunchedEffect(error) { viewModel.onEvent(ChatEvent.ErrorShown) }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -110,7 +111,7 @@ fun ChatScreen(
             isLoadingTransactions = uiState.isLoadingTransactions,
             provider = usage.lastProvider,
             model = usage.lastModel,
-            onClearChat = viewModel::clearChat,
+            onClearChat = { viewModel.onEvent(ChatEvent.ClearClicked) },
             onClose = onClose,
         )
 
@@ -118,7 +119,7 @@ fun ChatScreen(
             if (uiState.messages.isEmpty()) {
                 EmptyState(
                     onSuggestionClick = { suggestion ->
-                        if (isGuest) viewModel.sendMessage(suggestion) else inputText = suggestion
+                        if (isGuest) viewModel.onEvent(ChatEvent.SendClicked(suggestion)) else inputText = suggestion
                     },
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -166,7 +167,7 @@ fun ChatScreen(
                 onValueChange = { inputText = it },
                 onSend = {
                     if (inputText.isNotBlank()) {
-                        viewModel.sendMessage(inputText)
+                        viewModel.onEvent(ChatEvent.SendClicked(inputText))
                         inputText = ""
                     }
                 },

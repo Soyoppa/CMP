@@ -42,9 +42,9 @@ import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.PaymentBadge
 import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.theme.AppShapes
-import org.example.project.viewmodel.CategoryListViewModel
+import org.example.project.viewmodel.ManagedListEvent
 import org.example.project.viewmodel.ManagedListUiState
-import org.example.project.viewmodel.PaymentModeListViewModel
+import org.example.project.viewmodel.ManagedListViewModel
 import org.example.project.viewmodel.createCategoryListViewModel
 import org.example.project.viewmodel.createPaymentModeListViewModel
 
@@ -261,15 +261,14 @@ private fun ManagedListRow(
     }
 }
 
-/** Manage the primary category list — tracker_1 expense categories, or tracker_2 care-of. */
+/** Manage the primary category list (expense categories, or tracker_2's care-of list). */
 @Composable
 fun CategoryManagementScreen(
     modifier: Modifier = Modifier,
     onClose: () -> Unit = {},
-    viewModel: CategoryListViewModel = createCategoryListViewModel(),
+    viewModel: ManagedListViewModel = createCategoryListViewModel(),
 ) {
-    val features = remember { LedgerProfile.current() }
-    val label = features.categoryLabel.lowercase()
+    val label = remember { LedgerProfile.current().categoryLabel.lowercase() }
     val uiState by viewModel.uiState.collectAsState()
     ManageListScreen(
         modifier = modifier,
@@ -278,9 +277,9 @@ fun CategoryManagementScreen(
         inputPlaceholder = "New $label",
         uiState = uiState,
         onClose = onClose,
-        onDraftChange = viewModel::updateDraft,
-        onAdd = viewModel::addItem,
-        onDelete = viewModel::deleteItem,
+        onDraftChange = { viewModel.onEvent(ManagedListEvent.DraftChanged(it)) },
+        onAdd = { viewModel.onEvent(ManagedListEvent.AddClicked) },
+        onDelete = { viewModel.onEvent(ManagedListEvent.DeleteClicked(it)) },
         leadingIcon = { name ->
             CategoryGlyph(
                 kind = categoryGlyphKind(name),
@@ -296,7 +295,7 @@ fun CategoryManagementScreen(
 fun PaymentModeManagementScreen(
     modifier: Modifier = Modifier,
     onClose: () -> Unit = {},
-    viewModel: PaymentModeListViewModel = createPaymentModeListViewModel(),
+    viewModel: ManagedListViewModel = createPaymentModeListViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     ManageListScreen(
@@ -306,9 +305,9 @@ fun PaymentModeManagementScreen(
         inputPlaceholder = "New payment mode",
         uiState = uiState,
         onClose = onClose,
-        onDraftChange = viewModel::updateDraft,
-        onAdd = viewModel::addItem,
-        onDelete = viewModel::deleteItem,
+        onDraftChange = { viewModel.onEvent(ManagedListEvent.DraftChanged(it)) },
+        onAdd = { viewModel.onEvent(ManagedListEvent.AddClicked) },
+        onDelete = { viewModel.onEvent(ManagedListEvent.DeleteClicked(it)) },
         leadingIcon = { name -> PaymentBadge(name = name, size = 32.dp) },
     )
 }

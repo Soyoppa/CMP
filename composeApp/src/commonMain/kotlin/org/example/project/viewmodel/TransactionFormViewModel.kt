@@ -1,6 +1,5 @@
 package org.example.project.viewmodel
 
-import org.example.project.AppContainer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -11,18 +10,18 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.example.project.AppContainer
 import org.example.project.auth.Session
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiRepository
+import org.example.project.data.settings.UserSettingsStore
 import org.example.project.domain.transaction.AddTransactionUseCase
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.TransactionFormReducer
 import org.example.project.domain.transaction.TransactionFormState
 import org.example.project.domain.transaction.VoiceAiUsage
-import org.example.project.model.PaymentMode
 import org.example.project.model.Transaction
-import org.example.project.model.TransactionCategory
 import org.example.project.repository.UserListRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
@@ -41,12 +40,13 @@ import org.example.project.voice.provideVoiceInputController
  * which the ViewModel translates into form updates — parsing the transcript locally and falling
  * back to [AiRepository.classifyCategory] only when the spoken category is ambiguous.
  */
-class TransactionViewModel(
+class TransactionFormViewModel(
     private val addTransactionUseCase: AddTransactionUseCase = AddTransactionUseCase(),
     private val voiceController: VoiceInputController = provideVoiceInputController(),
     private val aiRepository: AiRepository = AppContainer.aiRepository,
-    private val categoryRepository: UserListRepository = UserListRepository(listId = "categories"),
-    private val paymentModeRepository: UserListRepository = UserListRepository(listId = "paymentModes"),
+    private val categoryRepository: UserListRepository = UserListRepository(UserSettingsStore.CATEGORIES_LIST),
+    private val paymentModeRepository: UserListRepository = UserListRepository(UserSettingsStore.PAYMENT_MODES_LIST),
+    private val profile: LedgerProfile = LedgerProfile.current(),
 ) : ViewModel() {
 
     private val _formState = MutableStateFlow(createInitialFormState())
@@ -70,11 +70,11 @@ class TransactionViewModel(
      */
     fun refreshOptions() {
         viewModelScope.launch {
-            val categories = categoryRepository.getItems(LedgerProfile.current().categoryOptions)
+            val categories = categoryRepository.getItems(profile.categoryOptions)
             _formState.update { it.copy(categoryOptions = categories) }
         }
         viewModelScope.launch {
-            val paymentModes = paymentModeRepository.getItems(PaymentMode.entries.map { it.displayName })
+            val paymentModes = paymentModeRepository.getItems(profile.paymentModeOptions)
             _formState.update { it.copy(paymentModeOptions = paymentModes) }
         }
     }
@@ -131,7 +131,7 @@ class TransactionViewModel(
      * Only when the category is still unknown do we spend an AI round-trip to classify it.
      */
     private suspend fun applyTranscript(transcript: String) {
-        val features = LedgerProfile.current()
+        val features = profile
 
         // First pass detects the income/expense cue so we can pick the correct category list.
         val probe = VoiceTransactionParser.parse(transcript, emptyList(), features.showIncomeOption)
@@ -276,10 +276,15 @@ class TransactionViewModel(
 
     private fun createInitialFormState() = TransactionFormState(
         selectedDate = DateUtils.getCurrentDateFormatted(),
-        selectedCategory = TransactionCategory.OTHER.displayName,
-        selectedPaymentMode = PaymentMode.OTHER.displayName,
+        selectedCategory = DEFAULT_OPTION,
+        selectedPaymentMode = DEFAULT_OPTION,
         // Instant defaults so the form is usable before refreshOptions()'s cloud fetch resolves.
-        categoryOptions = LedgerProfile.current().categoryOptions,
-        paymentModeOptions = PaymentMode.entries.map { it.displayName },
+        categoryOptions = profile.categoryOptions,
+        paymentModeOptions = profile.paymentModeOptions,
     )
+
+    private companion object {
+        /** Pre-selected category / payment mode; every default list ends with "Other". */
+        const val DEFAULT_OPTION = "Other"
+    }
 }

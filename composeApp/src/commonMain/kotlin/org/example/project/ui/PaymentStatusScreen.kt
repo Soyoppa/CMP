@@ -55,6 +55,7 @@ import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
+import org.example.project.viewmodel.PaymentStatusEvent
 import org.example.project.viewmodel.PaymentStatusFilter
 import org.example.project.viewmodel.PaymentStatusUiState
 import org.example.project.viewmodel.PaymentStatusViewModel
@@ -99,7 +100,7 @@ fun PaymentStatusScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        PaymentStatusTopBar(onClose = onClose, onRefresh = viewModel::load)
+        PaymentStatusTopBar(onClose = onClose, onRefresh = { viewModel.onEvent(PaymentStatusEvent.Refresh) })
 
         when {
             uiState.isLoading -> CenteredNotice {
@@ -122,7 +123,7 @@ fun PaymentStatusScreen(
                         textAlign = TextAlign.Center,
                     )
                     BounceSurface(
-                        onClick = viewModel::load,
+                        onClick = { viewModel.onEvent(PaymentStatusEvent.Refresh) },
                         shape = AppShapes.pill,
                         color = MaterialTheme.colorScheme.primary,
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
@@ -139,9 +140,9 @@ fun PaymentStatusScreen(
 
             else -> PaymentStatusContent(
                 state = uiState,
-                onStatusSelected = viewModel::selectStatus,
-                onModeSelected = viewModel::selectMode,
-                onMonthSelected = viewModel::selectMonth,
+                onStatusSelected = { viewModel.onEvent(PaymentStatusEvent.StatusSelected(it)) },
+                onModeSelected = { viewModel.onEvent(PaymentStatusEvent.ModeSelected(it)) },
+                onMonthSelected = { viewModel.onEvent(PaymentStatusEvent.MonthSelected(it)) },
             )
         }
     }

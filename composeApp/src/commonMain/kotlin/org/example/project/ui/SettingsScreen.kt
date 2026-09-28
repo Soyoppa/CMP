@@ -34,10 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,7 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.example.project.auth.AuthState
 import org.example.project.auth.Session
 import org.example.project.config.LedgerProfile
@@ -54,21 +51,14 @@ import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ProviderUsage
 import org.example.project.data.ai.SessionUsage
-import org.example.project.repository.LedgerRepository
 import org.example.project.ui.effects.rememberPressBounce
-import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.AppShapes
-import org.example.project.util.FormatUtils
-import org.example.project.util.toUserMessage
+import org.example.project.ui.theme.IncomeGreen
+import org.example.project.viewmodel.DiagnosticKind
+import org.example.project.viewmodel.DiagnosticResult
+import org.example.project.viewmodel.SettingsEvent
+import org.example.project.viewmodel.SettingsViewModel
 
-
-private enum class ResultKind { IDLE, SUCCESS, WARNING, ERROR }
-
-private data class TestResult(val kind: ResultKind, val message: String) {
-    companion object {
-        val Idle = TestResult(ResultKind.IDLE, "Not tested yet")
-    }
-}
 
 @Composable
 fun SettingsScreen(
@@ -83,11 +73,9 @@ fun SettingsScreen(
     onOpenPaymentModes: () -> Unit = {},
     /** null on schemas whose ledger has no Paid column, which hides the row entirely. */
     onOpenPaymentStatus: (() -> Unit)? = null,
+    viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
-    val repository = remember { LedgerRepository() }
-    val coroutineScope = rememberCoroutineScope()
-    var result by remember { mutableStateOf(TestResult.Idle) }
-    var isLoading by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
     val authState by Session.state.collectAsState()
@@ -188,35 +176,11 @@ fun SettingsScreen(
             SettingsSection(title = "Diagnostics") {
                 TestActionButton(
                     label = "Test Read",
-                    isLoading = isLoading,
+                    isLoading = uiState.isTestingRead,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        coroutineScope.launch {
-                            isLoading = true
-                            result = try {
-                                val recent = repository.getRecent(3)
-                                if (recent.isEmpty()) {
-                                    TestResult(
-                                        ResultKind.WARNING,
-                                        "Read succeeded but returned no data rows. If you expected rows, " +
-                                            "the range likely points at the wrong/empty tab — check this " +
-                                            "schema's SHEET_RANGE tab name and that data sits under the header.",
-                                    )
-                                } else {
-                                    val lines = recent.joinToString("\n") { entry ->
-                                        val sign = if (entry.isInflow) "+" else "-"
-                                        "• ${entry.description} — ${sign}PHP ${FormatUtils.formatPeso(entry.amount)}"
-                                    }
-                                    TestResult(ResultKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
-                                }
-                            } catch (e: Exception) {
-                                TestResult(ResultKind.ERROR, e.toUserMessage("Read failed. Check your connection and sheet access."))
-                            }
-                            isLoading = false
-                        }
-                    },
+                    onClick = { viewModel.onEvent(SettingsEvent.TestReadClicked) },
                 )
-                ResultCard(result = result)
+                ResultCard(result = uiState.readResult)
             }
         }
     }
@@ -757,12 +721,12 @@ private fun TestActionButton(
 }
 
 @Composable
-private fun ResultCard(result: TestResult) {
+private fun ResultCard(result: DiagnosticResult) {
     val accent = when (result.kind) {
-        ResultKind.IDLE -> MaterialTheme.colorScheme.outlineVariant
-        ResultKind.SUCCESS -> IncomeGreen
-        ResultKind.WARNING -> MaterialTheme.colorScheme.tertiary
-        ResultKind.ERROR -> MaterialTheme.colorScheme.error
+        DiagnosticKind.IDLE -> MaterialTheme.colorScheme.outlineVariant
+        DiagnosticKind.SUCCESS -> IncomeGreen
+        DiagnosticKind.WARNING -> MaterialTheme.colorScheme.tertiary
+        DiagnosticKind.ERROR -> MaterialTheme.colorScheme.error
     }
     val animatedAccent by animateColorAsState(
         targetValue = accent,
@@ -770,16 +734,16 @@ private fun ResultCard(result: TestResult) {
         label = "resultAccent",
     )
     val glyph = when (result.kind) {
-        ResultKind.IDLE -> "…"
-        ResultKind.SUCCESS -> "✓"
-        ResultKind.WARNING -> "!"
-        ResultKind.ERROR -> "×"
+        DiagnosticKind.IDLE -> "…"
+        DiagnosticKind.SUCCESS -> "✓"
+        DiagnosticKind.WARNING -> "!"
+        DiagnosticKind.ERROR -> "×"
     }
     val title = when (result.kind) {
-        ResultKind.IDLE -> "Awaiting test"
-        ResultKind.SUCCESS -> "Success"
-        ResultKind.WARNING -> "Check your sheet"
-        ResultKind.ERROR -> "Failed"
+        DiagnosticKind.IDLE -> "Awaiting test"
+        DiagnosticKind.SUCCESS -> "Success"
+        DiagnosticKind.WARNING -> "Check your sheet"
+        DiagnosticKind.ERROR -> "Failed"
     }
 
 

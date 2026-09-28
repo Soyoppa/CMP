@@ -4,19 +4,19 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
 import kotlinproject.composeapp.generated.resources.app_logo
@@ -64,12 +65,10 @@ import kotlinproject.composeapp.generated.resources.chart_bar
 import kotlinproject.composeapp.generated.resources.dots
 import kotlinproject.composeapp.generated.resources.failed
 import kotlinproject.composeapp.generated.resources.success
-import org.example.project.auth.AuthState
-import org.example.project.ui.SessionScope
-import org.example.project.ui.PlatformBackHandler
-import org.example.project.ui.DeleteAccountDialog
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.example.project.auth.AppUser
-import androidx.lifecycle.viewmodel.compose.viewModel
+import org.example.project.auth.AuthState
 import org.example.project.auth.Session
 import org.example.project.config.FeatureFlagStore
 import org.example.project.config.LedgerProfile
@@ -79,21 +78,24 @@ import org.example.project.ui.BudgetScreen
 import org.example.project.ui.CategoryManagementScreen
 import org.example.project.ui.ChatBubble
 import org.example.project.ui.ChatModal
+import org.example.project.ui.DeleteAccountDialog
 import org.example.project.ui.LoginScreen
 import org.example.project.ui.PaymentModeManagementScreen
 import org.example.project.ui.PaymentStatusScreen
-import org.example.project.ui.components.BounceSurface
-import org.example.project.ui.theme.AppShapes
+import org.example.project.ui.PlatformBackHandler
+import org.example.project.ui.SessionScope
 import org.example.project.ui.SettingsScreen
 import org.example.project.ui.SummaryScreen
-import org.example.project.ui.TransactionInputScreen
+import org.example.project.ui.TransactionFormScreen
+import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.FinanceTrackerTheme
+import org.example.project.viewmodel.AuthEvent
 import org.example.project.viewmodel.AuthViewModel
-import org.example.project.viewmodel.createAiViewModel
+import org.example.project.viewmodel.SummaryEvent
+import org.example.project.viewmodel.createChatViewModel
 import org.example.project.viewmodel.createSummaryViewModel
-import org.example.project.viewmodel.createTransactionViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import org.example.project.viewmodel.createTransactionFormViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -150,12 +152,9 @@ fun App() {
                     user = auth.user,
                     isDarkTheme = resolvedDark,
                     onDarkThemeChange = { darkThemeOverride = it },
-                    onRequestSignUp = {
-                        // Guest -> "Create account": flip to sign-up, then sign the guest out so the gate shows Login.
-                        authViewModel.setMode(AuthViewModel.Mode.SIGN_UP)
-                        authViewModel.signOut()
-                    },
-                    onSignOut = authViewModel::signOut,
+                    // Guest -> "Create account": sign the guest out and land on sign-up.
+                    onRequestSignUp = { authViewModel.onEvent(AuthEvent.SignUpRequested) },
+                    onSignOut = { authViewModel.onEvent(AuthEvent.SignOutClicked) },
                 )
             }
         }
@@ -171,8 +170,8 @@ private fun SignedInApp(
     onSignOut: () -> Unit,
 ) {
     val profile = remember(user) { LedgerProfile.forUser(user) }
-    val transactionViewModel = createTransactionViewModel()
-    val aiViewModel = createAiViewModel()
+    val transactionFormViewModel = createTransactionFormViewModel()
+    val chatViewModel = createChatViewModel()
     // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
     val summaryViewModel = createSummaryViewModel()
     val featureFlags by FeatureFlagStore.state.collectAsState()
@@ -210,8 +209,8 @@ private fun SignedInApp(
         if (!chatAvailable) chatOpen = false
     }
 
-    LaunchedEffect(transactionViewModel) {
-        transactionViewModel.effects.collect { effect ->
+    LaunchedEffect(transactionFormViewModel) {
+        transactionFormViewModel.effects.collect { effect ->
             val visuals = when (effect) {
                 is TransactionFormEffect.ShowSuccess ->
                     FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
@@ -271,8 +270,8 @@ private fun SignedInApp(
                             onOpenPaymentStatus = openPaymentStatus,
                             viewModel = summaryViewModel,
                         )
-                        NavTab.ADD -> TransactionInputScreen(
-                            viewModel = transactionViewModel,
+                        NavTab.ADD -> TransactionFormScreen(
+                            viewModel = transactionFormViewModel,
                             modifier = Modifier.fillMaxSize(),
                         )
                         NavTab.SETTINGS -> SettingsScreen(
@@ -314,7 +313,7 @@ private fun SignedInApp(
             ChatModal(
                 visible = chatOpen,
                 onClose = { chatOpen = false },
-                viewModel = aiViewModel,
+                viewModel = chatViewModel,
                 onRequestSignUp = onRequestSignUp,
             )
 
@@ -324,7 +323,7 @@ private fun SignedInApp(
                     modifier = Modifier.fillMaxSize(),
                     onClose = {
                         budgetOpen = false
-                        summaryViewModel.load()
+                        summaryViewModel.onEvent(SummaryEvent.Refresh)
                     },
                 )
             }
@@ -335,7 +334,7 @@ private fun SignedInApp(
                     modifier = Modifier.fillMaxSize(),
                     onClose = {
                         categoriesOpen = false
-                        transactionViewModel.refreshOptions()
+                        transactionFormViewModel.refreshOptions()
                     },
                 )
             }
@@ -345,7 +344,7 @@ private fun SignedInApp(
                     modifier = Modifier.fillMaxSize(),
                     onClose = {
                         paymentModesOpen = false
-                        transactionViewModel.refreshOptions()
+                        transactionFormViewModel.refreshOptions()
                     },
                 )
             }

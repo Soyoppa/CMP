@@ -3,14 +3,14 @@
 package org.example.project.data.ai
 
 import kotlin.js.ExperimentalWasmJsInterop
+import kotlin.js.JsString
+import kotlin.js.Promise
 import kotlinx.coroutines.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.example.project.config.ConfigManager
 import org.example.project.config.firebaseWebConfigJson
-import kotlin.js.JsString
-import kotlin.js.Promise
 
 internal actual fun geminiProviderOrNull(): AiProvider? = FirebaseAiProvider()
 

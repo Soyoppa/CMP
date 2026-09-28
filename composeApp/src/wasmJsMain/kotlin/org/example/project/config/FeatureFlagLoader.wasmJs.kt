@@ -2,12 +2,12 @@
 
 package org.example.project.config
 
-import kotlinx.coroutines.await
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsString
 import kotlin.js.Promise
+import kotlinx.coroutines.await
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 actual fun createFeatureFlagLoader(): FeatureFlagLoader = RemoteConfigFeatureFlagLoader()
 

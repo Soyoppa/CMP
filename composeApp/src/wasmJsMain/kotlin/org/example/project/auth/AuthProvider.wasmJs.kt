@@ -2,14 +2,14 @@
 
 package org.example.project.auth
 
+import kotlin.js.ExperimentalWasmJsInterop
+import kotlin.js.JsString
+import kotlin.js.Promise
 import kotlinx.coroutines.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.example.project.config.firebaseWebConfigJson
 import org.example.project.util.UserFacingException
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsString
-import kotlin.js.Promise
 
 actual fun createAuthProvider(): AuthProvider = FirebaseJsAuthProvider()
 

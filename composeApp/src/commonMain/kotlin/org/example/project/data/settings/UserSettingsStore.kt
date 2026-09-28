@@ -1,9 +1,9 @@
 package org.example.project.data.settings
 
-import org.example.project.data.firestore.FirestoreRestClient
-import org.example.project.data.firestore.number
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import org.example.project.data.firestore.FirestoreRestClient
+import org.example.project.data.firestore.number
 
 /**
  * Per-user settings documents in Firestore, at `users/{uid}/settings/{docId}`:

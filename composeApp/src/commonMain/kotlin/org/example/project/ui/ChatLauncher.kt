@@ -46,7 +46,7 @@ import kotlinproject.composeapp.generated.resources.chat_bubble
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.example.project.ui.effects.rememberPressBounce
-import org.example.project.viewmodel.AiViewModel
+import org.example.project.viewmodel.ChatViewModel
 import org.jetbrains.compose.resources.painterResource
 
 // Strong ease-out (cubic-bezier(0.23, 1, 0.32, 1)) — starts fast so the modal feels
@@ -208,7 +208,7 @@ fun ChatBubble(
 fun ChatModal(
     visible: Boolean,
     onClose: () -> Unit,
-    viewModel: AiViewModel,
+    viewModel: ChatViewModel,
     onRequestSignUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {

@@ -1,7 +1,6 @@
 package org.example.project.ui
 
 import androidx.compose.animation.AnimatedContent
-import org.example.project.config.LedgerProfile
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
@@ -25,14 +24,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import org.example.project.ui.effects.rememberPressBounce
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +40,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,12 +48,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
-import org.example.project.model.SpendingBuckets
 import org.example.project.model.CategorySummary
+import org.example.project.model.SpendingBuckets
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
+import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AmberBrown
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
@@ -65,6 +65,7 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.SageBright
 import org.example.project.ui.theme.SageGreen
 import org.example.project.util.DateUtils
+import org.example.project.viewmodel.SummaryEvent
 import org.example.project.viewmodel.SummaryViewMode
 import org.example.project.viewmodel.SummaryViewModel
 import org.example.project.viewmodel.createSummaryViewModel
@@ -129,7 +130,7 @@ fun SummaryScreen(
     Column(modifier = modifier.fillMaxSize()) {
         SummaryHeader(
             hasData = uiState.categories.isNotEmpty(),
-            onRetry = viewModel::load,
+            onRetry = { viewModel.onEvent(SummaryEvent.Refresh) },
             onEditBudgets = onOpenBudgets,
             onOpenPaymentStatus = onOpenPaymentStatus,
         )
@@ -144,7 +145,7 @@ fun SummaryScreen(
                 uiState.isLoading -> SummaryLoading()
                 uiState.error != null -> SummaryError(
                     message = uiState.error!!,
-                    onRetry = viewModel::load,
+                    onRetry = { viewModel.onEvent(SummaryEvent.Refresh) },
                 )
                 uiState.categories.isEmpty() -> SummaryEmpty()
                 else -> SummaryContent(
@@ -158,9 +159,9 @@ fun SummaryScreen(
                     transactions = uiState.transactions,
                     transactionsLoading = uiState.transactionsLoading,
                     transactionsError = uiState.transactionsError,
-                    onMonthSelected = viewModel::selectMonth,
-                    onViewModeSelected = viewModel::selectViewMode,
-                    onCategorySelected = viewModel::selectCategory,
+                    onMonthSelected = { viewModel.onEvent(SummaryEvent.MonthSelected(it)) },
+                    onViewModeSelected = { viewModel.onEvent(SummaryEvent.ViewModeSelected(it)) },
+                    onCategorySelected = { viewModel.onEvent(SummaryEvent.CategorySelected(it)) },
                 )
             }
             Spacer(Modifier.height(bottomPadding))

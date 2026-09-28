@@ -11,6 +11,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.http.parameters
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -23,8 +25,6 @@ import kotlinx.serialization.json.put
 import org.example.project.config.ConfigManager
 import org.example.project.data.firestore.defaultHttpClient
 import org.example.project.util.UserFacingException
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 /** The persisted credential of a REST-authenticated user. */
 @Serializable

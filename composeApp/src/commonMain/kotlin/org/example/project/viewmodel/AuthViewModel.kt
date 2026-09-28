@@ -7,12 +7,35 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.auth.AuthRepository
 import org.example.project.AppContainer
+import org.example.project.auth.AuthRepository
 import org.example.project.util.toUserMessage
 
+enum class AuthMode { SIGN_IN, SIGN_UP }
+
+data class AuthUiState(
+    val email: String = "",
+    val password: String = "",
+    val mode: AuthMode = AuthMode.SIGN_IN,
+    val isSubmitting: Boolean = false,
+    val error: String? = null,
+) {
+    val canSubmit: Boolean get() = email.isNotBlank() && password.length >= 6 && !isSubmitting
+}
+
+sealed interface AuthEvent {
+    data class EmailChanged(val email: String) : AuthEvent
+    data class PasswordChanged(val password: String) : AuthEvent
+    data object ModeToggled : AuthEvent
+    data object SubmitClicked : AuthEvent
+    data object GuestClicked : AuthEvent
+    /** A guest tapped "Create account": show sign-up once the guest session ends. */
+    data object SignUpRequested : AuthEvent
+    data object SignOutClicked : AuthEvent
+}
+
 /**
- * Drives the login/sign-up form. On success the [AuthRepository] flips [org.example.project.auth.Session],
+ * Drives the login/sign-up form. On success [AuthRepository] updates [org.example.project.auth.Session],
  * which swaps the gate away from [org.example.project.ui.LoginScreen] — so there are no navigation
  * effects here; the gate reacts to Session state.
  */
@@ -20,62 +43,55 @@ class AuthViewModel(
     private val repository: AuthRepository = AppContainer.authRepository,
 ) : ViewModel() {
 
-    enum class Mode { SIGN_IN, SIGN_UP }
+    private val _uiState = MutableStateFlow(AuthUiState())
+    val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    data class State(
-        val email: String = "",
-        val password: String = "",
-        val mode: Mode = Mode.SIGN_IN,
-        val isSubmitting: Boolean = false,
-        val error: String? = null,
-    ) {
-        val canSubmit: Boolean get() = email.isNotBlank() && password.length >= 6 && !isSubmitting
-    }
-
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
-
-    fun onEmailChange(value: String) =
-        _state.update { it.copy(email = value.take(254), error = null) }   // RFC 5321 max email length
-    fun onPasswordChange(value: String) =
-        _state.update { it.copy(password = value.take(128), error = null) } // generous upper bound; prevents unbounded heap growth
-
-    fun toggleMode() = _state.update {
-        it.copy(mode = if (it.mode == Mode.SIGN_IN) Mode.SIGN_UP else Mode.SIGN_IN, error = null)
-    }
-
-    fun setMode(mode: Mode) = _state.update { it.copy(mode = mode, error = null) }
-
-    fun submit() {
-        val current = _state.value
-        if (!current.canSubmit) return
-        _state.update { it.copy(isSubmitting = true, error = null) }
-        viewModelScope.launch {
-            val result = when (current.mode) {
-                Mode.SIGN_IN -> repository.signIn(current.email, current.password)
-                Mode.SIGN_UP -> repository.signUp(current.email, current.password)
+    fun onEvent(event: AuthEvent) {
+        when (event) {
+            // RFC 5321 max email length; a generous password cap bounds input size.
+            is AuthEvent.EmailChanged -> _uiState.update { it.copy(email = event.email.take(254), error = null) }
+            is AuthEvent.PasswordChanged -> _uiState.update { it.copy(password = event.password.take(128), error = null) }
+            AuthEvent.ModeToggled -> _uiState.update {
+                it.copy(mode = if (it.mode == AuthMode.SIGN_IN) AuthMode.SIGN_UP else AuthMode.SIGN_IN, error = null)
             }
-            result
-                .onSuccess { _state.update { it.copy(isSubmitting = false) } }
-                .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.toUserMessage("Authentication failed.")) }
-                }
+            AuthEvent.SubmitClicked -> submit()
+            AuthEvent.GuestClicked -> continueAsGuest()
+            AuthEvent.SignUpRequested -> {
+                _uiState.update { it.copy(mode = AuthMode.SIGN_UP, error = null) }
+                signOut()
+            }
+            AuthEvent.SignOutClicked -> signOut()
         }
     }
 
-    fun continueAsGuest() {
-        if (_state.value.isSubmitting) return
-        _state.update { it.copy(isSubmitting = true, error = null) }
-        viewModelScope.launch {
-            repository.continueAsGuest()
-                .onSuccess { _state.update { it.copy(isSubmitting = false) } }
-                .onFailure { e ->
-                    _state.update { it.copy(isSubmitting = false, error = e.toUserMessage("Couldn't start guest mode.")) }
-                }
+    private fun submit() {
+        val current = _uiState.value
+        if (!current.canSubmit) return
+        runAuth("Authentication failed.") {
+            when (current.mode) {
+                AuthMode.SIGN_IN -> repository.signIn(current.email, current.password)
+                AuthMode.SIGN_UP -> repository.signUp(current.email, current.password)
+            }
         }
     }
 
-    fun signOut() {
+    private fun continueAsGuest() {
+        if (_uiState.value.isSubmitting) return
+        runAuth("Couldn't start guest mode.") { repository.continueAsGuest() }
+    }
+
+    private fun signOut() {
+        // Never keep a typed password around once a session ends.
+        _uiState.update { it.copy(password = "", isSubmitting = false) }
         viewModelScope.launch { repository.signOut() }
+    }
+
+    private fun runAuth(fallbackError: String, action: suspend () -> Result<Unit>) {
+        _uiState.update { it.copy(isSubmitting = true, error = null) }
+        viewModelScope.launch {
+            action()
+                .onSuccess { _uiState.update { it.copy(isSubmitting = false, password = "") } }
+                .onFailure { e -> _uiState.update { it.copy(isSubmitting = false, error = e.toUserMessage(fallbackError)) } }
+        }
     }
 }

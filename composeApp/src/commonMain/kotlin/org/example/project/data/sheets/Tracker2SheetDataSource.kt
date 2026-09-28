@@ -1,12 +1,12 @@
 package org.example.project.data.sheets
 
+import kotlin.math.abs
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.RecentLedgerEntry
 import org.example.project.model.CareOfCategory
 import org.example.project.model.Transaction
-import kotlin.math.abs
 
 /**
  * Sheet #2 schema implementation (`tracker_2`).

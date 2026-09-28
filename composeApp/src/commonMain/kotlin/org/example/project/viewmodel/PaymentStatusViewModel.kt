@@ -45,6 +45,15 @@ data class PaymentStatusUiState(
     val hasEntries: Boolean get() = paidCount + unpaidCount > 0
 }
 
+sealed interface PaymentStatusEvent {
+    data object Refresh : PaymentStatusEvent
+    /** [mode] is null for "All". */
+    data class ModeSelected(val mode: String?) : PaymentStatusEvent
+    /** [month] is null for "All". */
+    data class MonthSelected(val month: String?) : PaymentStatusEvent
+    data class StatusSelected(val filter: PaymentStatusFilter) : PaymentStatusEvent
+}
+
 /** Label used for ledger rows whose Mode of Payment cell is blank. */
 const val UNASSIGNED_MODE = "Unassigned"
 
@@ -69,7 +78,17 @@ class PaymentStatusViewModel(
         load()
     }
 
-    fun load() {
+    fun onEvent(event: PaymentStatusEvent) {
+        when (event) {
+            PaymentStatusEvent.Refresh -> load()
+            is PaymentStatusEvent.ModeSelected -> _uiState.update { it.copy(selectedMode = event.mode) }
+            is PaymentStatusEvent.MonthSelected -> _uiState.update { it.copy(selectedMonth = event.month) }
+            is PaymentStatusEvent.StatusSelected -> _uiState.update { it.copy(statusFilter = event.filter) }
+        }
+        if (event !is PaymentStatusEvent.Refresh) recompute()
+    }
+
+    private fun load() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
@@ -106,23 +125,6 @@ class PaymentStatusViewModel(
                 _uiState.update { it.copy(isLoading = false, error = e.toUserMessage("Couldn't load the ledger.")) }
             }
         }
-    }
-
-    /** [mode] is null for "All". */
-    fun selectMode(mode: String?) {
-        _uiState.update { it.copy(selectedMode = mode) }
-        recompute()
-    }
-
-    /** [month] is null for "All". */
-    fun selectMonth(month: String?) {
-        _uiState.update { it.copy(selectedMonth = month) }
-        recompute()
-    }
-
-    fun selectStatus(filter: PaymentStatusFilter) {
-        _uiState.update { it.copy(statusFilter = filter) }
-        recompute()
     }
 
     /**

@@ -7,39 +7,55 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.model.PaymentMode
 import org.example.project.repository.UserListRepository
+import org.example.project.util.toUserMessage
+
+data class ManagedListUiState(
+    val isLoading: Boolean = true,
+    val items: List<String> = emptyList(),
+    val draftInput: String = "",
+    val isSaving: Boolean = false,
+    val error: String? = null,
+)
+
+sealed interface ManagedListEvent {
+    data class DraftChanged(val text: String) : ManagedListEvent
+    data object AddClicked : ManagedListEvent
+    data class DeleteClicked(val item: String) : ManagedListEvent
+}
 
 /**
- * Backs the "Manage payment modes" editor. Same shape as [CategoryListViewModel] — loads the
- * signed-in user's saved list (falling back to [PaymentMode]'s built-in entries on first use)
- * and persists on every add/delete. Shares [ManagedListUiState] since the two editors are
- * identical in structure, just different lists.
+ * Backs a "Manage …" list editor (categories or payment modes). Loads the user's saved list,
+ * falling back to [defaults] on first use, and persists on every add/delete — list membership
+ * has no separate save step to forget. Failed saves roll the list back.
+ *
+ * @param itemNoun singular noun used in messages, e.g. "category".
  */
-class PaymentModeListViewModel(
-    private val repository: UserListRepository = UserListRepository(listId = "paymentModes"),
+class ManagedListViewModel(
+    private val repository: UserListRepository,
+    private val defaults: List<String>,
+    private val itemNoun: String,
 ) : ViewModel() {
-
-    private val defaults: List<String> get() = PaymentMode.entries.map { it.displayName }
 
     private val _uiState = MutableStateFlow(ManagedListUiState())
     val uiState: StateFlow<ManagedListUiState> = _uiState.asStateFlow()
 
-    init { load() }
-
-    fun load() {
+    init {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
             val items = repository.getItems(defaults)
             _uiState.update { it.copy(isLoading = false, items = items) }
         }
     }
 
-    fun updateDraft(text: String) {
-        _uiState.update { it.copy(draftInput = text) }
+    fun onEvent(event: ManagedListEvent) {
+        when (event) {
+            is ManagedListEvent.DraftChanged -> _uiState.update { it.copy(draftInput = event.text.take(MAX_ITEM_LENGTH)) }
+            ManagedListEvent.AddClicked -> addItem()
+            is ManagedListEvent.DeleteClicked -> deleteItem(event.item)
+        }
     }
 
-    fun addItem() {
+    private fun addItem() {
         val name = _uiState.value.draftInput.trim()
         if (name.isEmpty()) return
         val current = _uiState.value.items
@@ -50,11 +66,11 @@ class PaymentModeListViewModel(
         persist(current + name, clearDraft = true)
     }
 
-    fun deleteItem(name: String) {
+    private fun deleteItem(name: String) {
         val current = _uiState.value.items
         // Keep at least one option — an empty list would leave the Add Transaction picker empty.
         if (current.size <= 1) {
-            _uiState.update { it.copy(error = "At least one payment mode is required.") }
+            _uiState.update { it.copy(error = "At least one $itemNoun is required.") }
             return
         }
         persist(current - name, clearDraft = false)
@@ -77,9 +93,14 @@ class PaymentModeListViewModel(
                 else it.copy(
                     isSaving = false,
                     items = previous,
-                    error = result.exceptionOrNull()?.message ?: "Couldn't save changes.",
+                    error = result.exceptionOrNull()?.toUserMessage("Couldn't save changes.") ?: "Couldn't save changes.",
                 )
             }
         }
+    }
+
+    private companion object {
+        /** Mirrors the transaction field cap in firestore.rules. */
+        const val MAX_ITEM_LENGTH = 60
     }
 }
