@@ -1,13 +1,13 @@
 # Household Finance Tracker
 
-A personal finance tracking app built for households who already live in Google Sheets — no new database, no subscription, no data migration. Your spreadsheet stays the source of truth; this app is the interface on top of it.
+A personal finance tracker for Android, iOS and the web. Every account keeps its own private ledger in the cloud; households that already live in Google Sheets can keep using their sheet on the web.
 
 ---
 
 ## What it does
 
 ### Track every peso in and out
-Log income and expenses in seconds. Each transaction captures the amount, description, category, payment mode, and whether it has already left your account. The data writes directly to your existing Google Sheet — open the sheet and the row is already there.
+Log income and expenses in seconds (or by voice on the web). Each transaction captures the amount, description, category, payment mode, and whether it has been paid.
 
 ### Know exactly where your money goes
 The **Spending Summary** screen breaks down monthly spending by category with a visual bar chart. Drag across the months to compare — January vs April, slow months vs heavy ones. Each category shows how much was spent against the monthly budget, and whether you are over or under.
@@ -20,8 +20,8 @@ A built-in AI chat (powered by Gemini via Firebase) knows your budget and curren
 
 It answers with your actual numbers, not generic finance advice.
 
-### Built for two households
-Two separate sheet schemas (`tracker_1` and `tracker_2`) run from a single codebase, each with its own spreadsheet, categories, and feature set. One build serves one household — switch schemas in config. No code changes required.
+### Your data, your account
+Each account's transactions, budgets and lists live under its own Firestore path, protected by security rules. Accounts the owner grants Sheets access to (web only) read and write a household Google Sheet instead, through an authenticated Apps Script gateway — see [SETUP.md](SETUP.md).
 
 ### Guest preview
 Share a read-only guest link so family members or a partner can explore the app before creating an account. Guest access is intentionally limited: they can browse and ask one AI question, but cannot add transactions or see sensitive diagnostics.
@@ -35,11 +35,10 @@ Share a read-only guest link so family members or a partner can explore the app 
 | **Transaction entry** | Amount, description, category, payment mode, paid toggle |
 | **Budget tracking** | Per-category monthly budget vs actual, over/under indicator |
 | **Spending summary** | Monthly bar chart + category breakdown with drag-to-select |
-| **AI assistant** | Gemini-powered chat with live budget context; Ollama fallback for local/offline use |
-| **Multi-household** | Two independent sheet schemas from one codebase |
-| **Auth** | Email/password sign-in, anonymous guest mode, Firebase Remote Config kill-switches |
-| **Platforms** | Android, Web (primary), iOS, Desktop — one codebase |
-| **No backend** | Google Sheets is the database; writes go through Google Apps Script |
+| **AI assistant** | Gemini chat (Firebase AI Logic) with your ledger as context — web and Android |
+| **Data** | Firestore per account; optional household Google Sheet on the web |
+| **Auth** | Email/password, anonymous guest mode, in-app account deletion, Remote Config kill-switches |
+| **Platforms** | Android, iOS, Web, Desktop — one Kotlin Multiplatform codebase |
 
 ---
 
@@ -52,12 +51,14 @@ Sign-up and guest mode can be turned on or off remotely from **Firebase Remote C
 ## How the data flows
 
 ```
-App  →  Google Apps Script (write)  →  Google Sheet
-App  ←  Google Sheets API v4 (read) ←  Google Sheet
-App  →  Firebase AI Logic (Gemini)  →  AI response
+App  →  Firebase Auth (ID token)
+App  ↔  Cloud Firestore (REST, users/{uid}/…)            every account
+App  ↔  Apps Script gateway (verifies token) ↔  Sheet    granted accounts, web only
+App  →  Firebase AI Logic (Gemini)                        chat + voice categories
 ```
 
-No proprietary backend. No monthly infrastructure cost beyond Firebase's free tier. The spreadsheet is always readable and editable directly — the app does not lock your data.
+No custom server; everything runs on Firebase's free tier plus one Apps Script. See
+[SETUP.md](SETUP.md) to configure and [RELEASE.md](RELEASE.md) for the store checklist.
 
 ---
 

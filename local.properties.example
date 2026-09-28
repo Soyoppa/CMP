@@ -1,0 +1,18 @@
+# Copy to local.properties (gitignored) and fill in. See SETUP.md.
+
+# --- Firebase web-app config (Firebase console -> Project settings -> Web app) ---
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_STORAGE_BUCKET=
+FIREBASE_MESSAGING_SENDER_ID=
+FIREBASE_APP_ID=
+GEMINI_MODEL=gemini-2.0-flash
+
+# --- Household sheet (web accounts granted Sheets access only) ---
+SHEET_SCHEMA=tracker_1
+tracker_1.SHEETS_GATEWAY_URL=
+tracker_2.SHEETS_GATEWAY_URL=
+
+# --- Android SDK location (set by Android Studio) ---
+sdk.dir=
