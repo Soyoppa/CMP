@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Edge-to-edge, no action bar; the window color matches the app so launch has no white flash. -->
+    <style name="Theme.FinanceTracker" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

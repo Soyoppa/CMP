@@ -22,6 +22,16 @@ val localProperties = Properties().apply {
     }
 }
 
+// Release signing: keystore.properties (gitignored) next to local.properties, with
+// storeFile / storePassword / keyAlias / keyPassword. See RELEASE.md.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
+}
+
+val appVersionCode = providers.gradleProperty("app.versionCode").get().toInt()
+val appVersionName = providers.gradleProperty("app.versionName").get()
+
 kotlin {
     androidTarget {
         compilerOptions {
@@ -129,8 +139,18 @@ android {
         applicationId = "org.example.project"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
+    }
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
     }
     packaging {
         resources {
@@ -139,6 +159,7 @@ android {
     }
     buildTypes {
         getByName("release") {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -157,6 +178,16 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
+// Store uploads must be signed: fail loudly instead of producing an unsigned bundle/APK.
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+tasks.matching { it.name == "bundleRelease" || it.name == "assembleRelease" }.configureEach {
+    doFirst {
+        if (!hasReleaseKeystore) {
+            throw GradleException("keystore.properties not found — release builds must be signed. See RELEASE.md.")
+        }
+    }
+}
+
 compose.desktop {
     application {
         mainClass = "org.example.project.MainKt"
@@ -164,7 +195,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "org.example.project"
-            packageVersion = "1.0.0"
+            packageVersion = appVersionName
         }
     }
 }

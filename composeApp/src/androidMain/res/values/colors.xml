@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FCFAF6</color>
+    <!-- Window background while the first Compose frame loads (light / dark below). -->
+    <color name="window_background">#FCFAF6</color>
+</resources>
