@@ -3,27 +3,17 @@ package org.example.project.config
 /**
  * Single source of truth for runtime configuration.
  *
- * All values originate in `local.properties` and flow through the
- * BuildConfig plugin into [ApiConfig]. To add a new key:
- *   1. add a buildConfigField in composeApp/build.gradle.kts
- *   2. expose it on [ApiConfig]
- *   3. surface it here
- *
- * See SETUP.md for the full fork-and-deploy checklist.
+ * All values originate in `local.properties` and are baked into the generated [BuildConfig] by
+ * composeApp/build.gradle.kts. To add a key: add a `field(...)` there, then surface it here.
  */
 object ConfigManager {
 
     data class ApiConfiguration(
-        val spreadsheetId: String,
-        val apiKey: String,
-        val scriptUrl: String,
-        val writeSpreadsheetId: String,
-        val writeScriptUrl: String,
-        val sheetRange: String,
-        val budgetRange: String,
-        val summaryRange: String,
+        /** Household sheet schema for accounts granted Sheets access: "tracker_1" | "tracker_2". */
         val sheetSchema: String,
-        // Firebase AI Logic (primary AI provider on web)
+        /** Apps Script Sheets gateway (web only); blank on builds without Sheets access. */
+        val sheetsGatewayUrl: String,
+        // Firebase web-app config (not secret; access is enforced by Auth + Firestore rules)
         val firebaseApiKey: String,
         val firebaseAuthDomain: String,
         val firebaseProjectId: String,
@@ -45,22 +35,15 @@ object ConfigManager {
 
     private val defaultConfig: ApiConfiguration by lazy {
         ApiConfiguration(
-            spreadsheetId = ApiConfig.SPREADSHEET_ID,
-            apiKey = ApiConfig.API_KEY,
-            scriptUrl = ApiConfig.SCRIPT_URL,
-            writeSpreadsheetId = ApiConfig.WRITE_SPREADSHEET_ID,
-            writeScriptUrl = ApiConfig.WRITE_SCRIPT_URL,
-            sheetRange = ApiConfig.SHEET_RANGE,
-            budgetRange = ApiConfig.BUDGET_RANGE,
-            summaryRange = ApiConfig.SUMMARY_TREND,
-            sheetSchema = ApiConfig.SHEET_SCHEMA,
-            firebaseApiKey = ApiConfig.FIREBASE_API_KEY,
-            firebaseAuthDomain = ApiConfig.FIREBASE_AUTH_DOMAIN,
-            firebaseProjectId = ApiConfig.FIREBASE_PROJECT_ID,
-            firebaseStorageBucket = ApiConfig.FIREBASE_STORAGE_BUCKET,
-            firebaseMessagingSenderId = ApiConfig.FIREBASE_MESSAGING_SENDER_ID,
-            firebaseAppId = ApiConfig.FIREBASE_APP_ID,
-            geminiModel = ApiConfig.GEMINI_MODEL,
+            sheetSchema = BuildConfig.SHEET_SCHEMA,
+            sheetsGatewayUrl = BuildConfig.SHEETS_GATEWAY_URL,
+            firebaseApiKey = BuildConfig.FIREBASE_API_KEY,
+            firebaseAuthDomain = BuildConfig.FIREBASE_AUTH_DOMAIN,
+            firebaseProjectId = BuildConfig.FIREBASE_PROJECT_ID,
+            firebaseStorageBucket = BuildConfig.FIREBASE_STORAGE_BUCKET,
+            firebaseMessagingSenderId = BuildConfig.FIREBASE_MESSAGING_SENDER_ID,
+            firebaseAppId = BuildConfig.FIREBASE_APP_ID,
+            geminiModel = BuildConfig.GEMINI_MODEL,
         )
     }
 

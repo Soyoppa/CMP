@@ -12,6 +12,7 @@ import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.settings.AccountDataEraser
 import org.example.project.data.settings.UserSettingsStore
 import org.example.project.data.sheets.SheetDataSourceFactory
+import org.example.project.data.sheets.SheetsGatewayClient
 
 /**
  * App-wide singletons, created lazily on first use. Keeps construction in one place so
@@ -35,7 +36,9 @@ object AppContainer {
     }
 
     /** Only touched for accounts granted the Sheets ledger (web). */
-    val sheetsLedger: LedgerDataSource by lazy { SheetDataSourceFactory.create() }
+    val sheetsLedger: LedgerDataSource by lazy {
+        SheetDataSourceFactory.create(SheetsGatewayClient(idToken = { authProvider.idToken(forceRefresh = false) }))
+    }
 
     val authRepository: AuthRepository by lazy {
         AuthRepository(

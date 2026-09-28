@@ -170,18 +170,17 @@ compose.desktop {
 buildConfig {
     packageName("org.example.project.config")
 
-    // Active schema. local.properties stores schema-specific values under
-    // a `<schema>.<KEY>` prefix so both schemas' configs can coexist and
-    // you flip with a single line.
+    // Household sheet schema used by accounts granted Sheets access on the web. local.properties
+    // stores schema-specific values under a `<schema>.<KEY>` prefix so both schemas' configs can
+    // coexist and you flip with a single line.
     val activeSchema = localProperties.getProperty("SHEET_SCHEMA")
-        ?: error("SHEET_SCHEMA missing from local.properties — see local.properties.example")
+        ?: error("SHEET_SCHEMA missing from local.properties — see SETUP.md")
 
-    // Look up `<activeSchema>.<key>` first, fall back to bare `<key>` for
-    // back-compat with the pre-namespaced layout.
-    fun schemaProp(key: String, default: String = ""): String {
-        return localProperties.getProperty("$activeSchema.$key")
-            ?: localProperties.getProperty(key, default)
-    }
+    fun schemaProp(key: String): String? =
+        localProperties.getProperty("$activeSchema.$key") ?: localProperties.getProperty(key)
+
+    fun requiredProp(key: String): String =
+        localProperties.getProperty(key) ?: error("$key missing from local.properties — see SETUP.md")
 
     fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"")
@@ -191,26 +190,16 @@ buildConfig {
     }
 
     field("SHEET_SCHEMA", activeSchema)
+    // Optional: only the web build for granted accounts talks to the sheet (apps-script/sheets-gateway.gs).
+    field("SHEETS_GATEWAY_URL", schemaProp("SHEETS_GATEWAY_URL").orEmpty())
 
-    // Schema-specific (resolved via `<schema>.KEY`)
-    field("SPREADSHEET_ID", schemaProp("SPREADSHEET_ID"))
-    field("SHEET_RANGE", schemaProp("SHEET_RANGE", "'Data Dump'!A:H"))
-    field("BUDGET_RANGE", schemaProp("BUDGET_RANGE", "'Bugdet vs Expense'!A:N"))
-    field("SUMMARY_TREND", schemaProp("Summary", "'Summary Trend'!A:M"))
-    field("SCRIPT_URL", schemaProp("SCRIPT_URL"))
-    field("WRITE_SPREADSHEET_ID", schemaProp("WRITE_SPREADSHEET_ID"))
-    field("WRITE_SCRIPT_URL", schemaProp("WRITE_SCRIPT_URL"))
-
-    // Shared across schemas
-    field("GOOGLE_API_KEY", localProperties.getProperty("GOOGLE_API_KEY", ""))
-
-    // Firebase AI Logic (primary AI provider on web; Gemini Developer API / free tier).
-    // These come from the Firebase console Web app `firebaseConfig` — none are secret.
-    field("FIREBASE_API_KEY", localProperties.getProperty("FIREBASE_API_KEY", ""))
-    field("FIREBASE_AUTH_DOMAIN", localProperties.getProperty("FIREBASE_AUTH_DOMAIN", ""))
-    field("FIREBASE_PROJECT_ID", localProperties.getProperty("FIREBASE_PROJECT_ID", ""))
-    field("FIREBASE_STORAGE_BUCKET", localProperties.getProperty("FIREBASE_STORAGE_BUCKET", ""))
-    field("FIREBASE_MESSAGING_SENDER_ID", localProperties.getProperty("FIREBASE_MESSAGING_SENDER_ID", ""))
-    field("FIREBASE_APP_ID", localProperties.getProperty("FIREBASE_APP_ID", ""))
-    field("GEMINI_MODEL", localProperties.getProperty("GEMINI_MODEL", "gemini-2.0-flash"))
+    // Firebase web-app config (from the Firebase console `firebaseConfig`). None are secret —
+    // access is enforced by Firebase Auth + firestore.rules.
+    field("FIREBASE_API_KEY", requiredProp("FIREBASE_API_KEY"))
+    field("FIREBASE_AUTH_DOMAIN", requiredProp("FIREBASE_AUTH_DOMAIN"))
+    field("FIREBASE_PROJECT_ID", requiredProp("FIREBASE_PROJECT_ID"))
+    field("FIREBASE_STORAGE_BUCKET", requiredProp("FIREBASE_STORAGE_BUCKET"))
+    field("FIREBASE_MESSAGING_SENDER_ID", requiredProp("FIREBASE_MESSAGING_SENDER_ID"))
+    field("FIREBASE_APP_ID", requiredProp("FIREBASE_APP_ID"))
+    field("GEMINI_MODEL", requiredProp("GEMINI_MODEL"))
 }

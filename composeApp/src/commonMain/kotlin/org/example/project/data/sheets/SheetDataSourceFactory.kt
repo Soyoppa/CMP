@@ -15,10 +15,10 @@ object SheetDataSourceFactory {
     const val SCHEMA_TRACKER_1 = "tracker_1"
     const val SCHEMA_TRACKER_2 = "tracker_2"
 
-    fun create(): LedgerDataSource =
+    fun create(gateway: SheetsGatewayClient): LedgerDataSource =
         when (val schema = ConfigManager.getConfig().sheetSchema) {
-            SCHEMA_TRACKER_1 -> Tracker1SheetDataSource()
-            SCHEMA_TRACKER_2 -> Tracker2SheetDataSource()
+            SCHEMA_TRACKER_1 -> Tracker1SheetDataSource(gateway)
+            SCHEMA_TRACKER_2 -> Tracker2SheetDataSource(gateway)
             else -> error("Unknown SHEET_SCHEMA='$schema' (expected $SCHEMA_TRACKER_1 or $SCHEMA_TRACKER_2)")
         }
 }

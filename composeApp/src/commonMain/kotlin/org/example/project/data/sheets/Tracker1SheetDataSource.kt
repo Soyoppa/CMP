@@ -1,6 +1,5 @@
 package org.example.project.data.sheets
 
-import org.example.project.config.ConfigManager
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
@@ -11,20 +10,17 @@ import org.example.project.util.DateUtils
 /**
  * Sheet #1 schema implementation (`tracker_1`).
  *
- * Backing tab layout:
- *   'Data Dump'!A:H -> Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks
+ * Ledger tab layout ('Data Dump'):
+ *   Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks
  *
- * Writes go through a Google Apps Script web app (see AppsScriptWriter
- * and apps-script/tracker_1.gs).
+ * Reads and writes go through the authenticated Sheets gateway (apps-script/sheets-gateway.gs).
  */
 class Tracker1SheetDataSource(
-    private val reader: GoogleSheetsReader = GoogleSheetsReader(),
-    private val writer: AppsScriptWriter = AppsScriptWriter(),
+    private val gateway: SheetsGatewayClient,
 ) : LedgerDataSource {
 
-    /** Data rows of 'Data Dump' (header dropped). Read failures propagate to the caller. */
-    private suspend fun ledgerRows(): List<List<String>> =
-        reader.readRange(ConfigManager.getConfig().sheetRange).drop(1)
+    /** Data rows of the ledger tab (header dropped). Read failures propagate to the caller. */
+    private suspend fun ledgerRows(): List<List<String>> = gateway.readRows().drop(1)
 
     /** Last [limit] rows of the ledger, newest first. */
     override suspend fun getRecent(limit: Int): List<RecentLedgerEntry> =
@@ -69,5 +65,15 @@ class Tracker1SheetDataSource(
         raw?.trim()?.lowercase() in setOf("true", "yes", "y", "paid", "1")
 
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
-        writer.addTransaction(transaction)
+        gateway.append(
+            mapOf(
+                "date" to transaction.date,
+                "description" to transaction.description,
+                "inflow" to transaction.inflow,
+                "outflow" to transaction.outflow,
+                "category" to transaction.category,
+                "modeOfPayment" to transaction.modeOfPayment,
+                "isPaid" to transaction.isPaid,
+            )
+        )
 }

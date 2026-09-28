@@ -1,6 +1,5 @@
 package org.example.project.data.sheets
 
-import org.example.project.config.ConfigManager
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
@@ -19,13 +18,11 @@ import kotlin.math.abs
  *   D: Credit Card  (free text)             -> Transaction.modeOfPayment
  *   E: c/o          (CareOfCategory.displayName) -> Transaction.category
  *
- * Writes go to the Apps Script web app with these parameters:
- *   date, description, amount (signed), creditCard, careOf
- * See apps-script/tracker_2.gs for the matching script template.
+ * Reads and writes go through the authenticated Sheets gateway (apps-script/sheets-gateway.gs);
+ * appends send: date, description, amount (signed), creditCard, careOf.
  */
 class Tracker2SheetDataSource(
-    private val reader: GoogleSheetsReader = GoogleSheetsReader(),
-    private val writer: AppsScriptWriter = AppsScriptWriter(),
+    private val gateway: SheetsGatewayClient,
 ) : LedgerDataSource {
 
     /** Tracker 2 has no summary/drill-down features, so it exposes no expense breakdown. */
@@ -36,7 +33,7 @@ class Tracker2SheetDataSource(
      * A negative amount is a refund/reversal, surfaced as an inflow.
      */
     override suspend fun getRecent(limit: Int): List<RecentLedgerEntry> =
-        reader.readRange(ConfigManager.getConfig().sheetRange)
+        gateway.readRows()
             .drop(1) // header
             .filter { it.getOrNull(1)?.isNotBlank() == true }
             .takeLast(limit)
@@ -61,12 +58,14 @@ class Tracker2SheetDataSource(
         val careOf = CareOfCategory.fromDisplayName(transaction.category)?.displayName
             ?: transaction.category
 
-        return writer.append(
-            "date" to transaction.date,
-            "description" to transaction.description,
-            "amount" to signedAmount.toString(),
-            "creditCard" to transaction.modeOfPayment,
-            "careOf" to careOf,
+        return gateway.append(
+            mapOf(
+                "date" to transaction.date,
+                "description" to transaction.description,
+                "amount" to signedAmount,
+                "creditCard" to transaction.modeOfPayment,
+                "careOf" to careOf,
+            )
         )
     }
 }
