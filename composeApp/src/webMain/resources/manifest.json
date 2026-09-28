@@ -1,6 +1,6 @@
 {
-  "name": "Transaction Logger",
-  "short_name": "Tracker",
+  "name": "Treasurer",
+  "short_name": "Treasurer",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#FFFBFE",
