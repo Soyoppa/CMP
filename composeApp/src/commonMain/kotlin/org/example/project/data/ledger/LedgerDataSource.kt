@@ -11,14 +11,16 @@ import org.example.project.model.Transaction
 enum class LedgerSource { CLOUD, SHEETS }
 
 /**
- * One expense row, reduced to what the Summary drill-down, Paid & Unpaid screen and the AI chat
- * context need. [monthNumber] is 1..12 (0 if unknown); [date] is the stored date text, kept as-is
- * for display. Income rows are excluded by the producers.
+ * One ledger row (income or expense). [amount] is always positive; [isIncome] tells the sides
+ * apart. [monthNumber] is 1..12 (0 if unknown); [date] is the stored date text, kept as-is for
+ * display.
  *
- * [modeOfPayment] and [isPaid] power the Paid & Unpaid screen; sources without those columns leave
- * the defaults (blank / unpaid).
+ * [id] identifies the row within its backend so it can be deleted: the Firestore document id, or
+ * the 1-based sheet row number for Google Sheets. [modeOfPayment] and [isPaid] power the Paid &
+ * Unpaid screen; sources without those columns leave the defaults (blank / unpaid).
  */
 data class LedgerEntry(
+    val id: String = "",
     val description: String,
     val amount: Double,
     val category: String,
@@ -26,16 +28,7 @@ data class LedgerEntry(
     val date: String = "",
     val modeOfPayment: String = "",
     val isPaid: Boolean = false,
-)
-
-/**
- * A recent entry reduced to what the read diagnostic needs: a label and a magnitude.
- * [isInflow] distinguishes income/refunds (+) from expenses/charges (−).
- */
-data class RecentLedgerEntry(
-    val description: String,
-    val amount: Double,
-    val isInflow: Boolean,
+    val isIncome: Boolean = false,
 )
 
 /** Outcome of a ledger write. [errorMessage] is user-facing (never a raw URL or response body). */
@@ -47,11 +40,14 @@ data class AddTransactionResult(
 /** Read + write access to one ledger backend. Picked per session by [org.example.project.repository.LedgerRepository]. */
 interface LedgerDataSource {
 
-    /** Every expense row with its category + month. */
-    suspend fun getExpenses(): List<LedgerEntry>
+    /** Every row, income and expenses, in ledger order (oldest first). */
+    suspend fun getEntries(): List<LedgerEntry>
 
-    /** The most recent [limit] entries (newest first). */
-    suspend fun getRecent(limit: Int): List<RecentLedgerEntry>
+    /** Expense rows only — what the Summary, Paid & Unpaid and AI context work from. */
+    suspend fun getExpenses(): List<LedgerEntry> = getEntries().filterNot { it.isIncome }
 
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult
+
+    /** Permanently removes [entry] (identified by [LedgerEntry.id]). Throws a user-facing error on failure. */
+    suspend fun deleteEntry(entry: LedgerEntry)
 }

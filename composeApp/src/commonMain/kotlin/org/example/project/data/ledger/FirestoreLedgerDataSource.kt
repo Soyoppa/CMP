@@ -28,36 +28,30 @@ class FirestoreLedgerDataSource(
         return "users/$uid/transactions"
     }
 
-    override suspend fun getExpenses(): List<LedgerEntry> =
+    override suspend fun getEntries(): List<LedgerEntry> =
         firestore.listDocuments(collectionPath())
             .map(::toStored)
-            .filter { it.outflow > 0.0 && it.description.isNotBlank() }
+            .filter { it.description.isNotBlank() && (it.inflow > 0.0 || it.outflow > 0.0) }
             .sortedWith(compareBy<StoredTransaction> { it.date }.thenBy { it.createdAt })
             .map { stored ->
+                val isIncome = stored.inflow > 0.0
                 LedgerEntry(
+                    id = stored.id,
                     description = stored.description,
-                    amount = stored.outflow,
+                    amount = if (isIncome) stored.inflow else stored.outflow,
                     category = stored.category,
                     monthNumber = DateUtils.monthNumberFromDate(stored.date),
                     date = stored.date,
                     modeOfPayment = stored.modeOfPayment,
                     isPaid = stored.isPaid,
+                    isIncome = isIncome,
                 )
             }
 
-    override suspend fun getRecent(limit: Int): List<RecentLedgerEntry> =
-        firestore.listDocuments(collectionPath())
-            .map(::toStored)
-            .sortedByDescending { it.createdAt }
-            .take(limit)
-            .map { stored ->
-                val isInflow = stored.inflow > 0.0
-                RecentLedgerEntry(
-                    description = stored.description,
-                    amount = if (isInflow) stored.inflow else stored.outflow,
-                    isInflow = isInflow,
-                )
-            }
+    override suspend fun deleteEntry(entry: LedgerEntry) {
+        if (entry.id.isBlank()) throw UserFacingException("This transaction can't be deleted.")
+        firestore.deleteDocument("${collectionPath()}/${entry.id}")
+    }
 
     @OptIn(ExperimentalTime::class)
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult {
@@ -85,6 +79,7 @@ class FirestoreLedgerDataSource(
     private fun toStored(document: FirestoreDocument): StoredTransaction {
         val f = document.fields
         return StoredTransaction(
+            id = document.id,
             date = f.string("date").orEmpty(),
             description = f.string("description").orEmpty(),
             inflow = f.number("inflow") ?: 0.0,
@@ -97,6 +92,7 @@ class FirestoreLedgerDataSource(
     }
 
     private data class StoredTransaction(
+        val id: String,
         val date: String,
         val description: String,
         val inflow: Double,

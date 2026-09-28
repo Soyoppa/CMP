@@ -111,4 +111,13 @@ class FirestoreRestClientTest {
         val decoded = FirestoreValues.decodeFields(FirestoreValues.encodeFields(original))
         assertEquals(original, decoded)
     }
+
+    @Test
+    fun deleteDocumentIssuesDeleteAndToleratesMissingDocs() = runTest {
+        val firestore = client { HttpStatusCode.NotFound to "{}" }
+        firestore.deleteDocument("users/u1/transactions/abc123")
+        val request = requests.single()
+        assertEquals(HttpMethod.Delete, request.method)
+        assertTrue(request.url.toString().endsWith("/documents/users/u1/transactions/abc123"))
+    }
 }

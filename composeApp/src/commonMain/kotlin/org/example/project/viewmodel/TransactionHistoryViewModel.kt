@@ -1,0 +1,121 @@
+package org.example.project.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import org.example.project.auth.Session
+import org.example.project.data.ledger.LedgerEntry
+import org.example.project.repository.LedgerRepository
+import org.example.project.util.toUserMessage
+
+enum class HistoryFilter { ALL, EXPENSES, INCOME }
+
+data class TransactionHistoryUiState(
+    val isLoading: Boolean = true,
+    /** Load failure; the screen shows it with a retry. */
+    val error: String? = null,
+    /** Every entry, newest first. */
+    val entries: List<LedgerEntry> = emptyList(),
+    val filter: HistoryFilter = HistoryFilter.ALL,
+    /** Guests browse demo data, which can't be deleted. */
+    val canDelete: Boolean = false,
+    /** Entry awaiting the user's delete confirmation. */
+    val pendingDelete: LedgerEntry? = null,
+    /** One delete at a time, so a quiet reload can't resurrect a row that's still being deleted. */
+    val isDeleting: Boolean = false,
+    /** A delete that failed (the row is restored); shown until dismissed. */
+    val deleteError: String? = null,
+) {
+    val visibleEntries: List<LedgerEntry>
+        get() = when (filter) {
+            HistoryFilter.ALL -> entries
+            HistoryFilter.EXPENSES -> entries.filterNot { it.isIncome }
+            HistoryFilter.INCOME -> entries.filter { it.isIncome }
+        }
+}
+
+sealed interface TransactionHistoryEvent {
+    data object Refresh : TransactionHistoryEvent
+    data class FilterSelected(val filter: HistoryFilter) : TransactionHistoryEvent
+    data class DeleteClicked(val entry: LedgerEntry) : TransactionHistoryEvent
+    data object DeleteConfirmed : TransactionHistoryEvent
+    data object DeleteDismissed : TransactionHistoryEvent
+    data object DeleteErrorShown : TransactionHistoryEvent
+}
+
+/**
+ * Backs the Transactions screen: the user's ledger newest-first, with delete.
+ *
+ * Deletes are optimistic — the row disappears immediately and is put back (with an error) if the
+ * backend refuses, e.g. the shared sheet changed underneath us. After a successful delete the list
+ * is re-read quietly so ids stay valid (sheet rows renumber when one above them is removed).
+ */
+class TransactionHistoryViewModel(
+    private val ledgerRepository: LedgerRepository = LedgerRepository(),
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(TransactionHistoryUiState(canDelete = !Session.isGuest))
+    val uiState: StateFlow<TransactionHistoryUiState> = _uiState.asStateFlow()
+
+    init {
+        load()
+    }
+
+    fun onEvent(event: TransactionHistoryEvent) {
+        when (event) {
+            TransactionHistoryEvent.Refresh -> load()
+            is TransactionHistoryEvent.FilterSelected -> _uiState.update { it.copy(filter = event.filter) }
+            is TransactionHistoryEvent.DeleteClicked ->
+                if (_uiState.value.canDelete && !_uiState.value.isDeleting) {
+                    _uiState.update { it.copy(pendingDelete = event.entry) }
+                }
+            TransactionHistoryEvent.DeleteConfirmed -> deletePending()
+            TransactionHistoryEvent.DeleteDismissed -> _uiState.update { it.copy(pendingDelete = null) }
+            TransactionHistoryEvent.DeleteErrorShown -> _uiState.update { it.copy(deleteError = null) }
+        }
+    }
+
+    /** @param quiet keep the current list on screen (no spinner, errors ignored) — used after a delete. */
+    private fun load(quiet: Boolean = false) {
+        if (!quiet) _uiState.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val entries = ledgerRepository.getEntries().asReversed()
+                _uiState.update { it.copy(isLoading = false, entries = entries) }
+            } catch (e: Exception) {
+                if (!quiet) {
+                    _uiState.update { it.copy(isLoading = false, error = e.toUserMessage("Couldn't load your transactions.")) }
+                }
+            }
+        }
+    }
+
+    private fun deletePending() {
+        val entry = _uiState.value.pendingDelete ?: return
+        val index = _uiState.value.entries.indexOf(entry)
+        _uiState.update {
+            it.copy(pendingDelete = null, deleteError = null, isDeleting = true, entries = it.entries - entry)
+        }
+        viewModelScope.launch {
+            try {
+                ledgerRepository.deleteEntry(entry)
+                _uiState.update { it.copy(isDeleting = false) }
+                // Sheet row numbers below a deleted row shift up; re-read so every id is current.
+                load(quiet = true)
+            } catch (e: Exception) {
+                _uiState.update { state ->
+                    val restored = state.entries.toMutableList().apply { add(index.coerceIn(0, size), entry) }
+                    state.copy(
+                        isDeleting = false,
+                        entries = restored,
+                        deleteError = e.toUserMessage("Couldn't delete that transaction. Please try again."),
+                    )
+                }
+            }
+        }
+    }
+}

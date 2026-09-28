@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.example.project.config.ConfigManager
 import org.example.project.data.firestore.defaultHttpClient
 import org.example.project.data.ledger.AddTransactionResult
+import org.example.project.data.ledger.LedgerEntry
 import org.example.project.util.UserFacingException
 
 /**
@@ -56,6 +57,17 @@ class SheetsGatewayClient(
         AddTransactionResult(success = false, errorMessage = e.message)
     }
 
+    /**
+     * Deletes the sheet row [entry] was read from. The gateway re-checks that the row still holds
+     * this entry's date and description first, so if the sheet was edited since the read (rows
+     * shifted) nothing is deleted and the user is asked to refresh.
+     */
+    suspend fun deleteRow(entry: LedgerEntry) {
+        val row = entry.id.toIntOrNull()?.takeIf { it >= 2 }
+            ?: throw UserFacingException("This transaction can't be deleted.")
+        call("delete", mapOf("row" to row, "expectDate" to entry.date, "expectDescription" to entry.description))
+    }
+
     private suspend fun call(action: String, fields: Map<String, Any>): JsonObject {
         val url = gatewayUrl()
         if (url.isBlank()) throw UserFacingException("The shared sheet isn't configured on this build.")
@@ -79,8 +91,11 @@ class SheetsGatewayClient(
         if (reply["success"]?.jsonPrimitive?.booleanOrNull != true) {
             val error = reply["error"]?.jsonPrimitive?.contentOrNull
             throw UserFacingException(
-                if (error == "Unauthorized") "This account doesn't have access to the shared sheet."
-                else "The shared sheet rejected the request: ${error ?: "unknown error"}"
+                when (error) {
+                    "Unauthorized" -> "This account doesn't have access to the shared sheet."
+                    "Row changed" -> "The sheet changed since it was loaded. Refresh and try again."
+                    else -> "The shared sheet rejected the request: ${error ?: "unknown error"}"
+                }
             )
         }
         return reply
@@ -93,6 +108,10 @@ class SheetsGatewayClient(
         else -> JsonNull
     }
 }
+
+/** Pairs each data row with its 1-based sheet row number (the header is row 1). */
+internal fun List<List<String>>.withSheetRowNumbers(): List<Pair<Int, List<String>>> =
+    drop(1).mapIndexed { index, row -> (index + 2) to row }
 
 /** Parses a sheet money cell like "₱2,950" or "-₱1,250"; blank/garbage reads as 0. */
 internal fun parseSheetAmount(raw: String?): Double =

@@ -53,7 +53,9 @@ caller's Firebase ID token and an allow-list. To grant an account:
 3. Add the same uid to the gateway's `ALLOWED_UIDS` script property.
 
 Deploying the gateway (once per spreadsheet) is described at the top of
-`apps-script/sheets-gateway.gs`. Afterwards, remove "Anyone with the link" sharing from the sheet —
+`apps-script/sheets-gateway.gs`. After updating the script (e.g. to get the `delete` action used by
+the Transactions screen), deploy a **new version of the existing deployment** so the `/exec` URL
+stays the same. Afterwards, remove "Anyone with the link" sharing from the sheet —
 the app no longer uses a Sheets API key.
 
 ## 5. Build & deploy the web app

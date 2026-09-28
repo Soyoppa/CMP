@@ -2,6 +2,7 @@ package org.example.project.data.ledger
 
 import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
+import org.example.project.util.UserFacingException
 
 /**
  * Hardcoded demo ledger served to guests (anonymous sessions), so they can explore every screen
@@ -60,7 +61,7 @@ object DemoLedgerDataSource : LedgerDataSource {
         else -> listOf(0.5, 0.32, 0.18)
     }
 
-    override suspend fun getExpenses(): List<LedgerEntry> =
+    private val demoExpenses: List<LedgerEntry> =
         summaryData.flatMap { (category, values) ->
             val names = demoLineItems[category] ?: listOf(category)
             values.flatMapIndexed { monthIndex, total ->
@@ -70,6 +71,7 @@ object DemoLedgerDataSource : LedgerDataSource {
                     val amount = (total * weights[i])
                     if (amount < 1.0) null
                     else LedgerEntry(
+                        id = "demo-$category-$monthIndex-$i",
                         description = name,
                         amount = amount,
                         category = category,
@@ -84,20 +86,29 @@ object DemoLedgerDataSource : LedgerDataSource {
             }
         }
 
-    private val allRecentTransactions = listOf(
-        RecentLedgerEntry("Monthly Salary",        55000.0, isInflow = true),
-        RecentLedgerEntry("SM Supermarket",         3250.0, isInflow = false),
-        RecentLedgerEntry("Meralco Bill",           4500.0, isInflow = false),
-        RecentLedgerEntry("Jollibee Family Meal",    850.0, isInflow = false),
-        RecentLedgerEntry("Grab — Airport",         1200.0, isInflow = false),
-        RecentLedgerEntry("Church Offering",         400.0, isInflow = false),
-        RecentLedgerEntry("Birthday Gift",          2500.0, isInflow = false),
-    )
+    /** A salary on the 15th of each demo month, so the ledger shows income too. */
+    private val demoIncome: List<LedgerEntry> = months.mapIndexed { monthIndex, month ->
+        LedgerEntry(
+            id = "demo-salary-$monthIndex",
+            description = "Monthly Salary",
+            amount = 55000.0,
+            category = "Salary",
+            monthNumber = monthIndex + 1,
+            date = "$month 15",
+            modeOfPayment = "BPI",
+            isPaid = true,
+            isIncome = true,
+        )
+    }
 
-    override suspend fun getRecent(limit: Int): List<RecentLedgerEntry> =
-        allRecentTransactions.take(limit)
+    override suspend fun getEntries(): List<LedgerEntry> =
+        (demoExpenses + demoIncome).sortedBy { it.monthNumber }
 
     /** Demo data is read-only: report success so the flow completes, but nothing is stored. */
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
         AddTransactionResult(success = true)
+
+    override suspend fun deleteEntry(entry: LedgerEntry) {
+        throw UserFacingException("Demo data can't be deleted. Create an account to keep your own ledger.")
+    }
 }

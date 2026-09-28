@@ -7,7 +7,6 @@ import org.example.project.data.ledger.DemoLedgerDataSource
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.LedgerSource
-import org.example.project.data.ledger.RecentLedgerEntry
 import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
 
@@ -37,12 +36,15 @@ class LedgerRepository(
     /** Ready-made summary for guests; signed-in users get theirs built from [getExpenses]. */
     fun getDemoSummary(): List<CategorySummary> = DemoLedgerDataSource.getSummary()
 
-    /** The most recent [limit] entries (newest first) for read diagnostics. */
-    suspend fun getRecent(limit: Int): List<RecentLedgerEntry> = source.getRecent(limit)
+    /** Every income/expense row in ledger order (oldest first). */
+    suspend fun getEntries(): List<LedgerEntry> = source.getEntries()
 
     /** Every expense row with category + month. */
     suspend fun getExpenses(): List<LedgerEntry> = source.getExpenses()
 
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
         source.addTransaction(transaction)
+
+    /** Permanently deletes [entry]; guests (demo data) get a user-facing refusal. */
+    suspend fun deleteEntry(entry: LedgerEntry) = source.deleteEntry(entry)
 }

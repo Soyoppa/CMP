@@ -17,7 +17,21 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
  */
 @Composable
 fun SessionScope(sessionKey: String, content: @Composable () -> Unit) {
-    val owner = remember(sessionKey) { SessionViewModelStoreOwner() }
+    ScopedViewModelStore(key = sessionKey, content = content)
+}
+
+/**
+ * Gives a full-screen overlay (budgets, list editors, Transactions, …) its own ViewModels for as
+ * long as it's shown, so every opening starts from fresh data instead of a stale earlier instance.
+ */
+@Composable
+fun OverlayScope(content: @Composable () -> Unit) {
+    ScopedViewModelStore(key = "overlay", content = content)
+}
+
+@Composable
+private fun ScopedViewModelStore(key: String, content: @Composable () -> Unit) {
+    val owner = remember(key) { ScopedViewModelStoreOwner() }
     DisposableEffect(owner) {
         onDispose { owner.viewModelStore.clear() }
     }
@@ -26,7 +40,7 @@ fun SessionScope(sessionKey: String, content: @Composable () -> Unit) {
     }
 }
 
-private class SessionViewModelStoreOwner : ViewModelStoreOwner {
+private class ScopedViewModelStoreOwner : ViewModelStoreOwner {
     override val viewModelStore: ViewModelStore = ViewModelStore()
 }
 

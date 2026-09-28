@@ -21,6 +21,7 @@
  * Protocol: POST, body = JSON text { idToken, action, ... }. Responses are JSON:
  *   { success: true, rows: [[...], ...] }        for action "list"  (header row included)
  *   { success: true }                             for action "append"
+ *   { success: true }                             for action "delete" { row, expectDate, expectDescription }
  *   { success: false, error: "..." }              on any failure
  */
 
@@ -42,6 +43,9 @@ function doPost(e) {
       if (!row) return jsonOut({ success: false, error: 'Invalid transaction' });
       sheet.appendRow(row);
       return jsonOut({ success: true });
+    }
+    if (req.action === 'delete') {
+      return jsonOut(deleteRow(sheet, req));
     }
     return jsonOut({ success: false, error: 'Unknown action' });
   } catch (err) {
@@ -75,6 +79,24 @@ function verifyCaller(idToken) {
   var users = JSON.parse(resp.getContentText()).users || [];
   var uid = users.length ? users[0].localId : null;
   return uid && allowed.indexOf(uid) >= 0 ? uid : null;
+}
+
+/**
+ * Deletes one data row, but only if it still holds what the client saw (date in column A,
+ * description in column B). If the sheet was edited since the client read it, rows may have
+ * shifted — refusing then guarantees we never delete the wrong transaction.
+ */
+function deleteRow(sheet, req) {
+  var row = Number(req.row);
+  if (!(row >= 2 && row <= sheet.getLastRow() && Math.floor(row) === row)) {
+    return { success: false, error: 'Row changed' };
+  }
+  var cells = sheet.getRange(row, 1, 1, 2).getDisplayValues()[0];
+  var same = String(cells[0]).trim() === String(req.expectDate || '').trim() &&
+             String(cells[1]).trim() === String(req.expectDescription || '').trim();
+  if (!same) return { success: false, error: 'Row changed' };
+  sheet.deleteRow(row);
+  return { success: true };
 }
 
 /** tracker_1: Date | Description | Inflow | Outflow | Category | Mode | Paid | Remarks */

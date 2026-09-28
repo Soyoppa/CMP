@@ -73,6 +73,7 @@ fun SettingsScreen(
     onOpenPaymentModes: () -> Unit = {},
     /** null on schemas whose ledger has no Paid column, which hides the row entirely. */
     onOpenPaymentStatus: (() -> Unit)? = null,
+    onOpenTransactions: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -120,9 +121,14 @@ fun SettingsScreen(
             )
         }
 
-        // Read-only slice of the ledger — available to guests too (they see the demo dataset).
-        if (onOpenPaymentStatus != null) {
-            SettingsSection(title = "Ledger") {
+        // Available to guests too — they browse the demo dataset (read-only).
+        SettingsSection(title = "Ledger") {
+            NavigationRow(
+                title = "Transactions",
+                subtitle = if (isGuest) "Browse the demo ledger" else "Review or delete what you've logged",
+                onClick = onOpenTransactions,
+            )
+            if (onOpenPaymentStatus != null) {
                 NavigationRow(
                     title = "Paid & unpaid",
                     subtitle = "See what's settled and what's outstanding, per payment mode",

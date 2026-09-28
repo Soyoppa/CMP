@@ -47,12 +47,12 @@ class SettingsViewModel(
         _uiState.update { it.copy(isTestingRead = true) }
         viewModelScope.launch {
             val result = try {
-                val recent = ledgerRepository.getRecent(3)
+                val recent = ledgerRepository.getEntries().takeLast(3).reversed()
                 if (recent.isEmpty()) {
                     DiagnosticResult(DiagnosticKind.WARNING, "Read succeeded but your ledger has no transactions yet.")
                 } else {
                     val lines = recent.joinToString("\n") { entry ->
-                        val sign = if (entry.isInflow) "+" else "-"
+                        val sign = if (entry.isIncome) "+" else "-"
                         "• ${entry.description} — ${sign}PHP ${FormatUtils.formatPeso(entry.amount)}"
                     }
                     DiagnosticResult(DiagnosticKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")

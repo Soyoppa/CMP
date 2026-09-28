@@ -16,6 +16,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import org.example.project.data.ledger.LedgerEntry
 import org.example.project.util.UserFacingException
 
 class SheetsGatewayClientTest {
@@ -56,5 +57,33 @@ class SheetsGatewayClientTest {
     fun missingTokenNeverHitsTheNetwork() = runTest {
         assertFailsWith<UserFacingException> { gateway("{}", token = null).readRows() }
         assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun deleteRowSendsRowAndExpectedCells() = runTest {
+        val entry = LedgerEntry(id = "7", description = "Lunch", amount = 250.0, category = "Food", monthNumber = 3, date = "3/1/2026")
+        gateway("""{"success":true}""").deleteRow(entry)
+        val body = (requests.single().body as TextContent).text
+        assertTrue(""""action":"delete"""" in body)
+        assertTrue(""""row":7""" in body)
+        assertTrue(""""expectDate":"3/1/2026"""" in body)
+        assertTrue(""""expectDescription":"Lunch"""" in body)
+    }
+
+    @Test
+    fun deleteRowRefusesHeaderOrNonRowIds() = runTest {
+        val header = LedgerEntry(id = "1", description = "x", amount = 1.0, category = "", monthNumber = 0)
+        assertFailsWith<UserFacingException> { gateway("{}").deleteRow(header) }
+        assertFailsWith<UserFacingException> { gateway("{}").deleteRow(header.copy(id = "firestore-doc-id")) }
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun changedRowBecomesRefreshHint() = runTest {
+        val entry = LedgerEntry(id = "7", description = "Lunch", amount = 250.0, category = "Food", monthNumber = 3)
+        val error = assertFailsWith<UserFacingException> {
+            gateway("""{"success":false,"error":"Row changed"}""").deleteRow(entry)
+        }
+        assertEquals("The sheet changed since it was loaded. Refresh and try again.", error.message)
     }
 }

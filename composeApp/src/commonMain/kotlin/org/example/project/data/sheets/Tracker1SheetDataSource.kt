@@ -3,7 +3,6 @@ package org.example.project.data.sheets
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
-import org.example.project.data.ledger.RecentLedgerEntry
 import org.example.project.model.Transaction
 import org.example.project.util.DateUtils
 
@@ -19,42 +18,31 @@ class Tracker1SheetDataSource(
     private val gateway: SheetsGatewayClient,
 ) : LedgerDataSource {
 
-    /** Data rows of the ledger tab (header dropped). Read failures propagate to the caller. */
-    private suspend fun ledgerRows(): List<List<String>> = gateway.readRows().drop(1)
-
-    /** Last [limit] rows of the ledger, newest first. */
-    override suspend fun getRecent(limit: Int): List<RecentLedgerEntry> =
-        ledgerRows()
-            .filter { it.getOrNull(1)?.isNotBlank() == true }
-            .takeLast(limit)
-            .map { row ->
-                val inflow = parseSheetAmount(row.getOrNull(2))
-                val outflow = parseSheetAmount(row.getOrNull(3))
-                val isInflow = inflow > 0.0
-                RecentLedgerEntry(
-                    description = row.getOrNull(1)?.trim().orEmpty(),
-                    amount = if (isInflow) inflow else outflow,
-                    isInflow = isInflow,
-                )
-            }
-            .reversed()
-
-    /** Every expense row with its category and month. Income (outflow == 0) and blank rows are skipped. */
-    override suspend fun getExpenses(): List<LedgerEntry> =
-        ledgerRows().mapNotNull { row ->
+    /**
+     * Every income/expense row. The id is the 1-based sheet row number (row 1 is the header), so
+     * a row can be deleted later. Blank rows and rows with no amount are skipped.
+     */
+    override suspend fun getEntries(): List<LedgerEntry> =
+        gateway.readRows().withSheetRowNumbers().mapNotNull { (rowNumber, row) ->
             val description = row.getOrNull(1)?.trim().orEmpty()
+            val inflow = parseSheetAmount(row.getOrNull(2))
             val outflow = parseSheetAmount(row.getOrNull(3))
-            if (description.isBlank() || outflow <= 0.0) return@mapNotNull null
+            if (description.isBlank() || (inflow <= 0.0 && outflow <= 0.0)) return@mapNotNull null
+            val isIncome = inflow > 0.0
             LedgerEntry(
+                id = rowNumber.toString(),
                 description = description,
-                amount = outflow,
+                amount = if (isIncome) inflow else outflow,
                 category = row.getOrNull(4)?.trim().orEmpty(),
                 monthNumber = DateUtils.monthNumberFromDate(row.getOrNull(0)),
                 date = row.getOrNull(0)?.trim().orEmpty(),
                 modeOfPayment = row.getOrNull(5)?.trim().orEmpty(),
                 isPaid = parsePaid(row.getOrNull(6)),
+                isIncome = isIncome,
             )
         }
+
+    override suspend fun deleteEntry(entry: LedgerEntry) = gateway.deleteRow(entry)
 
     /**
      * The ledger's Paid column (G) is a checkbox, so the API returns "TRUE"/"FALSE" — but the

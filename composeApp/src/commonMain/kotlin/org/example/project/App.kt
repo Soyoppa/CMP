@@ -81,12 +81,14 @@ import org.example.project.ui.ChatModal
 import org.example.project.ui.DeleteAccountDialog
 import org.example.project.ui.LoginScreen
 import org.example.project.ui.PaymentModeManagementScreen
+import org.example.project.ui.OverlayScope
 import org.example.project.ui.PaymentStatusScreen
 import org.example.project.ui.PlatformBackHandler
 import org.example.project.ui.SessionScope
 import org.example.project.ui.SettingsScreen
 import org.example.project.ui.SummaryScreen
 import org.example.project.ui.TransactionFormScreen
+import org.example.project.ui.TransactionHistoryScreen
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.FinanceTrackerTheme
@@ -188,14 +190,21 @@ private fun SignedInApp(
     var categoriesOpen by remember { mutableStateOf(false) }
     var paymentModesOpen by remember { mutableStateOf(false) }
     var paymentStatusOpen by remember { mutableStateOf(false) }
+    var transactionsOpen by remember { mutableStateOf(false) }
     var deleteAccountOpen by remember { mutableStateOf(false) }
+    // Deleting transactions changes totals, so the Summary reloads whenever the history closes.
+    val closeTransactions = {
+        transactionsOpen = false
+        summaryViewModel.onEvent(SummaryEvent.Refresh)
+    }
     val anyOverlayOpen = chatOpen || budgetOpen || categoriesOpen || paymentModesOpen ||
-        paymentStatusOpen || deleteAccountOpen
+        paymentStatusOpen || transactionsOpen || deleteAccountOpen
 
     // System back closes the top-most overlay instead of leaving the app.
     PlatformBackHandler(enabled = anyOverlayOpen) {
         when {
             deleteAccountOpen -> deleteAccountOpen = false
+            transactionsOpen -> closeTransactions()
             paymentStatusOpen -> paymentStatusOpen = false
             paymentModesOpen -> paymentModesOpen = false
             categoriesOpen -> categoriesOpen = false
@@ -285,6 +294,7 @@ private fun SignedInApp(
                             onOpenCategories = { categoriesOpen = true },
                             onOpenPaymentModes = { paymentModesOpen = true },
                             onOpenPaymentStatus = openPaymentStatus,
+                            onOpenTransactions = { transactionsOpen = true },
                         )
                     }
                 }
@@ -319,49 +329,66 @@ private fun SignedInApp(
 
             // Refreshes the summary on close so saved budgets show in the chart + breakdown.
             if (budgetOpen && !user.isGuest) {
-                BudgetScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onClose = {
-                        budgetOpen = false
-                        summaryViewModel.onEvent(SummaryEvent.Refresh)
-                    },
-                )
+                OverlayScope {
+                    BudgetScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onClose = {
+                            budgetOpen = false
+                            summaryViewModel.onEvent(SummaryEvent.Refresh)
+                        },
+                    )
+                }
             }
 
             // Refresh the Add Transaction pickers on close so edits show up immediately.
             if (categoriesOpen && !user.isGuest) {
-                CategoryManagementScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onClose = {
-                        categoriesOpen = false
-                        transactionFormViewModel.refreshOptions()
-                    },
-                )
+                OverlayScope {
+                    CategoryManagementScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onClose = {
+                            categoriesOpen = false
+                            transactionFormViewModel.refreshOptions()
+                        },
+                    )
+                }
             }
 
             if (paymentModesOpen && !user.isGuest) {
-                PaymentModeManagementScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onClose = {
-                        paymentModesOpen = false
-                        transactionFormViewModel.refreshOptions()
-                    },
-                )
+                OverlayScope {
+                    PaymentModeManagementScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onClose = {
+                            paymentModesOpen = false
+                            transactionFormViewModel.refreshOptions()
+                        },
+                    )
+                }
             }
 
             // Read-only ledger view, so guests get it too (backed by the demo dataset).
             if (paymentStatusOpen && profile.showPaidToggle) {
-                PaymentStatusScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onClose = { paymentStatusOpen = false },
-                )
+                OverlayScope {
+                    PaymentStatusScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onClose = { paymentStatusOpen = false },
+                    )
+                }
+            }
+
+            // Ledger history with delete.
+            if (transactionsOpen) {
+                OverlayScope {
+                    TransactionHistoryScreen(modifier = Modifier.fillMaxSize(), onClose = closeTransactions)
+                }
             }
 
             if (deleteAccountOpen) {
-                DeleteAccountDialog(
-                    isGuest = user.isGuest,
-                    onDismiss = { deleteAccountOpen = false },
-                )
+                OverlayScope {
+                    DeleteAccountDialog(
+                        isGuest = user.isGuest,
+                        onDismiss = { deleteAccountOpen = false },
+                    )
+                }
             }
 
             SnackbarHost(

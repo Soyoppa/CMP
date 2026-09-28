@@ -4,9 +4,9 @@ import kotlin.math.abs
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
-import org.example.project.data.ledger.RecentLedgerEntry
 import org.example.project.model.CareOfCategory
 import org.example.project.model.Transaction
+import org.example.project.util.DateUtils
 
 /**
  * Sheet #2 schema implementation (`tracker_2`).
@@ -29,23 +29,27 @@ class Tracker2SheetDataSource(
     override suspend fun getExpenses(): List<LedgerEntry> = emptyList()
 
     /**
-     * Last [limit] rows of the data tab, newest first.
-     * A negative amount is a refund/reversal, surfaced as an inflow.
+     * Every row; the id is the 1-based sheet row number. A negative amount is a refund/reversal,
+     * surfaced as income.
      */
-    override suspend fun getRecent(limit: Int): List<RecentLedgerEntry> =
-        gateway.readRows()
-            .drop(1) // header
-            .filter { it.getOrNull(1)?.isNotBlank() == true }
-            .takeLast(limit)
-            .map { row ->
-                val signed = parseSheetAmount(row.getOrNull(2))
-                RecentLedgerEntry(
-                    description = row.getOrNull(1)?.trim().orEmpty(),
-                    amount = abs(signed),
-                    isInflow = signed < 0.0,
-                )
-            }
-            .reversed()
+    override suspend fun getEntries(): List<LedgerEntry> =
+        gateway.readRows().withSheetRowNumbers().mapNotNull { (rowNumber, row) ->
+            val description = row.getOrNull(1)?.trim().orEmpty()
+            val signed = parseSheetAmount(row.getOrNull(2))
+            if (description.isBlank() || signed == 0.0) return@mapNotNull null
+            LedgerEntry(
+                id = rowNumber.toString(),
+                description = description,
+                amount = abs(signed),
+                category = row.getOrNull(4)?.trim().orEmpty(),
+                monthNumber = DateUtils.monthNumberFromDate(row.getOrNull(0)),
+                date = row.getOrNull(0)?.trim().orEmpty(),
+                modeOfPayment = row.getOrNull(3)?.trim().orEmpty(),
+                isIncome = signed < 0.0,
+            )
+        }
+
+    override suspend fun deleteEntry(entry: LedgerEntry) = gateway.deleteRow(entry)
 
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult {
         // Sheet #2 stores a single signed amount: positive = charge, negative = refund.
