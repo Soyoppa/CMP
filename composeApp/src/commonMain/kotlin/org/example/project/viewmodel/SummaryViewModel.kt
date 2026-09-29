@@ -3,6 +3,7 @@ package org.example.project.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -97,11 +98,16 @@ class SummaryViewModel(
                     categories = repository.getDemoSummary()
                     totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
                 } else {
-                    val txnsDeferred = async { repository.getExpenses() }
-                    val planDeferred = async { budgetRepository.getPlan() }
-                    val plan = planDeferred.await()
+                    // coroutineScope (not bare async inside launch): if a read fails, the error is
+                    // rethrown here for the catch below. A bare async child would instead cancel
+                    // the whole launch and crash the app with an uncaught exception.
+                    val (expenses, plan) = coroutineScope {
+                        val expensesDeferred = async { repository.getExpenses() }
+                        val planDeferred = async { budgetRepository.getPlan() }
+                        expensesDeferred.await() to planDeferred.await()
+                    }
                     categories = BudgetSummaryMapper.build(
-                        txnsDeferred.await(),
+                        expenses,
                         plan.byBucket,
                         LedgerProfile.current().spendingBuckets,
                     )

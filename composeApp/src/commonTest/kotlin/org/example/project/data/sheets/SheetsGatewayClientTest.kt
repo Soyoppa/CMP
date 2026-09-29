@@ -117,4 +117,15 @@ class SheetsGatewayClientTest {
         assertEquals(listOf(HttpMethod.Post, HttpMethod.Get), requests.map { it.method })
         assertEquals("https://script.googleusercontent.com/echo?x=1", requests.last().url.toString())
     }
+
+    @Test
+    fun htmlPageFromWrongDeploymentGetsActionableMessage() = runTest {
+        val error = assertFailsWith<UserFacingException> {
+            gateway("""<!DOCTYPE html><html><head><title>Error</title></head></html>""").readRows()
+        }
+        assertEquals(
+            "The shared sheet isn't set up correctly. Redeploy the Sheets gateway script and check its URL.",
+            error.message,
+        )
+    }
 }

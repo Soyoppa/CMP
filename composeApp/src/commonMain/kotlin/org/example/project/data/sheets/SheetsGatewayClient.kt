@@ -94,7 +94,16 @@ class SheetsGatewayClient(
         val text = response.bodyAsText()
         val reply = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull()
         if (!response.status.isSuccess() || reply == null) {
-            throw UserFacingException("The shared sheet returned an unexpected response. Please try again.")
+            val isWebPage = text.trimStart().startsWith("<")
+            throw UserFacingException(
+                if (isWebPage) {
+                    // An HTML page means the URL isn't running sheets-gateway.gs (old script, the
+                    // deployment wasn't updated, or access isn't "Anyone") — retrying won't help.
+                    "The shared sheet isn't set up correctly. Redeploy the Sheets gateway script and check its URL."
+                } else {
+                    "The shared sheet returned an unexpected response. Please try again."
+                }
+            )
         }
         if (reply["success"]?.jsonPrimitive?.booleanOrNull != true) {
             val error = reply["error"]?.jsonPrimitive?.contentOrNull
