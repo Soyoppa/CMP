@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -17,8 +16,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -45,15 +42,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.BudgetStatus
 import org.example.project.model.CategorySummary
 import org.example.project.model.SpendingBuckets
 import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.components.BudgetOverviewCard
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.effects.rememberPressBounce
@@ -162,6 +160,7 @@ fun SummaryScreen(
                     onMonthSelected = { viewModel.onEvent(SummaryEvent.MonthSelected(it)) },
                     onViewModeSelected = { viewModel.onEvent(SummaryEvent.ViewModeSelected(it)) },
                     onCategorySelected = { viewModel.onEvent(SummaryEvent.CategorySelected(it)) },
+                    onSetBudget = onOpenBudgets,
                 )
             }
             Spacer(Modifier.height(bottomPadding))
@@ -186,6 +185,7 @@ private fun SummaryContent(
     onMonthSelected: (String) -> Unit,
     onViewModeSelected: (SummaryViewMode) -> Unit,
     onCategorySelected: (String) -> Unit,
+    onSetBudget: (() -> Unit)?,
 ) {
     // Stable accent per category (by load order), shared by the selector chips, the trend
     // chart, and the breakdown — so a category keeps the same colour everywhere it appears.
@@ -207,18 +207,22 @@ private fun SummaryContent(
                       else MaterialTheme.colorScheme.primary
 
     val selectedTotal = selectedMonth?.let { chartTotals[it] } ?: chartTotals.values.sum()
-    val isOverBudget = chartBudget > 0 && selectedMonth != null && selectedTotal > chartBudget
 
-    val cardLabel = buildString {
+    val cardTitle = buildString {
         if (byCategory) append("${activeCategory!!.category} · ")
-        append(if (selectedMonth != null) "$selectedMonth Total" else "All Months Total")
+        append(selectedMonth ?: "All months")
+        if (selectedMonth != null) append(" budget")
     }
 
-    TotalExpenseCard(
-        label = cardLabel,
-        total = selectedTotal,
-        budget = if (selectedMonth != null) chartBudget else 0.0,
-        isOverBudget = isOverBudget,
+    // Remaining budget is the headline; spend sits beside it. A monthly budget only applies to a
+    // single month, so "all months" shows spend alone.
+    BudgetOverviewCard(
+        title = cardTitle,
+        status = BudgetStatus(spent = selectedTotal, budget = chartBudget),
+        showRemaining = selectedMonth != null,
+        // In By-Category mode the prompt would set the overall budget, which isn't what's shown.
+        onSetBudget = onSetBudget.takeIf { !byCategory },
+        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
     )
 
     ViewModeToggle(
@@ -575,101 +579,6 @@ private fun CategoryChip(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
-    }
-}
-
-// ─── Total expense card ───────────────────────────────────────────────────────
-
-@Composable
-private fun TotalExpenseCard(
-    label: String,
-    total: Double,
-    budget: Double,
-    isOverBudget: Boolean,
-) {
-    val amountColor = if (isOverBudget) MaterialTheme.colorScheme.error
-                      else MaterialTheme.colorScheme.onSurface
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 8.dp)
-            .clip(AppShapes.card)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "Total Expense",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
-        }
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // Rolling counter — the total slides up/down to its new value when the month
-            // changes, the way Revolut / Monarch animate a balance instead of snapping it.
-            AnimatedContent(
-                targetState = total,
-                transitionSpec = {
-                    val slide = tween<IntOffset>(260, easing = EaseOutQuart)
-                    val fade = tween<Float>(260, easing = EaseOutQuart)
-                    if (targetState >= initialState) {
-                        (slideInVertically(slide) { it } + fadeIn(fade)) togetherWith
-                            (slideOutVertically(slide) { -it } + fadeOut(fade))
-                    } else {
-                        (slideInVertically(slide) { -it } + fadeIn(fade)) togetherWith
-                            (slideOutVertically(slide) { it } + fadeOut(fade))
-                    }.using(SizeTransform(clip = false))
-                },
-                label = "totalCounter",
-            ) { value ->
-                Text(
-                    text = formatAmount(value),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = amountColor,
-                )
-            }
-            if (budget > 0) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "of ${formatAmount(budget)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (isOverBudget) {
-                        Box(
-                            modifier = Modifier
-                                .clip(AppShapes.pill)
-                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        ) {
-                            Text(
-                                text = "Over budget",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

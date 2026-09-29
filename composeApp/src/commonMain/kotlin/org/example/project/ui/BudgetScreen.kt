@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
@@ -66,8 +67,8 @@ private fun formatPhp(amount: Double): String {
 }
 
 /**
- * Full-screen editor for the per-bucket monthly budgets that drive the Summary chart's reference
- * line. Persists to the cloud via [BudgetViewModel]; shown only to real (non-guest) users.
+ * Full-screen budget editor: an overall monthly budget (what "Remaining" is measured against) and
+ * optional per-category budgets. Persists via [BudgetViewModel]; shown only to real (non-guest) users.
  */
 @Composable
 fun BudgetScreen(
@@ -113,7 +114,7 @@ fun BudgetScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Set a monthly budget per category",
+                    text = "Your monthly spending limit",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -142,9 +143,23 @@ fun BudgetScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            CombinedTotalCard(total = uiState.totalMonthly)
+            TotalBudgetCard(
+                value = uiState.totalInput,
+                categoryTotal = uiState.categoryTotal,
+                categoriesExceedTotal = uiState.categoriesExceedTotal,
+                onValueChange = { viewModel.onEvent(BudgetEvent.TotalChanged(it)) },
+            )
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = "BY CATEGORY · OPTIONAL",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 0.8.sp,
+                modifier = Modifier.padding(start = 4.dp),
+            )
 
             uiState.buckets.forEachIndexed { index, bucket ->
                 BudgetRow(
@@ -184,28 +199,71 @@ fun BudgetScreen(
     }
 }
 
+/**
+ * The overall monthly budget — the number "Remaining" on the Summary and Add screens counts down
+ * from. Left blank, the per-category budgets below add up to it instead.
+ */
 @Composable
-private fun CombinedTotalCard(total: Double) {
-    Row(
+private fun TotalBudgetCard(
+    value: String,
+    categoryTotal: Double,
+    categoriesExceedTotal: Boolean,
+    onValueChange: (String) -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.card)
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            text = "Combined monthly budget",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
+            text = "Total monthly budget",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            placeholder = {
+                Text(
+                    text = if (categoryTotal > 0.0) formatPhp(categoryTotal).removePrefix("PHP ") else "0",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                )
+            },
+            prefix = {
+                Text(
+                    text = "₱ ",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            shape = AppShapes.field,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accent,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                cursorColor = accent,
+            ),
+            modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = formatPhp(total),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            text = when {
+                categoriesExceedTotal ->
+                    "Your category budgets add up to ${formatPhp(categoryTotal)} — more than this total."
+                value.isBlank() && categoryTotal > 0.0 ->
+                    "Leave blank to use your category budgets: ${formatPhp(categoryTotal)} / month."
+                else -> "What's left of this is shown on the Summary and Add screens."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (categoriesExceedTotal) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

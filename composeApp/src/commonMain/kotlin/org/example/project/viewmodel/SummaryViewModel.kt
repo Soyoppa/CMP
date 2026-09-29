@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.Session
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.BudgetStatus
 import org.example.project.model.BudgetSummaryMapper
 import org.example.project.model.CategorySummary
 import org.example.project.repository.BudgetRepository
@@ -26,8 +27,14 @@ data class SummaryUiState(
     val categories: List<CategorySummary> = emptyList(),
     val months: List<String> = emptyList(),
     val selectedMonth: String? = null,
+    /** Overall monthly budget: the user's total if set, else the sum of category budgets. */
     val totalMonthlyBudget: Double = 0.0,
     val budgetByCategory: Map<String, Double> = emptyMap(),
+    /**
+     * This calendar month's spending against [totalMonthlyBudget] — the "left to spend" figure the
+     * Add screen shows. Kept across refreshes (not cleared while reloading) so it never flickers.
+     */
+    val thisMonth: BudgetStatus? = null,
     val viewMode: SummaryViewMode = SummaryViewMode.TOTAL,
     val selectedCategory: String? = null,
     val transactions: List<LedgerEntry> = emptyList(),
@@ -84,20 +91,29 @@ class SummaryViewModel(
                 // Real users: build the summary from the raw 'Data Dump' ledger (single source of
                 // truth, always in sync with the drill-down) with budgets from the cloud store.
                 // Guests: the self-contained demo dataset (no ledger, no cloud).
-                val categories = if (Session.isGuest) {
-                    repository.getDemoSummary()
+                val categories: List<CategorySummary>
+                val totalMonthlyBudget: Double
+                if (Session.isGuest) {
+                    categories = repository.getDemoSummary()
+                    totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
                 } else {
                     val txnsDeferred = async { repository.getExpenses() }
-                    val budgetsDeferred = async { budgetRepository.getBudgets() }
-                    BudgetSummaryMapper.build(
+                    val planDeferred = async { budgetRepository.getPlan() }
+                    val plan = planDeferred.await()
+                    categories = BudgetSummaryMapper.build(
                         txnsDeferred.await(),
-                        budgetsDeferred.await(),
+                        plan.byBucket,
                         LedgerProfile.current().spendingBuckets,
                     )
+                    totalMonthlyBudget = plan.effectiveMonthlyTotal
                 }
                 val months = categories.firstOrNull()?.months ?: emptyList()
-                val totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
                 val budgetByCategory = categories.associate { it.category.lowercase() to it.monthlyBudget }
+                val currentMonth = DateUtils.monthName(DateUtils.currentMonthNumber())
+                val thisMonth = BudgetStatus(
+                    spent = categories.sumOf { it.spentIn(currentMonth) },
+                    budget = totalMonthlyBudget,
+                )
 
                 _uiState.update {
                     it.copy(
@@ -106,16 +122,16 @@ class SummaryViewModel(
                         months = months,
                         totalMonthlyBudget = totalMonthlyBudget,
                         budgetByCategory = budgetByCategory,
-                        // Default to the current calendar month; if the sheet has no column
-                        // for it, fall back to the latest month that actually has data.
-                        selectedMonth = months.firstOrNull { m ->
-                            DateUtils.monthNumberFromName(m) == DateUtils.currentMonthNumber()
-                        } ?: months.lastOrNull { m ->
-                            categories.any { c -> c.spentIn(m) > 0.0 }
-                        },
-                        // Pre-pick the biggest spender so the "By Category" view has data the
-                        // instant the user switches to it — no empty intermediate state.
-                        selectedCategory = categories.maxByOrNull { it.totalSpent }?.category,
+                        thisMonth = thisMonth,
+                        // Keep the user's month on a refresh; otherwise default to the current
+                        // calendar month, falling back to the latest month that has data.
+                        selectedMonth = it.selectedMonth?.takeIf { m -> m in months }
+                            ?: months.firstOrNull { m -> DateUtils.monthNumberFromName(m) == DateUtils.currentMonthNumber() }
+                            ?: months.lastOrNull { m -> categories.any { c -> c.spentIn(m) > 0.0 } },
+                        // Keep the chosen category on a refresh; otherwise pre-pick the biggest
+                        // spender so "By Category" has data the instant the user switches to it.
+                        selectedCategory = it.selectedCategory?.takeIf { c -> categories.any { s -> s.category == c } }
+                            ?: categories.maxByOrNull { s -> s.totalSpent }?.category,
                     )
                 }
                 // Refreshing while the drill-down is open should reload its rows too.

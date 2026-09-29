@@ -18,4 +18,10 @@ object FormatUtils {
         val sign = if (amount < 0 && cents != 0L) "-" else ""
         return "$sign$grouped.$fraction"
     }
+
+    /** Whole pesos with thousands separators, sign dropped: 12345.6 -> "PHP 12,346". */
+    fun formatPesoWhole(amount: Double): String {
+        val whole = abs(amount).roundToLong().toString()
+        return "PHP " + whole.reversed().chunked(3).joinToString(",").reversed()
+    }
 }

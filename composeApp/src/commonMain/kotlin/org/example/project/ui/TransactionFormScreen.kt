@@ -1,5 +1,7 @@
 package org.example.project.ui
 
+import org.example.project.ui.components.RemainingBudgetBanner
+import org.example.project.model.BudgetStatus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.EaseOutQuart
@@ -131,6 +133,9 @@ import org.example.project.voice.VoiceStatus
 fun TransactionFormScreen(
     viewModel: TransactionFormViewModel,
     modifier: Modifier = Modifier,
+    /** This month's budget status for the "left this month" banner; null hides it. */
+    budgetStatus: BudgetStatus? = null,
+    onBudgetClick: () -> Unit = {},
 ) {
     val formState by viewModel.formState.collectAsState()
     val schemaFeatures = remember { LedgerProfile.current() }
@@ -239,6 +244,11 @@ fun TransactionFormScreen(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
+
+        // What's left to spend this month — the number people check before logging a purchase.
+        if (budgetStatus != null) {
+            RemainingBudgetBanner(status = budgetStatus, onClick = onBudgetClick)
+        }
 
         // 1. Type decision first — it changes what the amount means.
         if (schemaFeatures.showIncomeOption) {

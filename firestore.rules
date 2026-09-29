@@ -36,11 +36,13 @@ service cloud.firestore {
     match /users/{uid}/settings/{docId} {
       allow read, delete: if isOwner(uid);
 
-      // "budget": { <bucket name>: number, ..., updatedAt: int }
+      // "budget": { totalMonthly: number, <bucket name>: number, ..., updatedAt: int }
       allow write: if isOwner(uid)
         && docId == 'budget'
         && request.resource.data.size() <= 30
-        && request.resource.data.updatedAt is int;
+        && request.resource.data.updatedAt is int
+        && (!('totalMonthly' in request.resource.data)
+            || (request.resource.data.totalMonthly is number && request.resource.data.totalMonthly >= 0));
 
       // "categories" / "paymentModes": { items: [string, ...], updatedAt: int }
       allow write: if isOwner(uid)

@@ -8,11 +8,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.config.LedgerProfile
+import org.example.project.model.BudgetPlan
 import org.example.project.repository.BudgetRepository
 import org.example.project.util.toUserMessage
 
 data class BudgetUiState(
     val isLoading: Boolean = false,
+    /** Raw text of the overall monthly budget field (empty = use the category sum). */
+    val totalInput: String = "",
     /** The editable buckets, in display order. */
     val buckets: List<String> = emptyList(),
     /** bucket name -> the raw text in its input field (empty = no budget). */
@@ -21,19 +24,27 @@ data class BudgetUiState(
     val saved: Boolean = false,
     val error: String? = null,
 ) {
-    /** Live sum of the entered budgets — the combined monthly budget shown at the top. */
-    val totalMonthly: Double get() = amounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+    /** Live sum of the per-category budgets. */
+    val categoryTotal: Double get() = amounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+
+    /** What spending will be measured against: the overall budget if set, else the category sum. */
+    val effectiveTotal: Double get() = totalInput.toDoubleOrNull()?.takeIf { it > 0.0 } ?: categoryTotal
+
+    /** Category budgets that add up to more than the overall budget — worth a gentle warning. */
+    val categoriesExceedTotal: Boolean
+        get() = (totalInput.toDoubleOrNull() ?: 0.0).let { total -> total > 0.0 && categoryTotal > total }
 }
 
 sealed interface BudgetEvent {
+    data class TotalChanged(val raw: String) : BudgetEvent
     data class AmountChanged(val bucket: String, val raw: String) : BudgetEvent
     data object SaveClicked : BudgetEvent
 }
 
 /**
- * Backs the [org.example.project.ui.BudgetScreen] editor. Loads the saved per-bucket budgets,
- * edits them as text, and on save writes every bucket (explicit zeros for cleared fields, so
- * clearing a budget actually removes it rather than leaving a stale value).
+ * Backs the [org.example.project.ui.BudgetScreen] editor: an overall monthly budget plus optional
+ * per-bucket budgets. On save it writes every field (explicit zeros for cleared ones, so clearing a
+ * budget actually removes it rather than leaving a stale value).
  */
 class BudgetViewModel(
     private val budgetRepository: BudgetRepository = BudgetRepository(),
@@ -47,12 +58,13 @@ class BudgetViewModel(
 
     init {
         viewModelScope.launch {
-            val saved = budgetRepository.getBudgets()
+            val plan = budgetRepository.getPlan()
             _uiState.update { state ->
                 state.copy(
                     isLoading = false,
+                    totalInput = plan.totalMonthly.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty(),
                     amounts = state.buckets.associateWith { bucket ->
-                        saved[bucket]?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty()
+                        plan.byBucket[bucket]?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty()
                     },
                 )
             }
@@ -61,6 +73,7 @@ class BudgetViewModel(
 
     fun onEvent(event: BudgetEvent) {
         when (event) {
+            is BudgetEvent.TotalChanged -> _uiState.update { it.copy(totalInput = sanitize(event.raw), saved = false) }
             is BudgetEvent.AmountChanged -> _uiState.update {
                 it.copy(amounts = it.amounts + (event.bucket to sanitize(event.raw)), saved = false)
             }
@@ -73,8 +86,11 @@ class BudgetViewModel(
         _uiState.update { it.copy(isSaving = true, error = null, saved = false) }
         viewModelScope.launch {
             val state = _uiState.value
-            val budgets = state.buckets.associateWith { bucket -> state.amounts[bucket]?.toDoubleOrNull() ?: 0.0 }
-            val result = budgetRepository.saveBudgets(budgets)
+            val plan = BudgetPlan(
+                totalMonthly = state.totalInput.toDoubleOrNull() ?: 0.0,
+                byBucket = state.buckets.associateWith { bucket -> state.amounts[bucket]?.toDoubleOrNull() ?: 0.0 },
+            )
+            val result = budgetRepository.savePlan(plan)
             _uiState.update {
                 if (result.isSuccess) it.copy(isSaving = false, saved = true)
                 else it.copy(

@@ -176,6 +176,7 @@ private fun SignedInApp(
     val chatViewModel = createChatViewModel()
     // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
     val summaryViewModel = createSummaryViewModel()
+    val summaryState by summaryViewModel.uiState.collectAsState()
     val featureFlags by FeatureFlagStore.state.collectAsState()
     // Chat needs Gemini on this platform (web + Android) and the remote kill-switch on.
     val chatAvailable = featureFlags.chatEnabled && AppContainer.aiRepository.isGeminiAvailable
@@ -221,8 +222,11 @@ private fun SignedInApp(
     LaunchedEffect(transactionFormViewModel) {
         transactionFormViewModel.effects.collect { effect ->
             val visuals = when (effect) {
-                is TransactionFormEffect.ShowSuccess ->
+                is TransactionFormEffect.ShowSuccess -> {
+                    // A new expense changes "left this month" — reload so the banner and Summary match.
+                    summaryViewModel.onEvent(SummaryEvent.Refresh)
                     FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
+                }
                 is TransactionFormEffect.ShowError ->
                     FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
                 TransactionFormEffect.FormCleared -> null
@@ -282,6 +286,13 @@ private fun SignedInApp(
                         NavTab.ADD -> TransactionFormScreen(
                             viewModel = transactionFormViewModel,
                             modifier = Modifier.fillMaxSize(),
+                            budgetStatus = summaryState.thisMonth.takeIf { profile.summaryAvailable },
+                            // No budget yet → straight to the editor; otherwise the full breakdown.
+                            onBudgetClick = {
+                                val hasBudget = summaryState.thisMonth?.hasBudget == true
+                                if (!hasBudget && openBudgets != null) budgetOpen = true
+                                else selectedTab = NavTab.SUMMARY
+                            },
                         )
                         NavTab.SETTINGS -> SettingsScreen(
                             modifier = Modifier.fillMaxSize(),
