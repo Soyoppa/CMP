@@ -57,8 +57,9 @@ class Tracker1SheetDataSource(
             mapOf(
                 "date" to transaction.date,
                 "description" to transaction.description,
-                "inflow" to transaction.inflow,
-                "outflow" to transaction.outflow,
+                // Leave the unused side blank (not 0), exactly like hand-entered rows.
+                "inflow" to (transaction.inflow.takeIf { it > 0.0 } ?: ""),
+                "outflow" to (transaction.outflow.takeIf { it > 0.0 } ?: ""),
                 "category" to transaction.category,
                 "modeOfPayment" to transaction.modeOfPayment,
                 "isPaid" to transaction.isPaid,

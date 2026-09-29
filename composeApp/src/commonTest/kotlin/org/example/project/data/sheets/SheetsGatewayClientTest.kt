@@ -17,6 +17,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.Transaction
 import org.example.project.util.UserFacingException
 
 class SheetsGatewayClientTest {
@@ -85,5 +86,16 @@ class SheetsGatewayClientTest {
             gateway("""{"success":false,"error":"Row changed"}""").deleteRow(entry)
         }
         assertEquals("The sheet changed since it was loaded. Refresh and try again.", error.message)
+    }
+
+    @Test
+    fun tracker1AppendLeavesUnusedAmountBlank() = runTest {
+        Tracker1SheetDataSource(gateway("""{"success":true}""")).addTransaction(
+            Transaction(date = "3/1/2026", description = "Lunch", outflow = 250.0, category = "Food", isPaid = true)
+        )
+        val body = (requests.single().body as TextContent).text
+        assertTrue(""""inflow":""""" in body, body)
+        assertTrue(""""outflow":250.0""" in body, body)
+        assertTrue(""""isPaid":true""" in body, body)
     }
 }
