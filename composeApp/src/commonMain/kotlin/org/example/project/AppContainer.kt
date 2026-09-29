@@ -36,7 +36,7 @@ object AppContainer {
         FirestoreLedgerDataSource(firestore, currentUid = { Session.currentUser?.uid })
     }
 
-    /** Only touched for accounts granted the Sheets ledger (web). */
+    /** Only touched for accounts granted the Sheets ledger. */
     val sheetsLedger: LedgerDataSource by lazy {
         SheetDataSourceFactory.create(SheetsGatewayClient(idToken = { authProvider.idToken(forceRefresh = false) }))
     }
@@ -46,7 +46,10 @@ object AppContainer {
     val authRepository: AuthRepository by lazy {
         AuthRepository(
             provider = authProvider,
-            ledgerAccess = LedgerAccessResolver(firestore),
+            ledgerAccess = LedgerAccessResolver(
+                firestore,
+                sheetsConfigured = { ConfigManager.getConfig().sheetsGatewayUrl.isNotBlank() },
+            ),
             dataEraser = AccountDataEraser(firestore),
         )
     }

@@ -15,7 +15,7 @@ cp local.properties.example local.properties
 | `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID` | yes | Firebase console → Project settings → Web app `firebaseConfig`. Not secret: access is enforced by Firebase Auth + `firestore.rules`. |
 | `GEMINI_MODEL` | yes | Firebase AI Logic model, e.g. `gemini-2.0-flash`. |
 | `SHEET_SCHEMA` | yes | `tracker_1` or `tracker_2` — the household sheet layout for accounts granted Sheets access. |
-| `<schema>.SHEETS_GATEWAY_URL` | web only | `/exec` URL of the Sheets gateway (step 4). Leave out for store builds. |
+| `<schema>.SHEETS_GATEWAY_URL` | optional | `/exec` URL of the Sheets gateway (step 4). Builds without it never use the sheet — leave it out of store builds unless your granted accounts should reach the sheet there too. |
 
 The build fails loudly when a required key is missing.
 
@@ -39,10 +39,10 @@ The build fails loudly when a required key is missing.
 | Who | Ledger | Budgets / lists |
 |---|---|---|
 | Every account (store users) | `users/{uid}/transactions` in Firestore | `users/{uid}/settings/*` |
-| Accounts granted Sheets access (web only) | Household Google Sheet via the gateway | `users/{uid}/settings/*` |
+| Accounts granted Sheets access (any platform whose build has the gateway URL) | Household Google Sheet via the gateway | `users/{uid}/settings/*` |
 | Guests | Built-in demo data (read-only) | — |
 
-## 4. Granting Sheets access (web)
+## 4. Granting Sheets access
 
 The household sheet is reachable only through `apps-script/sheets-gateway.gs`, which verifies the
 caller's Firebase ID token and an allow-list. To grant an account:

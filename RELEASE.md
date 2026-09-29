@@ -34,7 +34,7 @@ What the code already covers is marked ✅. The rest needs your accounts, assets
 ## Covered in code
 
 - ✅ Every account has its own Firestore ledger; guests only ever see demo data.
-- ✅ Household sheet only via the authenticated Apps Script gateway (web); no Sheets API key in any build.
+- ✅ Household sheet only via the authenticated Apps Script gateway (granted accounts, any platform whose build has the gateway URL); no Sheets API key in any build.
 - ✅ Real sign-in on every platform (JS SDK web, native Android, REST + Keychain iOS).
 - ✅ In-app account deletion that also erases the user's Firestore data (App Store 5.1.1(v), Play policy).
 - ✅ Android: R8 minify + resource shrink, cleartext disabled, system CAs only, no backup of app data,

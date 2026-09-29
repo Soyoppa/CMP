@@ -1,10 +1,12 @@
 package org.example.project.data.sheets
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.content.TextContent
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
@@ -32,7 +34,8 @@ import org.example.project.util.UserFacingException
  * ships no Sheets API key.
  *
  * Requests are `POST` with a `text/plain` JSON body: that's a CORS "simple request", so browsers
- * send it without a preflight (Apps Script can't answer one) and follow the gateway's redirect.
+ * send it without a preflight (Apps Script can't answer one). Works on every platform — see
+ * [call] for the redirect Apps Script replies with.
  */
 class SheetsGatewayClient(
     private val idToken: suspend () -> String?,
@@ -79,7 +82,12 @@ class SheetsGatewayClient(
         ).toString()
 
         val response = try {
-            http.post(url) { setBody(TextContent(body, ContentType.Text.Plain)) }
+            val posted = http.post(url) { setBody(TextContent(body, ContentType.Text.Plain)) }
+            // Apps Script answers a POST with a 302 to a one-time result URL. Browsers follow it
+            // (as a GET) on their own; Ktor on Android/iOS/desktop doesn't follow redirects for
+            // POST, so fetch the result ourselves. The script has already run at this point.
+            val location = posted.headers[HttpHeaders.Location]
+            if (posted.status.value in 301..303 && location != null) http.get(location) else posted
         } catch (e: Exception) {
             throw UserFacingException("Couldn't reach the shared sheet. Check your connection and try again.")
         }

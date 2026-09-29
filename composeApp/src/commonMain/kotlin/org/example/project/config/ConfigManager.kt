@@ -11,7 +11,7 @@ object ConfigManager {
     data class ApiConfiguration(
         /** Household sheet schema for accounts granted Sheets access: "tracker_1" | "tracker_2". */
         val sheetSchema: String,
-        /** Apps Script Sheets gateway (web only); blank on builds without Sheets access. */
+        /** Apps Script Sheets gateway; blank on builds without Sheets access (e.g. store builds). */
         val sheetsGatewayUrl: String,
         // Firebase web-app config (not secret; access is enforced by Auth + Firestore rules)
         val firebaseApiKey: String,

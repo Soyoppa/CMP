@@ -14,7 +14,7 @@ import org.example.project.model.Transaction
  * The single entry point the app uses for ledger data. Routes every call to the backend that
  * belongs to the current session:
  *  - guests → [DemoLedgerDataSource] (anonymous sessions must never see real rows)
- *  - accounts granted [LedgerSource.SHEETS] → the household Google Sheet (web only)
+ *  - accounts granted [LedgerSource.SHEETS] → the household Google Sheet (via the gateway)
  *  - everyone else → their own Firestore ledger
  *
  * Deciding here (not in each ViewModel) means a new screen can't accidentally read the wrong ledger.

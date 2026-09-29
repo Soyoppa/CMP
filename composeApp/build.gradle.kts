@@ -223,7 +223,8 @@ buildConfig {
     }
 
     field("SHEET_SCHEMA", activeSchema)
-    // Optional: only the web build for granted accounts talks to the sheet (apps-script/sheets-gateway.gs).
+    // Optional: only granted accounts talk to the sheet (apps-script/sheets-gateway.gs); leave it
+    // out of store builds if the gateway should not be reachable from them.
     field("SHEETS_GATEWAY_URL", schemaProp("SHEETS_GATEWAY_URL").orEmpty())
 
     // Firebase web-app config (from the Firebase console `firebaseConfig`). None are secret —

@@ -98,4 +98,23 @@ class SheetsGatewayClientTest {
         assertTrue(""""outflow":250.0""" in body, body)
         assertTrue(""""isPaid":true""" in body, body)
     }
+
+    @Test
+    fun followsAppsScriptRedirectWithGetOnNativeClients() = runTest {
+        val client = SheetsGatewayClient(
+            idToken = { "id-token" },
+            gatewayUrl = { "https://script.google.com/macros/s/abc/exec" },
+            http = HttpClient(MockEngine { request ->
+                requests += request
+                if (request.method == HttpMethod.Post) {
+                    respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://script.googleusercontent.com/echo?x=1"))
+                } else {
+                    respond("""{"success":true,"rows":[["h"],["r"]]}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                }
+            }),
+        )
+        assertEquals(listOf(listOf("h"), listOf("r")), client.readRows())
+        assertEquals(listOf(HttpMethod.Post, HttpMethod.Get), requests.map { it.method })
+        assertEquals("https://script.googleusercontent.com/echo?x=1", requests.last().url.toString())
+    }
 }

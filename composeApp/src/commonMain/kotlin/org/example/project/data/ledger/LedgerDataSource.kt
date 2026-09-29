@@ -5,7 +5,7 @@ import org.example.project.model.Transaction
 /**
  * Where a signed-in user's ledger lives.
  *  - [CLOUD]: the user's own Firestore collection — the default for every account.
- *  - [SHEETS]: the household Google Sheet — web only, granted per account from the Firebase
+ *  - [SHEETS]: the household Google Sheet — granted per account from the Firebase
  *    console (see [LedgerAccessResolver]).
  */
 enum class LedgerSource { CLOUD, SHEETS }

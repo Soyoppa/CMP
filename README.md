@@ -21,7 +21,7 @@ A built-in AI chat (powered by Gemini via Firebase) knows your budget and curren
 It answers with your actual numbers, not generic finance advice.
 
 ### Your data, your account
-Each account's transactions, budgets and lists live under its own Firestore path, protected by security rules. Accounts the owner grants Sheets access to (web only) read and write a household Google Sheet instead, through an authenticated Apps Script gateway — see [SETUP.md](SETUP.md).
+Each account's transactions, budgets and lists live under its own Firestore path, protected by security rules. Accounts the owner grants Sheets access to read and write a household Google Sheet instead, through an authenticated Apps Script gateway — see [SETUP.md](SETUP.md).
 
 ### Guest preview
 Share a read-only guest link so family members or a partner can explore the app before creating an account. Guest access is intentionally limited: they can browse and ask one AI question, but cannot add transactions or see sensitive diagnostics.
@@ -53,7 +53,7 @@ Sign-up and guest mode can be turned on or off remotely from **Firebase Remote C
 ```
 App  →  Firebase Auth (ID token)
 App  ↔  Cloud Firestore (REST, users/{uid}/…)            every account
-App  ↔  Apps Script gateway (verifies token) ↔  Sheet    granted accounts, web only
+App  ↔  Apps Script gateway (verifies token) ↔  Sheet    granted accounts only
 App  →  Firebase AI Logic (Gemini)                        chat + voice categories
 ```
 
