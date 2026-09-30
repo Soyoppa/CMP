@@ -56,11 +56,26 @@ data class SummaryUiState(
     val error: String? = null,
 ) {
     val selectedPeriod: BudgetPeriod? get() = periods.firstOrNull { it.id == selectedPeriodId }
+
+    /** The charted cut-offs of one calendar month, oldest first. */
+    fun periodsIn(monthKey: String): List<BudgetPeriod> = periods.filter { it.monthKey == monthKey }
+
+    /**
+     * Which cut-off to focus when the user taps [monthKey]'s bar: the same half they were already
+     * looking at, so stepping across months keeps comparing like with like; otherwise the latest.
+     */
+    fun periodIn(monthKey: String): String? {
+        val inMonth = periodsIn(monthKey)
+        val half = selectedPeriod?.half
+        return (inMonth.firstOrNull { it.half == half } ?: inMonth.lastOrNull())?.id
+    }
 }
 
 sealed interface SummaryEvent {
     /** Reload the ledger and budgets (pull-to-refresh, retry, after a save or budget edit). */
     data object Refresh : SummaryEvent
+    /** A chart bar: selects a cut-off inside that calendar month (see [BudgetPeriod.monthKey]). */
+    data class MonthSelected(val monthKey: String) : SummaryEvent
     data class PeriodSelected(val periodId: String) : SummaryEvent
     data class ViewModeSelected(val mode: SummaryViewMode) : SummaryEvent
     data class CategorySelected(val category: String) : SummaryEvent
@@ -85,6 +100,7 @@ class SummaryViewModel(
     fun onEvent(event: SummaryEvent) {
         when (event) {
             SummaryEvent.Refresh -> load()
+            is SummaryEvent.MonthSelected -> _uiState.update { it.copy(selectedPeriodId = it.periodIn(event.monthKey)) }
             is SummaryEvent.PeriodSelected -> _uiState.update { it.copy(selectedPeriodId = event.periodId) }
             is SummaryEvent.ViewModeSelected -> selectViewMode(event.mode)
             is SummaryEvent.CategorySelected -> _uiState.update { it.copy(selectedCategory = event.category) }
@@ -190,7 +206,8 @@ class SummaryViewModel(
     }
 
     private companion object {
-        /** Six months of cut-offs — enough trend to read, few enough bars to tap on a phone. */
-        const val CHARTED_PERIODS = 12
+        /** A year of monthly bars, i.e. two cut-offs each — the chart groups them by month. */
+        const val CHARTED_MONTHS = 12
+        const val CHARTED_PERIODS = CHARTED_MONTHS * 2
     }
 }

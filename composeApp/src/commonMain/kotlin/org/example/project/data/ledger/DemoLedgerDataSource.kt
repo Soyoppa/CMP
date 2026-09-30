@@ -10,11 +10,12 @@ import org.example.project.util.UserFacingException
  * without ever touching real financial data. Writes are accepted and discarded.
  *
  * Entries are generated relative to today — the last [DEMO_PERIODS] cut-offs — so the demo always
- * has a "current cut-off" with spending and a budget to measure it against.
+ * has a "current cut-off" with spending and a budget to measure it against. That's a year of
+ * cut-offs, enough to fill the Summary's 12 monthly bars.
  */
 object DemoLedgerDataSource : LedgerDataSource {
 
-    private const val DEMO_PERIODS = 12
+    private const val DEMO_PERIODS = 24
 
     /** category -> (line items, typical spend per cut-off). Uses the standard category names. */
     private val demoSpending = listOf(

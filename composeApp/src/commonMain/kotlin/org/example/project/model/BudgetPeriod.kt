@@ -29,6 +29,9 @@ data class BudgetPeriod(val year: Int, val month: Int, val half: Int) : Comparab
     /** "Sep" */
     val monthLabel: String get() = DateUtils.monthName(month).take(3)
 
+    /** Calendar month this cut-off belongs to, e.g. "2026-09" — the chart groups by this. */
+    val monthKey: String get() = "$year-${month.toString().padStart(2, '0')}"
+
     /** "16–30" */
     val rangeLabel: String get() = "$startDay–$endDay"
 

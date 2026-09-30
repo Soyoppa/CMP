@@ -156,6 +156,7 @@ fun SummaryScreen(
                     transactionsLoading = uiState.transactionsLoading,
                     transactionsError = uiState.transactionsError,
                     onPeriodSelected = { viewModel.onEvent(SummaryEvent.PeriodSelected(it)) },
+                    onMonthSelected = { viewModel.onEvent(SummaryEvent.MonthSelected(it)) },
                     onViewModeSelected = { viewModel.onEvent(SummaryEvent.ViewModeSelected(it)) },
                     onCategorySelected = { viewModel.onEvent(SummaryEvent.CategorySelected(it)) },
                     onSetBudget = onOpenBudgets,
@@ -181,6 +182,7 @@ private fun SummaryContent(
     transactionsLoading: Boolean,
     transactionsError: String?,
     onPeriodSelected: (String) -> Unit,
+    onMonthSelected: (String) -> Unit,
     onViewModeSelected: (SummaryViewMode) -> Unit,
     onCategorySelected: (String) -> Unit,
     onSetBudget: (() -> Unit)?,
@@ -198,19 +200,32 @@ private fun SummaryContent(
     val activeCategory = categories.firstOrNull { it.category == selectedCategory }
     val byCategory = viewMode == SummaryViewMode.BY_CATEGORY && activeCategory != null
 
-    // The bar chart is generic over a period→amount map; we just feed it a different series,
-    // budget line, and accent depending on the mode. Budgets belong to a cut-off, so the line
-    // and "Remaining" follow the selected bar.
-    val chartTotals = if (byCategory) activeCategory!!.spendByPeriod else periodTotals
-    val chartBudget = when {
-        selectedPeriod == null -> 0.0
-        byCategory -> activeCategory!!.budgetFor(selectedPeriod.id)
-        else -> totalBudgetByPeriod[selectedPeriod.id] ?: 0.0
+    // Amounts are per cut-off everywhere; the chart just aggregates them into one bar per
+    // calendar month, which is far easier to scan than two cramped bars per month.
+    val periodAmounts = if (byCategory) activeCategory!!.spendByPeriod else periodTotals
+    fun budgetOf(period: BudgetPeriod): Double =
+        if (byCategory) activeCategory!!.budgetFor(period.id) else totalBudgetByPeriod[period.id] ?: 0.0
+
+    val monthsInOrder = remember(periods) { periods.groupBy { it.monthKey } }
+    val monthBars = remember(monthsInOrder, periodAmounts) {
+        monthsInOrder.map { (key, inMonth) ->
+            MonthBar(
+                key = key,
+                label = inMonth.first().monthLabel,
+                amount = inMonth.sumOf { periodAmounts[it.id] ?: 0.0 },
+            )
+        }
     }
+    // The cut-offs of the month on screen — the chips that pick which one the card describes.
+    val monthPeriods = selectedPeriod?.let { monthsInOrder[it.monthKey] }.orEmpty()
+    // Bars are monthly, so the reference line is too: the month's cut-off budgets added up.
+    val monthBudget = monthPeriods.sumOf(::budgetOf)
+
+    val chartBudget = selectedPeriod?.let(::budgetOf) ?: 0.0
     val chartAccent = if (byCategory) categoryColors[activeCategory!!.category] ?: MaterialTheme.colorScheme.primary
                       else MaterialTheme.colorScheme.primary
 
-    val selectedTotal = selectedPeriod?.let { chartTotals[it.id] } ?: chartTotals.values.sum()
+    val selectedTotal = selectedPeriod?.let { periodAmounts[it.id] } ?: periodAmounts.values.sum()
 
     val cardTitle = buildString {
         if (byCategory) append("${activeCategory!!.category} · ")
@@ -227,6 +242,15 @@ private fun SummaryContent(
         onSetBudget = onSetBudget.takeIf { !byCategory },
         modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
     )
+
+    // Which half of the charted month the card and breakdown describe.
+    if (monthPeriods.size > 1) {
+        CutOffChips(
+            periods = monthPeriods,
+            selectedId = selectedPeriod?.id,
+            onSelected = onPeriodSelected,
+        )
+    }
 
     ViewModeToggle(
         mode = viewMode,
@@ -251,17 +275,16 @@ private fun SummaryContent(
         )
     }
 
-    PeriodBarChart(
-        periods = periods,
-        totals = chartTotals,
-        selectedPeriodId = selectedPeriod?.id,
-        budget = chartBudget,
+    MonthBarChart(
+        months = monthBars,
+        selectedMonthKey = selectedPeriod?.monthKey,
+        budget = monthBudget,
         selectedBarColor = chartAccent,
-        onPeriodSelected = onPeriodSelected,
+        onMonthSelected = onMonthSelected,
     )
 
-    if (chartBudget > 0) {
-        BudgetLegend(budget = chartBudget)
+    if (monthBudget > 0) {
+        BudgetLegend(budget = monthBudget)
     }
 
     Spacer(Modifier.height(20.dp))
@@ -587,26 +610,30 @@ private fun CategoryChip(
 
 // ─── Bar chart ───────────────────────────────────────────────────────────────
 
-private val ChartHeight = 188.dp
+private val ChartHeight = 172.dp
 // Bar fill uses 70% of chart height; top 30% is reserved for labels + breathing room
 private const val BarAreaFraction = 0.70f
-// Bottom margin inside each bar column (two label lines ≈ 28dp + 5dp spacer)
-private val BarBottomPad = 33.dp
+// Bottom margin inside each bar column (month label height ≈ 18dp + 5dp spacer)
+private val BarBottomPad = 23.dp
 // Top margin inside each bar column (amount label height ≈ 14dp + 3dp spacer)
 private val BarTopPad = 17.dp
 // Dash pattern for the budget reference line — constant, allocated once at class-load time.
 private val BudgetLineDash = PathEffect.dashPathEffect(floatArrayOf(12f, 6f))
 
+/** One chart bar: a calendar month's total spend. */
+@Immutable
+private data class MonthBar(val key: String, val label: String, val amount: Double)
+
 @Composable
-private fun PeriodBarChart(
-    periods: List<BudgetPeriod>,
-    totals: Map<String, Double>,
-    selectedPeriodId: String?,
+private fun MonthBarChart(
+    months: List<MonthBar>,
+    selectedMonthKey: String?,
+    /** The selected month's budget (its cut-offs added up); 0 hides the reference line. */
     budget: Double,
     selectedBarColor: Color,
-    onPeriodSelected: (String) -> Unit,
+    onMonthSelected: (String) -> Unit,
 ) {
-    val maxActual = totals.values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
+    val maxActual = months.maxOfOrNull { it.amount }?.takeIf { it > 0 } ?: 1.0
     val maxY = maxOf(maxActual, budget).takeIf { it > 0 } ?: 1.0
     val budgetFraction = if (budget > 0) (budget / maxY).toFloat() else -1f
 
@@ -617,21 +644,21 @@ private fun PeriodBarChart(
             .fillMaxWidth()
             .height(ChartHeight)
             .padding(horizontal = 16.dp)
-            .pointerInput(periods) {
-                if (periods.isEmpty()) return@pointerInput
+            .pointerInput(months) {
+                if (months.isEmpty()) return@pointerInput
                 awaitEachGesture {
                     // Respond to both tap (down) and drag without any minimum distance
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val idx = (down.position.x / size.width * periods.size)
-                        .toInt().coerceIn(0, periods.lastIndex)
-                    onPeriodSelected(periods[idx].id)
+                    val idx = (down.position.x / size.width * months.size)
+                        .toInt().coerceIn(0, months.lastIndex)
+                    onMonthSelected(months[idx].key)
 
                     do {
                         val event = awaitPointerEvent()
                         val pos = event.changes.firstOrNull()?.position ?: break
-                        val dragIdx = (pos.x / size.width * periods.size)
-                            .toInt().coerceIn(0, periods.lastIndex)
-                        onPeriodSelected(periods[dragIdx].id)
+                        val dragIdx = (pos.x / size.width * months.size)
+                            .toInt().coerceIn(0, months.lastIndex)
+                        onMonthSelected(months[dragIdx].key)
                     } while (event.changes.any { it.pressed })
                 }
             },
@@ -657,14 +684,12 @@ private fun PeriodBarChart(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom,
         ) {
-            periods.forEachIndexed { index, period ->
-                val total = totals[period.id] ?: 0.0
+            months.forEachIndexed { index, month ->
                 BarColumn(
                     index = index,
-                    period = period,
-                    amount = total,
-                    fraction = (total / maxY).toFloat(),
-                    isSelected = period.id == selectedPeriodId,
+                    month = month,
+                    fraction = (month.amount / maxY).toFloat(),
+                    isSelected = month.key == selectedMonthKey,
                     selectedColor = selectedBarColor,
                 )
             }
@@ -675,8 +700,7 @@ private fun PeriodBarChart(
 @Composable
 private fun RowScope.BarColumn(
     index: Int,
-    period: BudgetPeriod,
-    amount: Double,
+    month: MonthBar,
     fraction: Float,
     isSelected: Boolean,
     selectedColor: Color,
@@ -694,7 +718,7 @@ private fun RowScope.BarColumn(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),
-        label = "bar_${period.id}",
+        label = "bar_${month.key}",
     )
 
     // Animate the accent so switching category/mode re-tints the selected bar smoothly
@@ -703,7 +727,7 @@ private fun RowScope.BarColumn(
         targetValue = if (isSelected) selectedColor
                       else MaterialTheme.colorScheme.surfaceContainerHighest,
         animationSpec = tween(220),
-        label = "barColor_${period.id}",
+        label = "barColor_${month.key}",
     )
     val labelColor = if (isSelected) selectedColor
                      else MaterialTheme.colorScheme.onSurfaceVariant
@@ -716,7 +740,7 @@ private fun RowScope.BarColumn(
         verticalArrangement = Arrangement.Bottom,
     ) {
         Text(
-            text = if (isSelected) abbreviateAmount(amount) else "",
+            text = if (isSelected) abbreviateAmount(month.amount) else "",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = labelColor,
@@ -736,26 +760,56 @@ private fun RowScope.BarColumn(
 
         Spacer(Modifier.height(5.dp))
 
-        // Two lines: the month, then which half of it ("1–15" / "16–30").
         Text(
-            text = period.monthLabel,
+            text = month.label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = labelColor,
             fontSize = 10.sp,
-            lineHeight = 12.sp,
             maxLines = 1,
         )
-        Text(
-            text = period.rangeLabel,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = labelColor.copy(alpha = if (isSelected) 1f else 0.75f),
-            fontSize = 8.sp,
-            lineHeight = 10.sp,
-            maxLines = 1,
-            softWrap = false,
-        )
+    }
+}
+
+// ─── Cut-off chips ───────────────────────────────────────────────────────────
+
+/**
+ * Picks which half of the charted month — 1st–15th or 16th–end — the budget card and the
+ * breakdown describe. Budgets and spending are per cut-off even though the chart shows months.
+ */
+@Composable
+private fun CutOffChips(
+    periods: List<BudgetPeriod>,
+    selectedId: String?,
+    onSelected: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        periods.forEach { period ->
+            val selected = period.id == selectedId
+            BounceSurface(
+                onClick = { onSelected(period.id) },
+                shape = AppShapes.pill,
+                color = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceContainer,
+                pressedScale = 0.94f,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.heightIn(min = 40.dp),
+            ) {
+                Text(
+                    text = period.rangeLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -781,7 +835,7 @@ private fun BudgetLegend(budget: Double) {
             )
         }
         Text(
-            text = "Budget  ${formatAmount(budget)} / cut-off",
+            text = "Budget  ${formatAmount(budget)} / mo",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1094,7 +1148,7 @@ private fun SummaryHeaderTitle() {
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = "Tap a bar to filter · pull down to refresh",
+            text = "Tap a month · pull down to refresh",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
