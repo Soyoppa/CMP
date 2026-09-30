@@ -47,7 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.ui.components.AppSheet
 import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.components.SheetActionPill
 import org.example.project.ui.components.ChoiceField
 import org.example.project.ui.components.ChoicePickerSheet
 import org.example.project.ui.components.PaymentBadge
@@ -69,7 +71,7 @@ private const val ALL_LABEL = "All"
 private const val ALL_MODES_LABEL = "All modes"
 
 /**
- * Full-screen view of the ledger's Paid checkbox: what's settled, what's still outstanding, and
+ * Sheet showing the ledger's Paid checkbox: what's settled, what's still outstanding, and
  * on which card or wallet.
  *
  * Reads the same 'Data Dump' expense rows as the Summary drill-down. Two filters stack on top of
@@ -80,19 +82,17 @@ private const val ALL_MODES_LABEL = "All modes"
  */
 @Composable
 fun PaymentStatusScreen(
-    modifier: Modifier = Modifier,
-    onClose: () -> Unit = {},
+    onClose: () -> Unit,
     viewModel: PaymentStatusViewModel = createPaymentStatusViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+    AppSheet(
+        title = "Paid & Unpaid",
+        subtitle = "Filter by payment mode and month",
+        onClose = onClose,
+        actions = { SheetActionPill("Refresh") { viewModel.onEvent(PaymentStatusEvent.Refresh) } },
     ) {
-        PaymentStatusTopBar(onClose = onClose, onRefresh = { viewModel.onEvent(PaymentStatusEvent.Refresh) })
-
         when {
             uiState.isLoading -> CenteredNotice {
                 CircularProgressIndicator(
@@ -639,63 +639,6 @@ private fun entryMeta(entry: LedgerEntry): String =
     listOf(entry.date.trim(), entry.category.trim(), entry.modeOfPayment.trim())
         .filter { it.isNotEmpty() }
         .joinToString(" · ")
-
-// ─── Chrome ──────────────────────────────────────────────────────────────────
-
-@Composable
-private fun PaymentStatusTopBar(onClose: () -> Unit, onRefresh: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        BounceSurface(
-            onClick = onClose,
-            shape = AppShapes.pill,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            pressedScale = 0.9f,
-            contentPadding = PaddingValues(12.dp),
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) {
-            Text(
-                text = "‹",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Paid & Unpaid",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "Filter by payment mode and month",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        BounceSurface(
-            onClick = onRefresh,
-            shape = AppShapes.pill,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            pressedScale = 0.92f,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) {
-            Text(
-                text = "Refresh",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
 @Composable
 private fun CenteredNotice(content: @Composable () -> Unit) {

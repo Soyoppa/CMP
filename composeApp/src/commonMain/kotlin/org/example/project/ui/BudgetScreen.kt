@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.example.project.ui.components.AppSheet
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
@@ -58,135 +59,94 @@ private val BucketColors = listOf(
 private fun colorForIndex(index: Int): Color = BucketColors[index % BucketColors.size]
 
 /**
- * Full-screen budget editor: an overall monthly budget (what "Remaining" is measured against) and
- * optional per-category budgets. Persists via [BudgetViewModel]; shown only to real (non-guest) users.
+ * Budget editor sheet: an overall monthly budget (what "Remaining" is measured against) and
+ * optional per-category budgets. The Save bar stays pinned at the bottom however long the list is.
+ * Persists via [BudgetViewModel]; shown only to real (non-guest) users.
  */
 @Composable
 fun BudgetScreen(
-    modifier: Modifier = Modifier,
-    onClose: () -> Unit = {},
+    onClose: () -> Unit,
     viewModel: BudgetViewModel = createBudgetViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+    AppSheet(
+        title = "Budgets",
+        subtitle = "Your monthly spending limit",
+        onClose = onClose,
+        footer = if (uiState.isLoading) null else ({
+            SaveBar(
+                isSaving = uiState.isSaving,
+                saved = uiState.saved,
+                error = uiState.error,
+                onSave = { viewModel.onEvent(BudgetEvent.SaveClicked) },
+            )
+        }),
     ) {
-        // ── Top bar ─────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BounceSurface(
-                onClick = onClose,
-                shape = AppShapes.pill,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                pressedScale = 0.9f,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Text(
-                    text = "‹",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Budgets",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Your monthly spending limit",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 2.5.dp,
                     modifier = Modifier.size(32.dp),
                 )
             }
-            return@Column
-        }
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            TotalBudgetCard(
-                value = uiState.totalInput,
-                categoryTotal = uiState.categoryTotal,
-                categoriesExceedTotal = uiState.categoriesExceedTotal,
-                onValueChange = { viewModel.onEvent(BudgetEvent.TotalChanged(it)) },
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            Text(
-                text = "BY CATEGORY · OPTIONAL",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 0.8.sp,
-                modifier = Modifier.padding(start = 4.dp),
-            )
-
-            uiState.buckets.forEachIndexed { index, bucket ->
-                BudgetRow(
-                    bucket = bucket,
-                    value = uiState.amounts[bucket].orEmpty(),
-                    accent = colorForIndex(index),
-                    onValueChange = { viewModel.onEvent(BudgetEvent.AmountChanged(bucket, it)) },
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            SaveButton(
-                isSaving = uiState.isSaving,
-                onSave = { viewModel.onEvent(BudgetEvent.SaveClicked) },
-            )
-
-            AnimatedVisibility(
-                visible = uiState.saved || uiState.error != null,
-                enter = fadeIn(),
-                exit = fadeOut(),
+        } else {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = uiState.error ?: "Budgets saved",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = if (uiState.error != null) MaterialTheme.colorScheme.error
-                            else IncomeGreen,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
+                TotalBudgetCard(
+                    value = uiState.totalInput,
+                    categoryTotal = uiState.categoryTotal,
+                    categoriesExceedTotal = uiState.categoriesExceedTotal,
+                    onValueChange = { viewModel.onEvent(BudgetEvent.TotalChanged(it)) },
                 )
-            }
 
-            Spacer(Modifier.height(120.dp)) // clears the floating nav pill
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    text = "BY CATEGORY · OPTIONAL",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+
+                uiState.buckets.forEachIndexed { index, bucket ->
+                    BudgetRow(
+                        bucket = bucket,
+                        value = uiState.amounts[bucket].orEmpty(),
+                        accent = colorForIndex(index),
+                        onValueChange = { viewModel.onEvent(BudgetEvent.AmountChanged(bucket, it)) },
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+            }
         }
+    }
+}
+
+/** Pinned footer: the save result (if any) above the Save button. */
+@Composable
+private fun SaveBar(isSaving: Boolean, saved: Boolean, error: String?, onSave: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AnimatedVisibility(visible = saved || error != null, enter = fadeIn(), exit = fadeOut()) {
+            Text(
+                text = error ?: "Budgets saved",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = if (error != null) MaterialTheme.colorScheme.error else IncomeGreen,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        SaveButton(isSaving = isSaving, onSave = onSave)
     }
 }
 

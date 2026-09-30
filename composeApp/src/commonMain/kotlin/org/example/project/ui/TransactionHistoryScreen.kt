@@ -42,7 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.ui.components.AppSheet
 import org.example.project.ui.components.BounceSurface
+import org.example.project.ui.components.SheetActionPill
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.theme.AppShapes
@@ -63,21 +65,16 @@ import org.example.project.viewmodel.TransactionHistoryViewModel
 @Composable
 fun TransactionHistoryScreen(
     onClose: () -> Unit,
-    modifier: Modifier = Modifier,
     viewModel: TransactionHistoryViewModel = viewModel { TransactionHistoryViewModel() },
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+    AppSheet(
+        title = "Transactions",
+        subtitle = "Everything you've logged, newest first",
+        onClose = onClose,
+        actions = { SheetActionPill("Refresh") { viewModel.onEvent(TransactionHistoryEvent.Refresh) } },
     ) {
-        HistoryTopBar(
-            onClose = onClose,
-            onRefresh = { viewModel.onEvent(TransactionHistoryEvent.Refresh) },
-        )
-
         when {
             state.isLoading -> CenteredBox {
                 CircularProgressIndicator(
@@ -308,61 +305,6 @@ private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-@Composable
-private fun HistoryTopBar(onClose: () -> Unit, onRefresh: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        BounceSurface(
-            onClick = onClose,
-            shape = AppShapes.pill,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            pressedScale = 0.9f,
-            contentPadding = PaddingValues(12.dp),
-            modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Back" },
-        ) {
-            Text(
-                text = "‹",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Transactions",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "Everything you've logged, newest first",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        BounceSurface(
-            onClick = onRefresh,
-            shape = AppShapes.pill,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            pressedScale = 0.92f,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) {
-            Text(
-                text = "Refresh",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 

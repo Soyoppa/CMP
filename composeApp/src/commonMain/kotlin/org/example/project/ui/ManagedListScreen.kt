@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.example.project.config.LedgerProfile
+import org.example.project.ui.components.AppSheet
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.PaymentBadge
@@ -55,7 +56,6 @@ import org.example.project.viewmodel.createPaymentModeListViewModel
  */
 @Composable
 fun ManageListScreen(
-    modifier: Modifier = Modifier,
     title: String,
     subtitle: String,
     inputPlaceholder: String,
@@ -66,48 +66,7 @@ fun ManageListScreen(
     onDelete: (String) -> Unit,
     leadingIcon: @Composable (String) -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BounceSurface(
-                onClick = onClose,
-                shape = AppShapes.pill,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                pressedScale = 0.9f,
-                contentPadding = PaddingValues(12.dp),
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Text(
-                    text = "‹",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
+    AppSheet(title = title, subtitle = subtitle, onClose = onClose) {
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
@@ -116,7 +75,7 @@ fun ManageListScreen(
                     modifier = Modifier.size(32.dp),
                 )
             }
-            return@Column
+            return@AppSheet
         }
 
         Column(
@@ -264,14 +223,12 @@ private fun ManagedListRow(
 /** Manage the primary category list (expense categories, or tracker_2's care-of list). */
 @Composable
 fun CategoryManagementScreen(
-    modifier: Modifier = Modifier,
-    onClose: () -> Unit = {},
+    onClose: () -> Unit,
     viewModel: ManagedListViewModel = createCategoryListViewModel(),
 ) {
     val label = remember { LedgerProfile.current().categoryLabel.lowercase() }
     val uiState by viewModel.uiState.collectAsState()
     ManageListScreen(
-        modifier = modifier,
         title = "Manage ${label}s",
         subtitle = "Add or remove options shown in the $label picker",
         inputPlaceholder = "New $label",
@@ -293,13 +250,11 @@ fun CategoryManagementScreen(
 /** Manage the payment-mode list (how a transaction was paid). */
 @Composable
 fun PaymentModeManagementScreen(
-    modifier: Modifier = Modifier,
-    onClose: () -> Unit = {},
+    onClose: () -> Unit,
     viewModel: ManagedListViewModel = createPaymentModeListViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     ManageListScreen(
-        modifier = modifier,
         title = "Manage payment modes",
         subtitle = "Add or remove options shown in the payment picker",
         inputPlaceholder = "New payment mode",

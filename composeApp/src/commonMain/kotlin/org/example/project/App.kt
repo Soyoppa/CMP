@@ -342,7 +342,6 @@ private fun SignedInApp(
             if (budgetOpen && !user.isGuest) {
                 OverlayScope {
                     BudgetScreen(
-                        modifier = Modifier.fillMaxSize(),
                         onClose = {
                             budgetOpen = false
                             summaryViewModel.onEvent(SummaryEvent.Refresh)
@@ -355,7 +354,6 @@ private fun SignedInApp(
             if (categoriesOpen && !user.isGuest) {
                 OverlayScope {
                     CategoryManagementScreen(
-                        modifier = Modifier.fillMaxSize(),
                         onClose = {
                             categoriesOpen = false
                             transactionFormViewModel.refreshOptions()
@@ -367,7 +365,6 @@ private fun SignedInApp(
             if (paymentModesOpen && !user.isGuest) {
                 OverlayScope {
                     PaymentModeManagementScreen(
-                        modifier = Modifier.fillMaxSize(),
                         onClose = {
                             paymentModesOpen = false
                             transactionFormViewModel.refreshOptions()
@@ -380,7 +377,6 @@ private fun SignedInApp(
             if (paymentStatusOpen && profile.showPaidToggle) {
                 OverlayScope {
                     PaymentStatusScreen(
-                        modifier = Modifier.fillMaxSize(),
                         onClose = { paymentStatusOpen = false },
                     )
                 }
@@ -389,7 +385,7 @@ private fun SignedInApp(
             // Ledger history with delete.
             if (transactionsOpen) {
                 OverlayScope {
-                    TransactionHistoryScreen(modifier = Modifier.fillMaxSize(), onClose = closeTransactions)
+                    TransactionHistoryScreen(onClose = closeTransactions)
                 }
             }
 
