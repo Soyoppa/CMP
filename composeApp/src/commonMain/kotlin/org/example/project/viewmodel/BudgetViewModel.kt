@@ -8,13 +8,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.config.LedgerProfile
+import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
 import org.example.project.repository.BudgetRepository
+import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
 data class BudgetUiState(
+    /** The cut-off being budgeted — always the one today falls in. */
+    val period: BudgetPeriod,
+    /** Days remaining in the cut-off after today (0 = it ends today). */
+    val daysLeft: Int = 0,
     val isLoading: Boolean = false,
-    /** Raw text of the overall monthly budget field (empty = use the category sum). */
+    /**
+     * True when this cut-off has no saved budget yet and the fields were pre-filled from the
+     * previous one — the user still has to review and save to set this cut-off's budget.
+     */
+    val isSuggestion: Boolean = false,
+    /** Raw text of the overall budget field (empty = use the category sum). */
     val totalInput: String = "",
     /** The editable buckets, in display order. */
     val buckets: List<String> = emptyList(),
@@ -33,6 +44,9 @@ data class BudgetUiState(
     /** Category budgets that add up to more than the overall budget — worth a gentle warning. */
     val categoriesExceedTotal: Boolean
         get() = (totalInput.toDoubleOrNull() ?: 0.0).let { total -> total > 0.0 && categoryTotal > total }
+
+    /** Nothing entered yet — saving would set no budget at all. */
+    val canSave: Boolean get() = effectiveTotal > 0.0 && !isSaving
 }
 
 sealed interface BudgetEvent {
@@ -42,29 +56,42 @@ sealed interface BudgetEvent {
 }
 
 /**
- * Backs the [org.example.project.ui.BudgetScreen] editor: an overall monthly budget plus optional
- * per-bucket budgets. On save it writes every field (explicit zeros for cleared ones, so clearing a
- * budget actually removes it rather than leaving a stale value).
+ * Backs the [org.example.project.ui.BudgetScreen] editor for the **current cut-off** (1st–15th or
+ * 16th–end of month): an overall budget plus optional per-bucket budgets.
+ *
+ * Every cut-off needs its own budget. When the current one has none, the form is pre-filled from
+ * the most recent earlier cut-off (or half the old monthly budget) so the user reviews and saves
+ * instead of retyping. Saving writes every field, with explicit zeros for cleared ones.
  */
 class BudgetViewModel(
     private val budgetRepository: BudgetRepository = BudgetRepository(),
     buckets: List<String> = LedgerProfile.current().spendingBuckets.names,
+    period: BudgetPeriod = BudgetPeriod.current(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        BudgetUiState(isLoading = true, buckets = buckets, amounts = buckets.associateWith { "" })
+        BudgetUiState(
+            period = period,
+            daysLeft = (period.endDay - DateUtils.today().day).coerceAtLeast(0),
+            isLoading = true,
+            buckets = buckets,
+            amounts = buckets.associateWith { "" },
+        )
     )
     val uiState: StateFlow<BudgetUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            val plan = budgetRepository.getPlan()
+            val plans = budgetRepository.getPlans()
+            val saved = plans[period.id]?.takeUnless { it.isEmpty }
+            val plan = saved ?: budgetRepository.suggestPlan(period, plans)
             _uiState.update { state ->
                 state.copy(
                     isLoading = false,
-                    totalInput = plan.totalMonthly.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty(),
+                    isSuggestion = saved == null && plan != null,
+                    totalInput = plan?.total?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty(),
                     amounts = state.buckets.associateWith { bucket ->
-                        plan.byBucket[bucket]?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty()
+                        plan?.byBucket?.get(bucket)?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty()
                     },
                 )
             }
@@ -82,20 +109,20 @@ class BudgetViewModel(
     }
 
     private fun save() {
-        if (_uiState.value.isSaving) return
+        val state = _uiState.value
+        if (!state.canSave) return
         _uiState.update { it.copy(isSaving = true, error = null, saved = false) }
         viewModelScope.launch {
-            val state = _uiState.value
             val plan = BudgetPlan(
-                totalMonthly = state.totalInput.toDoubleOrNull() ?: 0.0,
+                total = state.totalInput.toDoubleOrNull() ?: 0.0,
                 byBucket = state.buckets.associateWith { bucket -> state.amounts[bucket]?.toDoubleOrNull() ?: 0.0 },
             )
-            val result = budgetRepository.savePlan(plan)
+            val result = budgetRepository.savePlan(state.period, plan)
             _uiState.update {
-                if (result.isSuccess) it.copy(isSaving = false, saved = true)
+                if (result.isSuccess) it.copy(isSaving = false, saved = true, isSuggestion = false)
                 else it.copy(
                     isSaving = false,
-                    error = result.exceptionOrNull()?.toUserMessage("Couldn't save budgets.") ?: "Couldn't save budgets.",
+                    error = result.exceptionOrNull()?.toUserMessage("Couldn't save the budget.") ?: "Couldn't save the budget.",
                 )
             }
         }

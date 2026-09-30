@@ -7,7 +7,6 @@ import org.example.project.data.ledger.DemoLedgerDataSource
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.LedgerSource
-import org.example.project.model.CategorySummary
 import org.example.project.model.Transaction
 
 /**
@@ -32,9 +31,6 @@ class LedgerRepository(
                 else -> cloud
             }
         }
-
-    /** Ready-made summary for guests; signed-in users get theirs built from [getExpenses]. */
-    fun getDemoSummary(): List<CategorySummary> = DemoLedgerDataSource.getSummary()
 
     /** Every income/expense row in ledger order (oldest first). */
     suspend fun getEntries(): List<LedgerEntry> = source.getEntries()

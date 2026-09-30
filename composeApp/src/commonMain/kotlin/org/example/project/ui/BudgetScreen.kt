@@ -59,9 +59,9 @@ private val BucketColors = listOf(
 private fun colorForIndex(index: Int): Color = BucketColors[index % BucketColors.size]
 
 /**
- * Budget editor sheet: an overall monthly budget (what "Remaining" is measured against) and
- * optional per-category budgets. The Save bar stays pinned at the bottom however long the list is.
- * Persists via [BudgetViewModel]; shown only to real (non-guest) users.
+ * Budget editor sheet for the current cut-off (1st–15th or 16th–end of month): an overall budget
+ * (what "Remaining" is measured against) and optional per-category budgets. The Save bar stays
+ * pinned at the bottom however long the list is. Shown only to real (non-guest) users.
  */
 @Composable
 fun BudgetScreen(
@@ -70,12 +70,19 @@ fun BudgetScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    val period = uiState.period
     AppSheet(
-        title = "Budgets",
-        subtitle = "Your monthly spending limit",
+        title = "Budget · ${period.label}",
+        subtitle = when (uiState.daysLeft) {
+            0 -> "This cut-off ends today"
+            1 -> "1 day left in this cut-off"
+            else -> "${uiState.daysLeft} days left in this cut-off"
+        },
         onClose = onClose,
         footer = if (uiState.isLoading) null else ({
             SaveBar(
+                label = "Save budget for ${period.label}",
+                enabled = uiState.canSave,
                 isSaving = uiState.isSaving,
                 saved = uiState.saved,
                 error = uiState.error,
@@ -100,7 +107,10 @@ fun BudgetScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                if (uiState.isSuggestion) NewCutOffNotice(periodLabel = period.label)
+
                 TotalBudgetCard(
+                    periodLabel = period.label,
                     value = uiState.totalInput,
                     categoryTotal = uiState.categoryTotal,
                     categoriesExceedTotal = uiState.categoriesExceedTotal,
@@ -133,29 +143,54 @@ fun BudgetScreen(
     }
 }
 
+/** Shown when the cut-off has no budget yet and the form was pre-filled from the last one. */
+@Composable
+private fun NewCutOffNotice(periodLabel: String) {
+    Text(
+        text = "New cut-off — set your budget for $periodLabel. " +
+            "The amounts below are copied from your last budget; adjust them and save.",
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    )
+}
+
 /** Pinned footer: the save result (if any) above the Save button. */
 @Composable
-private fun SaveBar(isSaving: Boolean, saved: Boolean, error: String?, onSave: () -> Unit) {
+private fun SaveBar(
+    label: String,
+    enabled: Boolean,
+    isSaving: Boolean,
+    saved: Boolean,
+    error: String?,
+    onSave: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AnimatedVisibility(visible = saved || error != null, enter = fadeIn(), exit = fadeOut()) {
             Text(
-                text = error ?: "Budgets saved",
+                text = error ?: "Budget saved",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = if (error != null) MaterialTheme.colorScheme.error else IncomeGreen,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        SaveButton(isSaving = isSaving, onSave = onSave)
+        SaveButton(label = label, enabled = enabled, isSaving = isSaving, onSave = onSave)
     }
 }
 
 /**
- * The overall monthly budget — the number "Remaining" on the Summary and Add screens counts down
- * from. Left blank, the per-category budgets below add up to it instead.
+ * The overall budget for the cut-off — the number "Remaining" on the Summary and Add screens
+ * counts down from. Left blank, the per-category budgets below add up to it instead.
  */
 @Composable
 private fun TotalBudgetCard(
+    periodLabel: String,
     value: String,
     categoryTotal: Double,
     categoriesExceedTotal: Boolean,
@@ -171,7 +206,7 @@ private fun TotalBudgetCard(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            text = "Total monthly budget",
+            text = "Total budget for $periodLabel",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -209,7 +244,7 @@ private fun TotalBudgetCard(
                 categoriesExceedTotal ->
                     "Your category budgets add up to ${FormatUtils.money(categoryTotal)} — more than this total."
                 value.isBlank() && categoryTotal > 0.0 ->
-                    "Leave blank to use your category budgets: ${FormatUtils.money(categoryTotal)} / month."
+                    "Leave blank to use your category budgets: ${FormatUtils.money(categoryTotal)} for this cut-off."
                 else -> "What's left of this is shown on the Summary and Add screens."
             },
             style = MaterialTheme.typography.bodySmall,
@@ -276,10 +311,10 @@ private fun BudgetRow(
 }
 
 @Composable
-private fun SaveButton(isSaving: Boolean, onSave: () -> Unit) {
+private fun SaveButton(label: String, enabled: Boolean, isSaving: Boolean, onSave: () -> Unit) {
     BounceSurface(
         onClick = onSave,
-        enabled = !isSaving,
+        enabled = enabled,
         shape = AppShapes.pill,
         color = MaterialTheme.colorScheme.primary,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp),
@@ -293,7 +328,7 @@ private fun SaveButton(isSaving: Boolean, onSave: () -> Unit) {
             )
         } else {
             Text(
-                text = "Save budgets",
+                text = label,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onPrimary,

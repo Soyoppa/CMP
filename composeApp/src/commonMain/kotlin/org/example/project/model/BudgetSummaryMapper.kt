@@ -1,58 +1,53 @@
 package org.example.project.model
 
 import org.example.project.data.ledger.LedgerEntry
-import org.example.project.util.DateUtils
 
 /**
- * Builds the Summary screen's [CategorySummary] rows from the raw ledger. Each entry is rolled up
- * into its display bucket ([SpendingBuckets.bucketFor]) and summed per month; budgets come from
- * the user's saved budgets.
+ * Builds the Summary screen's [CategorySummary] rows from the raw ledger. Each expense is rolled
+ * up into its display bucket ([SpendingBuckets.bucketFor]) and summed per cut-off; budgets come
+ * from each cut-off's saved [BudgetPlan].
  *
  * Pure and deterministic so it stays trivially testable and cheap to run off the ledger.
  */
 object BudgetSummaryMapper {
 
-    /** Full month names Jan..Dec, the fixed x-axis the chart plots. */
-    private val monthNames: List<String> = (1..12).map { DateUtils.monthName(it) }
-
     /**
      * @param entries expense rows (income already excluded upstream).
-     * @param budgets bucket name -> monthly budget.
+     * @param periods the cut-offs to chart, oldest first; spend outside them is ignored.
+     * @param plans saved budgets keyed by [BudgetPeriod.id].
      * @param buckets the roll-up used by the current ledger profile.
      */
     fun build(
         entries: List<LedgerEntry>,
-        budgets: Map<String, Double>,
+        periods: List<BudgetPeriod>,
+        plans: Map<String, BudgetPlan>,
         buckets: SpendingBuckets,
     ): List<CategorySummary> {
+        val periodIds = periods.map { it.id }
+        fun zeroed(): MutableMap<String, Double> = periodIds.associateWithTo(LinkedHashMap()) { 0.0 }
+
         // Seed the canonical buckets so they always appear (even at zero) in a stable order.
         val spendByBucket = LinkedHashMap<String, MutableMap<String, Double>>()
-        buckets.names.forEach { bucket -> spendByBucket[bucket] = zeroedMonths() }
+        buckets.names.forEach { bucket -> spendByBucket[bucket] = zeroed() }
 
         entries.forEach { entry ->
-            if (entry.monthNumber !in 1..12) return@forEach
-            val bucket = buckets.bucketFor(entry.category)
-            val month = DateUtils.monthName(entry.monthNumber)
-            val months = spendByBucket.getOrPut(bucket) { zeroedMonths() }
-            months[month] = (months[month] ?: 0.0) + entry.amount
+            val periodId = BudgetPeriod.of(entry)?.id ?: return@forEach
+            if (periodId !in periodIds) return@forEach
+            val spend = spendByBucket.getOrPut(buckets.bucketFor(entry.category)) { zeroed() }
+            spend[periodId] = (spend[periodId] ?: 0.0) + entry.amount
         }
 
         return spendByBucket.entries
-            // "Other" only earns a row when it actually holds spend (or a budget) — never as noise.
-            .filter { (bucket, spend) ->
-                bucket != SpendingBuckets.OTHER ||
-                    spend.values.any { it > 0.0 } ||
-                    (budgets[bucket] ?: 0.0) > 0.0
-            }
             .map { (bucket, spend) ->
                 CategorySummary(
                     category = bucket,
-                    monthlyBudget = budgets[bucket] ?: 0.0,
-                    monthlySpend = spend,
+                    spendByPeriod = spend,
+                    budgetByPeriod = periodIds
+                        .mapNotNull { id -> plans[id]?.byBucket?.get(bucket)?.takeIf { it > 0.0 }?.let { id to it } }
+                        .toMap(),
                 )
             }
+            // "Other" only earns a row when it actually holds spend (or a budget) — never as noise.
+            .filter { it.category != SpendingBuckets.OTHER || it.totalSpent > 0.0 || it.budgetByPeriod.isNotEmpty() }
     }
-
-    private fun zeroedMonths(): MutableMap<String, Double> =
-        monthNames.associateWithTo(LinkedHashMap()) { 0.0 }
 }

@@ -12,15 +12,15 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.Session
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetStatus
 import org.example.project.model.BudgetSummaryMapper
 import org.example.project.model.CategorySummary
 import org.example.project.repository.BudgetRepository
 import org.example.project.repository.LedgerRepository
-import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
-/** Whether the bar chart plots every category summed, or one category's trend across months. */
+/** Whether the bar chart plots every category summed, or one category's trend across cut-offs. */
 enum class SummaryViewMode { TOTAL, BY_CATEGORY }
 
 data class SummaryUiState(
@@ -29,28 +29,35 @@ data class SummaryUiState(
     /** Reloading with data already on screen (pull-to-refresh, after a save). */
     val isRefreshing: Boolean = false,
     val categories: List<CategorySummary> = emptyList(),
-    val months: List<String> = emptyList(),
-    val selectedMonth: String? = null,
-    /** Overall monthly budget: the user's total if set, else the sum of category budgets. */
-    val totalMonthlyBudget: Double = 0.0,
-    val budgetByCategory: Map<String, Double> = emptyMap(),
+    /** The charted cut-offs, oldest first, ending with the current one. */
+    val periods: List<BudgetPeriod> = emptyList(),
+    /** [BudgetPeriod.id] of the bar the user picked; null = every charted cut-off. */
+    val selectedPeriodId: String? = null,
+    /** Overall budget per cut-off id: the user's total if set, else the sum of category budgets. */
+    val totalBudgetByPeriod: Map<String, Double> = emptyMap(),
+    /** The cut-off today falls in. */
+    val currentPeriod: BudgetPeriod = BudgetPeriod.current(),
     /**
-     * This calendar month's spending against [totalMonthlyBudget] — the "left to spend" figure the
-     * Add screen shows. Kept across refreshes (not cleared while reloading) so it never flickers.
+     * The current cut-off's spending against its budget — the "left to spend" figure the Add
+     * screen shows. Kept across refreshes (not cleared while reloading) so it never flickers.
      */
-    val thisMonth: BudgetStatus? = null,
+    val thisPeriod: BudgetStatus? = null,
+    /** True when the signed-in user hasn't set a budget for the current cut-off yet. */
+    val needsBudget: Boolean = false,
     val viewMode: SummaryViewMode = SummaryViewMode.TOTAL,
     val selectedCategory: String? = null,
     val transactions: List<LedgerEntry> = emptyList(),
     val transactionsLoading: Boolean = false,
     val transactionsError: String? = null,
     val error: String? = null,
-)
+) {
+    val selectedPeriod: BudgetPeriod? get() = periods.firstOrNull { it.id == selectedPeriodId }
+}
 
 sealed interface SummaryEvent {
     /** Reload the ledger and budgets (pull-to-refresh, retry, after a save or budget edit). */
     data object Refresh : SummaryEvent
-    data class MonthSelected(val month: String) : SummaryEvent
+    data class PeriodSelected(val periodId: String) : SummaryEvent
     data class ViewModeSelected(val mode: SummaryViewMode) : SummaryEvent
     data class CategorySelected(val category: String) : SummaryEvent
 }
@@ -74,7 +81,7 @@ class SummaryViewModel(
     fun onEvent(event: SummaryEvent) {
         when (event) {
             SummaryEvent.Refresh -> load()
-            is SummaryEvent.MonthSelected -> _uiState.update { it.copy(selectedMonth = event.month) }
+            is SummaryEvent.PeriodSelected -> _uiState.update { it.copy(selectedPeriodId = event.periodId) }
             is SummaryEvent.ViewModeSelected -> selectViewMode(event.mode)
             is SummaryEvent.CategorySelected -> _uiState.update { it.copy(selectedCategory = event.category) }
         }
@@ -95,52 +102,44 @@ class SummaryViewModel(
                 )
             }
             try {
-                // Real users: build the summary from the raw 'Data Dump' ledger (single source of
-                // truth, always in sync with the drill-down) with budgets from the cloud store.
-                // Guests: the self-contained demo dataset (no ledger, no cloud).
-                val categories: List<CategorySummary>
-                val totalMonthlyBudget: Double
-                if (Session.isGuest) {
-                    categories = repository.getDemoSummary()
-                    totalMonthlyBudget = categories.sumOf { it.monthlyBudget }
-                } else {
-                    // coroutineScope (not bare async inside launch): if a read fails, the error is
-                    // rethrown here for the catch below. A bare async child would instead cancel
-                    // the whole launch and crash the app with an uncaught exception.
-                    val (expenses, plan) = coroutineScope {
-                        val expensesDeferred = async { repository.getExpenses() }
-                        val planDeferred = async { budgetRepository.getPlan() }
-                        expensesDeferred.await() to planDeferred.await()
-                    }
-                    categories = BudgetSummaryMapper.build(
-                        expenses,
-                        plan.byBucket,
-                        LedgerProfile.current().spendingBuckets,
-                    )
-                    totalMonthlyBudget = plan.effectiveMonthlyTotal
+                // coroutineScope (not bare async inside launch): if a read fails, the error is
+                // rethrown here for the catch below. A bare async child would instead cancel
+                // the whole launch and crash the app with an uncaught exception.
+                val (expenses, plans) = coroutineScope {
+                    val expensesDeferred = async { repository.getExpenses() }
+                    val plansDeferred = async { budgetRepository.getPlans() }
+                    expensesDeferred.await() to plansDeferred.await()
                 }
-                val months = categories.firstOrNull()?.months ?: emptyList()
-                val budgetByCategory = categories.associate { it.category.lowercase() to it.monthlyBudget }
-                val currentMonth = DateUtils.monthName(DateUtils.currentMonthNumber())
-                val thisMonth = BudgetStatus(
-                    spent = categories.sumOf { it.spentIn(currentMonth) },
-                    budget = totalMonthlyBudget,
+
+                val currentPeriod = BudgetPeriod.current()
+                val periods = BudgetPeriod.recent(CHARTED_PERIODS, last = currentPeriod)
+                val categories = BudgetSummaryMapper.build(
+                    entries = expenses,
+                    periods = periods,
+                    plans = plans,
+                    buckets = LedgerProfile.current().spendingBuckets,
                 )
+                val totalBudgetByPeriod = periods
+                    .mapNotNull { p -> plans[p.id]?.effectiveTotal?.takeIf { it > 0.0 }?.let { p.id to it } }
+                    .toMap()
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         isRefreshing = false,
                         categories = categories,
-                        months = months,
-                        totalMonthlyBudget = totalMonthlyBudget,
-                        budgetByCategory = budgetByCategory,
-                        thisMonth = thisMonth,
-                        // Keep the user's month on a refresh; otherwise default to the current
-                        // calendar month, falling back to the latest month that has data.
-                        selectedMonth = it.selectedMonth?.takeIf { m -> m in months }
-                            ?: months.firstOrNull { m -> DateUtils.monthNumberFromName(m) == DateUtils.currentMonthNumber() }
-                            ?: months.lastOrNull { m -> categories.any { c -> c.spentIn(m) > 0.0 } },
+                        periods = periods,
+                        totalBudgetByPeriod = totalBudgetByPeriod,
+                        currentPeriod = currentPeriod,
+                        thisPeriod = BudgetStatus(
+                            spent = categories.sumOf { c -> c.spentIn(currentPeriod.id) },
+                            budget = totalBudgetByPeriod[currentPeriod.id] ?: 0.0,
+                        ),
+                        // Guests run on demo budgets; everyone else owes each cut-off a budget.
+                        needsBudget = !Session.isGuest && plans[currentPeriod.id]?.isEmpty != false,
+                        // Keep the user's cut-off on a refresh; otherwise open on the current one.
+                        selectedPeriodId = it.selectedPeriodId?.takeIf { id -> periods.any { p -> p.id == id } }
+                            ?: currentPeriod.id,
                         // Keep the chosen category on a refresh; otherwise pre-pick the biggest
                         // spender so "By Category" has data the instant the user switches to it.
                         selectedCategory = it.selectedCategory?.takeIf { c -> categories.any { s -> s.category == c } }
@@ -183,5 +182,10 @@ class SummaryViewModel(
                 }
             }
         }
+    }
+
+    private companion object {
+        /** Six months of cut-offs — enough trend to read, few enough bars to tap on a phone. */
+        const val CHARTED_PERIODS = 12
     }
 }

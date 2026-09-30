@@ -32,17 +32,24 @@ service cloud.firestore {
         && request.resource.data.createdAt is int;
     }
 
-    // --- Settings: budgets and editable option lists -----------------------------------
-    match /users/{uid}/settings/{docId} {
+    // --- Budgets: one document per cut-off --------------------------------------------
+    // Id "YYYY-MM-1" (1st–15th) or "YYYY-MM-2" (16th–end of month):
+    // { total: number, <bucket name>: number, ..., updatedAt: int }
+    match /users/{uid}/budgets/{periodId} {
       allow read, delete: if isOwner(uid);
-
-      // "budget": { totalMonthly: number, <bucket name>: number, ..., updatedAt: int }
-      allow write: if isOwner(uid)
-        && docId == 'budget'
+      allow create, update: if isOwner(uid)
+        && periodId.matches('^[0-9]{4}-(0[1-9]|1[0-2])-[12]$')
         && request.resource.data.size() <= 30
         && request.resource.data.updatedAt is int
-        && (!('totalMonthly' in request.resource.data)
-            || (request.resource.data.totalMonthly is number && request.resource.data.totalMonthly >= 0));
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0;
+    }
+
+    // --- Settings: editable option lists ----------------------------------------------
+    // (settings/budget is the old per-month budget: still readable to seed the first
+    // cut-off's suggestion, no longer writable.)
+    match /users/{uid}/settings/{docId} {
+      allow read, delete: if isOwner(uid);
 
       // "categories" / "paymentModes": { items: [string, ...], updatedAt: int }
       allow write: if isOwner(uid)

@@ -38,9 +38,11 @@ The build fails loudly when a required key is missing.
 
 | Who | Ledger | Budgets / lists |
 |---|---|---|
-| Every account (store users) | `users/{uid}/transactions` in Firestore | `users/{uid}/settings/*` |
-| Accounts granted Sheets access (any platform whose build has the gateway URL) | Household Google Sheet via the gateway | `users/{uid}/settings/*` |
+| Every account (store users) | `users/{uid}/transactions` in Firestore | `users/{uid}/budgets/{cut-off}` and `users/{uid}/settings/*` |
+| Accounts granted Sheets access (any platform whose build has the gateway URL) | Household Google Sheet via the gateway | `users/{uid}/budgets/{cut-off}` and `users/{uid}/settings/*` |
 | Guests | Built-in demo data (read-only) | — |
+
+Budgets are per **cut-off**: the 1st–15th (`YYYY-MM-1`) and the 16th–end of month (`YYYY-MM-2`).
 
 ## 4. Granting Sheets access
 

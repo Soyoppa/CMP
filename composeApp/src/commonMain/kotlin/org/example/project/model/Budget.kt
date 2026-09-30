@@ -1,24 +1,32 @@
 package org.example.project.model
 
 /**
- * The user's monthly budget: an optional overall [totalMonthly] plus optional per-bucket amounts.
+ * The budget for one cut-off ([BudgetPeriod]): an optional overall [total] plus optional
+ * per-bucket amounts.
  *
  * The overall figure wins when set; otherwise the per-category budgets add up to the total, so
- * people who only budget by category keep today's behaviour.
+ * people who only budget by category are still covered.
  */
 data class BudgetPlan(
-    /** Explicit overall monthly budget; 0 = not set. */
-    val totalMonthly: Double = 0.0,
-    /** bucket name -> monthly budget (absent / 0 = none). */
+    /** Explicit overall budget for the cut-off; 0 = not set. */
+    val total: Double = 0.0,
+    /** bucket name -> budget for the cut-off (absent / 0 = none). */
     val byBucket: Map<String, Double> = emptyMap(),
 ) {
     val categoryTotal: Double get() = byBucket.values.filter { it > 0.0 }.sum()
 
-    /** The monthly budget the app measures spending against; 0 when nothing is set. */
-    val effectiveMonthlyTotal: Double get() = if (totalMonthly > 0.0) totalMonthly else categoryTotal
+    /** The budget spending is measured against; 0 when nothing is set. */
+    val effectiveTotal: Double get() = if (total > 0.0) total else categoryTotal
+
+    /** True when neither an overall nor any category budget is set. */
+    val isEmpty: Boolean get() = effectiveTotal <= 0.0
+
+    /** Every amount multiplied by [factor] — e.g. 0.5 to turn a monthly plan into a cut-off one. */
+    fun scaled(factor: Double): BudgetPlan =
+        BudgetPlan(total = total * factor, byBucket = byBucket.mapValues { it.value * factor })
 }
 
-/** Spending measured against a budget for one period (a month, or one category in a month). */
+/** Spending measured against a budget for one period (a cut-off, or one category in it). */
 data class BudgetStatus(
     val spent: Double,
     /** 0 = no budget set. */

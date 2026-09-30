@@ -147,7 +147,7 @@ fun BudgetOverviewCard(
             )
         } else if (!showRemaining) {
             Text(
-                text = "Pick a month to see what's left of your budget.",
+                text = "Pick a cut-off to see what's left of its budget.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -156,25 +156,30 @@ fun BudgetOverviewCard(
 }
 
 /**
- * Compact one-line version for the Add screen: "P12,300 left this month" with a thin bar,
- * tappable to open the budget/summary. Shows a set-budget prompt when no budget exists.
+ * Compact one-line version for the Add screen: "P12,300 left · Sep 16–30" with a thin bar,
+ * tappable to open the budget/summary. When the cut-off has no budget yet it becomes a prominent
+ * "Set your budget" prompt.
  */
 @Composable
 fun RemainingBudgetBanner(
     status: BudgetStatus,
+    /** The cut-off the status covers, e.g. "Sep 16–30". */
+    periodLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val color = if (status.isOverBudget) MaterialTheme.colorScheme.error else onTrackColor()
     val label = when {
-        !status.hasBudget -> "Set a monthly budget to see what's left"
-        status.isOverBudget -> "Over budget by ${FormatUtils.money(status.remaining)} this month"
-        else -> "${FormatUtils.money(status.remaining)} left this month"
+        !status.hasBudget -> "Set your budget for $periodLabel"
+        status.isOverBudget -> "Over budget by ${FormatUtils.money(status.remaining)} · $periodLabel"
+        else -> "${FormatUtils.money(status.remaining)} left · $periodLabel"
     }
     BounceSurface(
         onClick = onClick,
         shape = AppShapes.field,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        // No budget for this cut-off yet: stand out, since setting one is expected every cut-off.
+        color = if (status.hasBudget) MaterialTheme.colorScheme.surfaceContainer
+                else MaterialTheme.colorScheme.tertiaryContainer,
         pressedScale = 0.98f,
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         modifier = modifier.fillMaxWidth().semantics { contentDescription = label },
@@ -185,7 +190,7 @@ fun RemainingBudgetBanner(
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (status.hasBudget) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (status.hasBudget) color else MaterialTheme.colorScheme.onTertiaryContainer,
                     modifier = Modifier.weight(1f),
                 )
                 if (status.hasBudget) {

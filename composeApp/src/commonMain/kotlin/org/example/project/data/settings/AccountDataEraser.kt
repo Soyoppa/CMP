@@ -16,6 +16,10 @@ class AccountDataEraser(private val firestore: FirestoreRestClient) {
         firestore.listDocuments(transactions).forEach { doc ->
             firestore.deleteDocument("$transactions/${doc.id}")
         }
+        val budgets = UserSettingsStore.budgetsPath(uid)
+        firestore.listDocuments(budgets).forEach { doc ->
+            firestore.deleteDocument("$budgets/${doc.id}")
+        }
         UserSettingsStore.ALL_DOCS.forEach { docId ->
             firestore.deleteDocument(UserSettingsStore.path(uid, docId))
         }

@@ -1,21 +1,19 @@
 package org.example.project.model
 
 /**
- * One category row from the 'Summary Trend' sheet tab.
- *
- * Layout: Budget | Category | January | February | … | December
- *
- * [monthlyBudget] is the fixed monthly allocation (column A).
- * [monthlySpend] is keyed by full month name ("January" -> amount).
- * Months with no data are stored as 0.0.
+ * One spending bucket's row in the Summary: what was spent, and what was budgeted, in each
+ * cut-off. Both maps are keyed by [BudgetPeriod.id]; periods with no data read as 0.
  */
 data class CategorySummary(
     val category: String,
-    val monthlyBudget: Double = 0.0,
-    val monthlySpend: Map<String, Double>,
+    val spendByPeriod: Map<String, Double>,
+    val budgetByPeriod: Map<String, Double> = emptyMap(),
 ) {
-    val months: List<String> get() = monthlySpend.keys.toList()
-    val totalSpent: Double get() = monthlySpend.values.sum()
-    fun spentIn(month: String): Double = monthlySpend[month] ?: 0.0
-    fun remainingIn(month: String): Double = monthlyBudget - spentIn(month)
+    /** Spend across every charted cut-off. */
+    val totalSpent: Double get() = spendByPeriod.values.sum()
+
+    fun spentIn(periodId: String): Double = spendByPeriod[periodId] ?: 0.0
+
+    /** This bucket's budget for the cut-off; 0 = none set. */
+    fun budgetFor(periodId: String): Double = budgetByPeriod[periodId] ?: 0.0
 }

@@ -214,6 +214,19 @@ private fun SignedInApp(
         }
     }
 
+    // Every cut-off needs its own budget: the first time a session sees the current cut-off
+    // without one, open the editor (pre-filled from the last budget). Once per cut-off per
+    // session — dismissing it leaves the "Set your budget" banner on the Add screen.
+    var promptedPeriodId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(summaryState.needsBudget, summaryState.currentPeriod.id, summaryState.isLoading) {
+        val periodId = summaryState.currentPeriod.id
+        val ready = !summaryState.isLoading && summaryState.error == null
+        if (ready && summaryState.needsBudget && profile.summaryAvailable && promptedPeriodId != periodId) {
+            promptedPeriodId = periodId
+            budgetOpen = true
+        }
+    }
+
     // If chat is remotely disabled while the modal is open, collapse it.
     LaunchedEffect(chatAvailable) {
         if (!chatAvailable) chatOpen = false
@@ -286,10 +299,11 @@ private fun SignedInApp(
                         NavTab.ADD -> TransactionFormScreen(
                             viewModel = transactionFormViewModel,
                             modifier = Modifier.fillMaxSize(),
-                            budgetStatus = summaryState.thisMonth.takeIf { profile.summaryAvailable },
+                            budgetStatus = summaryState.thisPeriod.takeIf { profile.summaryAvailable },
+                            budgetPeriodLabel = summaryState.currentPeriod.label,
                             // No budget yet → straight to the editor; otherwise the full breakdown.
                             onBudgetClick = {
-                                val hasBudget = summaryState.thisMonth?.hasBudget == true
+                                val hasBudget = summaryState.thisPeriod?.hasBudget == true
                                 if (!hasBudget && openBudgets != null) budgetOpen = true
                                 else selectedTab = NavTab.SUMMARY
                             },

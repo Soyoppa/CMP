@@ -134,8 +134,10 @@ import org.example.project.voice.VoiceStatus
 fun TransactionFormScreen(
     viewModel: TransactionFormViewModel,
     modifier: Modifier = Modifier,
-    /** This month's budget status for the "left this month" banner; null hides it. */
+    /** The current cut-off's budget status for the "left to spend" banner; null hides it. */
     budgetStatus: BudgetStatus? = null,
+    /** Label of the cut-off [budgetStatus] covers, e.g. "Sep 16–30". */
+    budgetPeriodLabel: String = "",
     onBudgetClick: () -> Unit = {},
 ) {
     val formState by viewModel.formState.collectAsState()
@@ -246,9 +248,9 @@ fun TransactionFormScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 
-        // What's left to spend this month — the number people check before logging a purchase.
+        // What's left to spend this cut-off — the number people check before logging a purchase.
         if (budgetStatus != null) {
-            RemainingBudgetBanner(status = budgetStatus, onClick = onBudgetClick)
+            RemainingBudgetBanner(status = budgetStatus, periodLabel = budgetPeriodLabel, onClick = onBudgetClick)
         }
 
         // 1. Type decision first — it changes what the amount means.

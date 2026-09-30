@@ -18,15 +18,47 @@ object DateUtils {
         return runCatching { LocalDate(year, month, day) }.getOrNull()
     }
 
+    /** Today's date in the device's time zone. */
+    fun today(): LocalDate = kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault())
+
     /** Today's date in the form's `M/d/yyyy` format, in the device's time zone. */
     fun getCurrentDateFormatted(): String {
-        val today = kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault())
+        val today = today()
         return "${today.month.number}/${today.day}/${today.year}"
     }
 
     /** Current calendar month as a 1..12 number, in the device's time zone. */
-    fun currentMonthNumber(): Int =
-        kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault()).month.number
+    fun currentMonthNumber(): Int = today().month.number
+
+    /**
+     * Best-effort full date from a ledger date cell: the app's `M/d/yyyy`, ISO `yyyy-MM-dd`,
+     * `M-d-yyyy`, or text with a month name ("June 15, 2026", "15 Jun 2026", "June 15" — the
+     * last assumes [defaultYear]). Null when no day can be determined.
+     */
+    fun parseLedgerDate(raw: String?, defaultYear: Int = today().year): LocalDate? {
+        val s = raw?.trim().orEmpty()
+        if (s.isEmpty()) return null
+        fun date(year: Int, month: Int, day: Int) = runCatching { LocalDate(year, month, day) }.getOrNull()
+
+        s.split("/").mapNotNull { it.trim().toIntOrNull() }.let { p ->
+            if (p.size == 3 && s.count { it == '/' } == 2) return date(p[2], p[0], p[1])
+        }
+        s.split("-").mapNotNull { it.trim().toIntOrNull() }.let { p ->
+            if (p.size == 3 && s.count { it == '-' } == 2) {
+                return if (p[0] > 31) date(p[0], p[1], p[2]) else date(p[2], p[0], p[1])
+            }
+        }
+
+        // Month-name formats: pick the month by name, the 4-digit number as the year, and the
+        // remaining 1–31 number as the day.
+        val low = s.lowercase()
+        val month = monthNames.indexOfFirst { low.contains(it.take(3)) } + 1
+        if (month == 0) return null
+        val numbers = Regex("[0-9]+").findAll(s).map { it.value.toInt() }.toList()
+        val year = numbers.firstOrNull { it > 31 } ?: defaultYear
+        val day = numbers.firstOrNull { it in 1..31 } ?: return null
+        return date(year, month, day)
+    }
 
     private val monthNames = listOf(
         "january", "february", "march", "april", "may", "june",
