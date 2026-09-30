@@ -214,15 +214,16 @@ private fun SignedInApp(
         }
     }
 
-    // Every cut-off needs its own budget: the first time a session sees the current cut-off
-    // without one, open the editor (pre-filled from the last budget). Once per cut-off per
-    // session — dismissing it leaves the "Set your budget" banner on the Add screen.
+    // Budgets are set when the salary arrives, so the app only asks while a cut-off's budgeting
+    // window is open (the 14th–20th, and two days before the 1st through the 5th) and it has no
+    // budget yet. Then the editor opens by itself, pre-filled from the last budget — once per
+    // cut-off per session; dismissing it leaves the prompt banner on the Add screen.
     var promptedPeriodId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(summaryState.needsBudget, summaryState.currentPeriod.id, summaryState.isLoading) {
-        val periodId = summaryState.currentPeriod.id
+    val budgetPromptId = summaryState.budgetPrompt?.id
+    LaunchedEffect(budgetPromptId, summaryState.isLoading) {
         val ready = !summaryState.isLoading && summaryState.error == null
-        if (ready && summaryState.needsBudget && profile.summaryAvailable && promptedPeriodId != periodId) {
-            promptedPeriodId = periodId
+        if (ready && budgetPromptId != null && profile.summaryAvailable && promptedPeriodId != budgetPromptId) {
+            promptedPeriodId = budgetPromptId
             budgetOpen = true
         }
     }
@@ -301,6 +302,9 @@ private fun SignedInApp(
                             modifier = Modifier.fillMaxSize(),
                             budgetStatus = summaryState.thisPeriod.takeIf { profile.summaryAvailable },
                             budgetPeriodLabel = summaryState.currentPeriod.label,
+                            budgetPromptLabel = summaryState.budgetPrompt?.label
+                                .takeIf { profile.summaryAvailable && openBudgets != null },
+                            onSetBudget = { budgetOpen = true },
                             // No budget yet → straight to the editor; otherwise the full breakdown.
                             onBudgetClick = {
                                 val hasBudget = summaryState.thisPeriod?.hasBudget == true

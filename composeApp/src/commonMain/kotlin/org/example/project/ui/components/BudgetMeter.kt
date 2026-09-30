@@ -157,8 +157,8 @@ fun BudgetOverviewCard(
 
 /**
  * Compact one-line version for the Add screen: "P12,300 left · Sep 16–30" with a thin bar,
- * tappable to open the budget/summary. When the cut-off has no budget yet it becomes a prominent
- * "Set your budget" prompt.
+ * tappable to open the summary. With no budget it's a quiet "No budget set" row — the prominent
+ * ask is [BudgetPromptBanner], shown only while the cut-off's budgeting window is open.
  */
 @Composable
 fun RemainingBudgetBanner(
@@ -170,16 +170,14 @@ fun RemainingBudgetBanner(
 ) {
     val color = if (status.isOverBudget) MaterialTheme.colorScheme.error else onTrackColor()
     val label = when {
-        !status.hasBudget -> "Set your budget for $periodLabel"
+        !status.hasBudget -> "No budget set for $periodLabel"
         status.isOverBudget -> "Over budget by ${FormatUtils.money(status.remaining)} · $periodLabel"
         else -> "${FormatUtils.money(status.remaining)} left · $periodLabel"
     }
     BounceSurface(
         onClick = onClick,
         shape = AppShapes.field,
-        // No budget for this cut-off yet: stand out, since setting one is expected every cut-off.
-        color = if (status.hasBudget) MaterialTheme.colorScheme.surfaceContainer
-                else MaterialTheme.colorScheme.tertiaryContainer,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         pressedScale = 0.98f,
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         modifier = modifier.fillMaxWidth().semantics { contentDescription = label },
@@ -190,7 +188,7 @@ fun RemainingBudgetBanner(
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (status.hasBudget) color else MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = if (status.hasBudget) color else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 if (status.hasBudget) {
@@ -202,6 +200,44 @@ fun RemainingBudgetBanner(
                 }
             }
             if (status.hasBudget) BudgetBar(status = status, color = color, height = 4)
+        }
+    }
+}
+
+/**
+ * The prominent "time to budget" ask, shown on the Add screen while a cut-off's budgeting window
+ * is open (around payday) and it has no budget yet. Tapping opens the budget sheet.
+ */
+@Composable
+fun BudgetPromptBanner(
+    /** The cut-off to budget, e.g. "Sep 16–30". */
+    periodLabel: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = "Salary in? Set your budget for $periodLabel"
+    BounceSurface(
+        onClick = onClick,
+        shape = AppShapes.field,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        pressedScale = 0.98f,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        modifier = modifier.fillMaxWidth().semantics { contentDescription = label },
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
         }
     }
 }

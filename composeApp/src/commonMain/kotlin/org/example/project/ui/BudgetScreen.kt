@@ -73,9 +73,10 @@ fun BudgetScreen(
     val period = uiState.period
     AppSheet(
         title = "Budget · ${period.label}",
-        subtitle = when (uiState.daysLeft) {
-            0 -> "This cut-off ends today"
-            1 -> "1 day left in this cut-off"
+        subtitle = when {
+            uiState.isUpcoming -> "Upcoming cut-off · set it once your salary is in"
+            uiState.daysLeft == 0 -> "This cut-off ends today"
+            uiState.daysLeft == 1 -> "1 day left in this cut-off"
             else -> "${uiState.daysLeft} days left in this cut-off"
         },
         onClose = onClose,
@@ -107,6 +108,19 @@ fun BudgetScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Just before a cut-off starts, both it and the one ending can be budgeted.
+                if (uiState.selectablePeriods.size > 1) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        uiState.selectablePeriods.forEach { option ->
+                            PeriodPill(
+                                label = option.label,
+                                selected = option == period,
+                                onClick = { viewModel.onEvent(BudgetEvent.PeriodSelected(option)) },
+                            )
+                        }
+                    }
+                }
+
                 if (uiState.isSuggestion) NewCutOffNotice(periodLabel = period.label)
 
                 TotalBudgetCard(
@@ -140,6 +154,25 @@ fun BudgetScreen(
                 Spacer(Modifier.height(12.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun PeriodPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    BounceSurface(
+        onClick = onClick,
+        shape = AppShapes.pill,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+        pressedScale = 0.94f,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.heightIn(min = 40.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -35,7 +35,22 @@ data class BudgetPeriod(val year: Int, val month: Int, val half: Int) : Comparab
     /** "Sep 16–30" */
     val label: String get() = "$monthLabel $rangeLabel"
 
+    val startDate: LocalDate get() = LocalDate(year, month, startDay)
+
     val endDate: LocalDate get() = LocalDate(year, month, endDay)
+
+    /**
+     * Whether [date] falls in this cut-off's budgeting window — the days the app asks for its
+     * budget. A budget is set once the salary for the cut-off has arrived, which happens around
+     * its start: from [BUDGETING_LEAD_DAYS] days before it begins through its
+     * [BUDGETING_DAYS_INTO_PERIOD]th day. So the 16th–end cut-off prompts on the 14th–20th, and the
+     * 1st–15th cut-off from the last two days of the previous month through the 5th.
+     */
+    fun isBudgetingOpen(date: LocalDate): Boolean {
+        val opens = startDate.minus(BUDGETING_LEAD_DAYS, DateTimeUnit.DAY)
+        val closes = startDate.plus(BUDGETING_DAYS_INTO_PERIOD - 1, DateTimeUnit.DAY)
+        return date >= opens && date <= closes
+    }
 
     operator fun contains(date: LocalDate): Boolean =
         date.year == year && date.month.number == month && date.day in startDay..endDay
@@ -61,6 +76,21 @@ data class BudgetPeriod(val year: Int, val month: Int, val half: Int) : Comparab
 
         /** The cut-off that today falls in (device time zone). */
         fun current(): BudgetPeriod = of(DateUtils.today())
+
+        /** Days before a cut-off starts that its budgeting window opens (salary can land early). */
+        const val BUDGETING_LEAD_DAYS = 2
+
+        /** The budgeting window stays open through this day of the cut-off (5 → the 5th / the 20th). */
+        const val BUDGETING_DAYS_INTO_PERIOD = 5
+
+        /**
+         * The cut-off whose budgeting window contains [today]: the current one early on, or the
+         * upcoming one in the last days before it starts. Null in between — no prompting then.
+         */
+        fun budgetingNow(today: LocalDate = DateUtils.today()): BudgetPeriod? {
+            val current = of(today)
+            return listOf(current, current.next()).firstOrNull { it.isBudgetingOpen(today) }
+        }
 
         /** The cut-off [entry] belongs to, or null when its date can't be read. */
         fun of(entry: LedgerEntry): BudgetPeriod? = DateUtils.parseLedgerDate(entry.date)?.let(::of)

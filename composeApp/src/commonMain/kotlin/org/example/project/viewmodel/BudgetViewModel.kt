@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 import org.example.project.config.LedgerProfile
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
@@ -15,10 +16,17 @@ import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
 data class BudgetUiState(
-    /** The cut-off being budgeted — always the one today falls in. */
+    /** The cut-off being budgeted. */
     val period: BudgetPeriod,
-    /** Days remaining in the cut-off after today (0 = it ends today). */
+    /**
+     * Cut-offs the user can switch between. Normally just the current one; in the days before a
+     * cut-off starts (its budgeting window is already open) the upcoming one is offered too.
+     */
+    val selectablePeriods: List<BudgetPeriod> = listOf(period),
+    /** Days until [period] ends, counted from today (0 = it ends today). */
     val daysLeft: Int = 0,
+    /** True when [period] hasn't started yet (budgeting ahead for the upcoming cut-off). */
+    val isUpcoming: Boolean = false,
     val isLoading: Boolean = false,
     /**
      * True when this cut-off has no saved budget yet and the fields were pre-filled from the
@@ -50,42 +58,65 @@ data class BudgetUiState(
 }
 
 sealed interface BudgetEvent {
+    data class PeriodSelected(val period: BudgetPeriod) : BudgetEvent
     data class TotalChanged(val raw: String) : BudgetEvent
     data class AmountChanged(val bucket: String, val raw: String) : BudgetEvent
     data object SaveClicked : BudgetEvent
 }
 
 /**
- * Backs the [org.example.project.ui.BudgetScreen] editor for the **current cut-off** (1st–15th or
- * 16th–end of month): an overall budget plus optional per-bucket budgets.
+ * Backs the [org.example.project.ui.BudgetScreen] editor for one cut-off (1st–15th or 16th–end of
+ * month): an overall budget plus optional per-bucket budgets.
  *
- * Every cut-off needs its own budget. When the current one has none, the form is pre-filled from
- * the most recent earlier cut-off (or half the old monthly budget) so the user reviews and saves
- * instead of retyping. Saving writes every field, with explicit zeros for cleared ones.
+ * It opens on the cut-off whose budgeting window is open (see [BudgetPeriod.budgetingNow]) — that
+ * can be the upcoming one in the days just before it starts — otherwise on the current cut-off.
+ * A cut-off with no budget yet is pre-filled from the most recent earlier one (or half the old
+ * monthly budget) so the user reviews and saves instead of retyping. Saving writes every field,
+ * with explicit zeros for cleared ones.
  */
 class BudgetViewModel(
     private val budgetRepository: BudgetRepository = BudgetRepository(),
     buckets: List<String> = LedgerProfile.current().spendingBuckets.names,
-    period: BudgetPeriod = BudgetPeriod.current(),
+    private val today: LocalDate = DateUtils.today(),
 ) : ViewModel() {
 
+    private val currentPeriod = BudgetPeriod.of(today)
+
     private val _uiState = MutableStateFlow(
-        BudgetUiState(
-            period = period,
-            daysLeft = (period.endDay - DateUtils.today().day).coerceAtLeast(0),
-            isLoading = true,
-            buckets = buckets,
-            amounts = buckets.associateWith { "" },
-        )
+        (BudgetPeriod.budgetingNow(today) ?: currentPeriod).let { target ->
+            BudgetUiState(
+                period = target,
+                selectablePeriods = listOf(currentPeriod, target).distinct(),
+                buckets = buckets,
+            )
+        }
     )
     val uiState: StateFlow<BudgetUiState> = _uiState.asStateFlow()
 
     init {
+        load(_uiState.value.period)
+    }
+
+    private fun load(period: BudgetPeriod) {
+        _uiState.update { state ->
+            state.copy(
+                period = period,
+                daysLeft = period.endDate.toEpochDays().toInt() - today.toEpochDays().toInt(),
+                isUpcoming = period > currentPeriod,
+                isLoading = true,
+                isSuggestion = false,
+                totalInput = "",
+                amounts = state.buckets.associateWith { "" },
+                saved = false,
+                error = null,
+            )
+        }
         viewModelScope.launch {
             val plans = budgetRepository.getPlans()
             val saved = plans[period.id]?.takeUnless { it.isEmpty }
             val plan = saved ?: budgetRepository.suggestPlan(period, plans)
             _uiState.update { state ->
+                if (state.period != period) return@update state // the user switched again meanwhile
                 state.copy(
                     isLoading = false,
                     isSuggestion = saved == null && plan != null,
@@ -100,6 +131,10 @@ class BudgetViewModel(
 
     fun onEvent(event: BudgetEvent) {
         when (event) {
+            is BudgetEvent.PeriodSelected ->
+                if (event.period != _uiState.value.period && event.period in _uiState.value.selectablePeriods) {
+                    load(event.period)
+                }
             is BudgetEvent.TotalChanged -> _uiState.update { it.copy(totalInput = sanitize(event.raw), saved = false) }
             is BudgetEvent.AmountChanged -> _uiState.update {
                 it.copy(amounts = it.amounts + (event.bucket to sanitize(event.raw)), saved = false)

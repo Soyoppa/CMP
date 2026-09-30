@@ -42,8 +42,12 @@ data class SummaryUiState(
      * screen shows. Kept across refreshes (not cleared while reloading) so it never flickers.
      */
     val thisPeriod: BudgetStatus? = null,
-    /** True when the signed-in user hasn't set a budget for the current cut-off yet. */
-    val needsBudget: Boolean = false,
+    /**
+     * The cut-off the user should budget now: its budgeting window is open (salary has arrived)
+     * and it has no budget yet. Can be the *upcoming* cut-off in the last days of the current one.
+     * Null outside the windows, once a budget is saved, and for guests.
+     */
+    val budgetPrompt: BudgetPeriod? = null,
     val viewMode: SummaryViewMode = SummaryViewMode.TOTAL,
     val selectedCategory: String? = null,
     val transactions: List<LedgerEntry> = emptyList(),
@@ -135,8 +139,9 @@ class SummaryViewModel(
                             spent = categories.sumOf { c -> c.spentIn(currentPeriod.id) },
                             budget = totalBudgetByPeriod[currentPeriod.id] ?: 0.0,
                         ),
-                        // Guests run on demo budgets; everyone else owes each cut-off a budget.
-                        needsBudget = !Session.isGuest && plans[currentPeriod.id]?.isEmpty != false,
+                        // Guests run on demo budgets; everyone else is asked once the window opens.
+                        budgetPrompt = BudgetPeriod.budgetingNow()
+                            ?.takeIf { p -> !Session.isGuest && plans[p.id]?.isEmpty != false },
                         // Keep the user's cut-off on a refresh; otherwise open on the current one.
                         selectedPeriodId = it.selectedPeriodId?.takeIf { id -> periods.any { p -> p.id == id } }
                             ?: currentPeriod.id,

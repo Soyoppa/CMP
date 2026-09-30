@@ -1,6 +1,7 @@
 package org.example.project.ui
 
 import org.example.project.util.FormatUtils
+import org.example.project.ui.components.BudgetPromptBanner
 import org.example.project.ui.components.RemainingBudgetBanner
 import org.example.project.model.BudgetStatus
 import androidx.compose.animation.AnimatedVisibility
@@ -138,6 +139,11 @@ fun TransactionFormScreen(
     budgetStatus: BudgetStatus? = null,
     /** Label of the cut-off [budgetStatus] covers, e.g. "Sep 16–30". */
     budgetPeriodLabel: String = "",
+    /** Cut-off whose budgeting window is open and still has no budget; null = don't prompt. */
+    budgetPromptLabel: String? = null,
+    /** Opens the budget sheet. */
+    onSetBudget: () -> Unit = {},
+    /** Tapped the "left to spend" row. */
     onBudgetClick: () -> Unit = {},
 ) {
     val formState by viewModel.formState.collectAsState()
@@ -249,7 +255,12 @@ fun TransactionFormScreen(
         )
 
         // What's left to spend this cut-off — the number people check before logging a purchase.
-        if (budgetStatus != null) {
+        // Around payday, with no budget for that cut-off yet, the ask comes first.
+        if (budgetPromptLabel != null) {
+            BudgetPromptBanner(periodLabel = budgetPromptLabel, onClick = onSetBudget)
+        }
+        // Skip the "no budget" row when the prompt above already covers the same cut-off.
+        if (budgetStatus != null && (budgetStatus.hasBudget || budgetPromptLabel != budgetPeriodLabel)) {
             RemainingBudgetBanner(status = budgetStatus, periodLabel = budgetPeriodLabel, onClick = onBudgetClick)
         }
 
