@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,6 +110,7 @@ private fun abbreviateAmount(amount: Double): String = when {
  * from the chat). [bottomPadding] reserves room under the scroll content so the floating
  * nav pill never covers the last category row.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(
     modifier: Modifier = Modifier,
@@ -121,16 +123,19 @@ fun SummaryScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         SummaryHeader(
-            hasData = uiState.categories.isNotEmpty(),
-            onRetry = { viewModel.onEvent(SummaryEvent.Refresh) },
             onEditBudgets = onOpenBudgets,
             onOpenPaymentStatus = onOpenPaymentStatus,
         )
 
+        // Pull down to reload — no refresh button; the content stays visible while it reloads.
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = { viewModel.onEvent(SummaryEvent.Refresh) },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) {
         Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
             when {
@@ -158,6 +163,7 @@ fun SummaryScreen(
                 )
             }
             Spacer(Modifier.height(bottomPadding))
+        }
         }
     }
 }
@@ -1019,8 +1025,6 @@ private fun BudgetStatusPill(
  */
 @Composable
 private fun SummaryHeader(
-    hasData: Boolean,
-    onRetry: () -> Unit,
     onEditBudgets: (() -> Unit)?,
     onOpenPaymentStatus: (() -> Unit)?,
 ) {
@@ -1037,8 +1041,6 @@ private fun SummaryHeader(
                 SummaryHeaderTitle()
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SummaryHeaderActions(
-                        hasData = hasData,
-                        onRetry = onRetry,
                         onEditBudgets = onEditBudgets,
                         onOpenPaymentStatus = onOpenPaymentStatus,
                     )
@@ -1054,8 +1056,6 @@ private fun SummaryHeader(
             ) {
                 Box(modifier = Modifier.weight(1f)) { SummaryHeaderTitle() }
                 SummaryHeaderActions(
-                    hasData = hasData,
-                    onRetry = onRetry,
                     onEditBudgets = onEditBudgets,
                     onOpenPaymentStatus = onOpenPaymentStatus,
                 )
@@ -1074,7 +1074,7 @@ private fun SummaryHeaderTitle() {
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = "Tap a bar to filter by month",
+            text = "Tap a bar to filter · pull down to refresh",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1084,8 +1084,6 @@ private fun SummaryHeaderTitle() {
 /** The pills themselves — no Row/Column scope needed, so both layouts can host them. */
 @Composable
 private fun SummaryHeaderActions(
-    hasData: Boolean,
-    onRetry: () -> Unit,
     onEditBudgets: (() -> Unit)?,
     onOpenPaymentStatus: (() -> Unit)?,
 ) {
@@ -1101,13 +1099,6 @@ private fun SummaryHeaderActions(
             label = "Budgets",
             color = MaterialTheme.colorScheme.primary,
             onClick = onEditBudgets,
-        )
-    }
-    if (hasData) {
-        HeaderActionPill(
-            label = "Refresh",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            onClick = onRetry,
         )
     }
 }

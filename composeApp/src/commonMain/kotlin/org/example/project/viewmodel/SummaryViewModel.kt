@@ -24,7 +24,10 @@ import org.example.project.util.toUserMessage
 enum class SummaryViewMode { TOTAL, BY_CATEGORY }
 
 data class SummaryUiState(
+    /** First load: nothing to show yet. */
     val isLoading: Boolean = false,
+    /** Reloading with data already on screen (pull-to-refresh, after a save). */
+    val isRefreshing: Boolean = false,
     val categories: List<CategorySummary> = emptyList(),
     val months: List<String> = emptyList(),
     val selectedMonth: String? = null,
@@ -45,7 +48,7 @@ data class SummaryUiState(
 )
 
 sealed interface SummaryEvent {
-    /** Reload the ledger and budgets (pull-to-refresh, retry, after editing budgets). */
+    /** Reload the ledger and budgets (pull-to-refresh, retry, after a save or budget edit). */
     data object Refresh : SummaryEvent
     data class MonthSelected(val month: String) : SummaryEvent
     data class ViewModeSelected(val mode: SummaryViewMode) : SummaryEvent
@@ -81,8 +84,11 @@ class SummaryViewModel(
         viewModelScope.launch {
             transactionsLoaded = false
             _uiState.update {
+                // Keep what's on screen while reloading; only the very first load shows the spinner.
+                val hasData = it.categories.isNotEmpty()
                 it.copy(
-                    isLoading = true,
+                    isLoading = !hasData,
+                    isRefreshing = hasData,
                     error = null,
                     transactions = emptyList(),
                     transactionsError = null,
@@ -124,6 +130,7 @@ class SummaryViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         categories = categories,
                         months = months,
                         totalMonthlyBudget = totalMonthlyBudget,
@@ -145,7 +152,9 @@ class SummaryViewModel(
                     ensureTransactionsLoaded()
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.toUserMessage("Couldn't load your summary.")) }
+                _uiState.update {
+                    it.copy(isLoading = false, isRefreshing = false, error = e.toUserMessage("Couldn't load your summary."))
+                }
             }
         }
     }
