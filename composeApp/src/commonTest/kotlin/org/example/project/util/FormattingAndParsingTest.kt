@@ -18,6 +18,14 @@ class FormattingAndParsingTest {
     }
 
     @Test
+    fun moneyUsesPlainPAndDropsTheSign() {
+        assertEquals("P12,346", FormatUtils.money(12345.6))
+        assertEquals("P2,100", FormatUtils.money(-2100.0))
+        assertEquals("P1,234.50", FormatUtils.money(1234.5, cents = true))
+        assertEquals("P0", FormatUtils.money(0.0))
+    }
+
+    @Test
     fun parseDateAcceptsFormDatesOnly() {
         assertEquals(LocalDate(2026, 3, 1), DateUtils.parseDate("3/1/2026"))
         assertNull(DateUtils.parseDate("2/30/2026"))

@@ -46,6 +46,7 @@ import org.example.project.ui.theme.GoldenYellow
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.SageBright
 import org.example.project.ui.theme.SageGreen
+import org.example.project.util.FormatUtils
 import org.example.project.viewmodel.BudgetEvent
 import org.example.project.viewmodel.BudgetViewModel
 import org.example.project.viewmodel.createBudgetViewModel
@@ -55,16 +56,6 @@ private val BucketColors = listOf(
 )
 
 private fun colorForIndex(index: Int): Color = BucketColors[index % BucketColors.size]
-
-private fun formatPhp(amount: Double): String {
-    val whole = amount.toLong()
-    return "PHP " + buildString {
-        whole.toString().reversed().forEachIndexed { i, c ->
-            if (i > 0 && i % 3 == 0) append(',')
-            append(c)
-        }
-    }.reversed()
-}
 
 /**
  * Full-screen budget editor: an overall monthly budget (what "Remaining" is measured against) and
@@ -232,14 +223,14 @@ private fun TotalBudgetCard(
             textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             placeholder = {
                 Text(
-                    text = if (categoryTotal > 0.0) formatPhp(categoryTotal).removePrefix("PHP ") else "0",
+                    text = if (categoryTotal > 0.0) FormatUtils.money(categoryTotal).removePrefix(FormatUtils.CURRENCY) else "0",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                 )
             },
             prefix = {
                 Text(
-                    text = "₱ ",
+                    text = "${FormatUtils.CURRENCY} ",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -256,9 +247,9 @@ private fun TotalBudgetCard(
         Text(
             text = when {
                 categoriesExceedTotal ->
-                    "Your category budgets add up to ${formatPhp(categoryTotal)} — more than this total."
+                    "Your category budgets add up to ${FormatUtils.money(categoryTotal)} — more than this total."
                 value.isBlank() && categoryTotal > 0.0 ->
-                    "Leave blank to use your category budgets: ${formatPhp(categoryTotal)} / month."
+                    "Leave blank to use your category budgets: ${FormatUtils.money(categoryTotal)} / month."
                 else -> "What's left of this is shown on the Summary and Add screens."
             },
             style = MaterialTheme.typography.bodySmall,
@@ -307,7 +298,7 @@ private fun BudgetRow(
             },
             prefix = {
                 Text(
-                    text = "₱ ",
+                    text = "${FormatUtils.CURRENCY} ",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

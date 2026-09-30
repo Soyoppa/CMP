@@ -48,7 +48,7 @@ import org.example.project.util.FormatUtils
  * The headline budget card: **what's left** first, what's been spent right beside it, and a bar
  * showing how much of the budget is used.
  *
- * - With a budget: "Remaining PHP 12,300" (or "Over by PHP 2,100" in the error colour) + "Spent".
+ * - With a budget: "Remaining P12,300" (or "Over by P2,100" in the error colour) + "Spent".
  * - Without one: the spend alone, plus a "Set a budget" pill when [onSetBudget] is provided.
  * - [showRemaining] false (e.g. an "all months" view, where a monthly budget doesn't apply):
  *   spend only, with a hint to pick a month.
@@ -141,7 +141,7 @@ fun BudgetOverviewCard(
         if (budgetApplies) {
             BudgetBar(status = status, color = remainingColor)
             Text(
-                text = "${(status.usedFraction * 100).toInt()}% of ${FormatUtils.formatPesoWhole(status.budget)} used",
+                text = "${(status.usedFraction * 100).toInt()}% of ${FormatUtils.money(status.budget)} used",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -156,7 +156,7 @@ fun BudgetOverviewCard(
 }
 
 /**
- * Compact one-line version for the Add screen: "PHP 12,300 left this month" with a thin bar,
+ * Compact one-line version for the Add screen: "P12,300 left this month" with a thin bar,
  * tappable to open the budget/summary. Shows a set-budget prompt when no budget exists.
  */
 @Composable
@@ -168,8 +168,8 @@ fun RemainingBudgetBanner(
     val color = if (status.isOverBudget) MaterialTheme.colorScheme.error else onTrackColor()
     val label = when {
         !status.hasBudget -> "Set a monthly budget to see what's left"
-        status.isOverBudget -> "Over budget by ${FormatUtils.formatPesoWhole(status.remaining)} this month"
-        else -> "${FormatUtils.formatPesoWhole(status.remaining)} left this month"
+        status.isOverBudget -> "Over budget by ${FormatUtils.money(status.remaining)} this month"
+        else -> "${FormatUtils.money(status.remaining)} left this month"
     }
     BounceSurface(
         onClick = onClick,
@@ -190,7 +190,7 @@ fun RemainingBudgetBanner(
                 )
                 if (status.hasBudget) {
                     Text(
-                        text = "of ${FormatUtils.formatPesoWhole(status.budget)}",
+                        text = "of ${FormatUtils.money(status.budget)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -249,7 +249,7 @@ private fun RollingAmount(amount: Double, color: Color, large: Boolean) {
         label = "rollingAmount",
     ) { value ->
         Text(
-            text = FormatUtils.formatPesoWhole(value),
+            text = FormatUtils.money(value),
             style = if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = color,

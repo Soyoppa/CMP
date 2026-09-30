@@ -53,7 +53,7 @@ class SettingsViewModel(
                 } else {
                     val lines = recent.joinToString("\n") { entry ->
                         val sign = if (entry.isIncome) "+" else "-"
-                        "• ${entry.description} — ${sign}PHP ${FormatUtils.formatPeso(entry.amount)}"
+                        "• ${entry.description} — $sign${FormatUtils.money(entry.amount, cents = true)}"
                     }
                     DiagnosticResult(DiagnosticKind.SUCCESS, "Last ${recent.size} transactions:\n$lines")
                 }

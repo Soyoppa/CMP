@@ -394,6 +394,6 @@ private fun CenteredBox(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** "+PHP 55,000.00" for income, "−PHP 1,200.00" for expenses. */
+/** "+P55,000.00" for income, "−P1,200.00" for expenses. */
 private fun signedAmount(entry: LedgerEntry): String =
-    (if (entry.isIncome) "+" else "−") + "PHP " + FormatUtils.formatPeso(entry.amount)
+    (if (entry.isIncome) "+" else "−") + FormatUtils.money(entry.amount, cents = true)

@@ -63,6 +63,7 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.SageBright
 import org.example.project.ui.theme.SageGreen
 import org.example.project.util.DateUtils
+import org.example.project.util.FormatUtils
 import org.example.project.viewmodel.SummaryEvent
 import org.example.project.viewmodel.SummaryViewMode
 import org.example.project.viewmodel.SummaryViewModel
@@ -85,16 +86,9 @@ private val StackedHeaderWidth = 400.dp
 
 private fun colorForIndex(index: Int): Color = CategoryBarColors[index % CategoryBarColors.size]
 
-private fun formatAmount(amount: Double): String {
-    if (amount == 0.0) return "—"
-    val whole = amount.toLong()
-    return "PHP " + buildString {
-        whole.toString().reversed().forEachIndexed { i, c ->
-            if (i > 0 && i % 3 == 0) append(',')
-            append(c)
-        }
-    }.reversed()
-}
+/** "—" for nothing spent, otherwise the whole-peso amount. */
+private fun formatAmount(amount: Double): String =
+    if (amount == 0.0) "—" else FormatUtils.money(amount)
 
 private fun abbreviateAmount(amount: Double): String = when {
     amount == 0.0 -> "—"

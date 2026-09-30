@@ -55,6 +55,7 @@ import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
 import org.example.project.ui.theme.IncomeGreen
+import org.example.project.util.FormatUtils
 import org.example.project.viewmodel.PaymentStatusEvent
 import org.example.project.viewmodel.PaymentStatusFilter
 import org.example.project.viewmodel.PaymentStatusUiState
@@ -66,16 +67,6 @@ private const val ALL_LABEL = "All"
 
 /** The mode picker's "no filter" entry — spelled out, since it sits in a list of card names. */
 private const val ALL_MODES_LABEL = "All modes"
-
-private fun formatPhp(amount: Double): String {
-    val whole = amount.toLong()
-    return "PHP " + buildString {
-        whole.toString().reversed().forEachIndexed { i, c ->
-            if (i > 0 && i % 3 == 0) append(',')
-            append(c)
-        }
-    }.reversed()
-}
 
 /**
  * Full-screen view of the ledger's Paid checkbox: what's settled, what's still outstanding, and
@@ -380,7 +371,7 @@ private fun StatusTotalCard(
             )
         }
         Text(
-            text = formatPhp(total),
+            text = FormatUtils.money(total),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -627,7 +618,7 @@ private fun EntryRow(entry: LedgerEntry) {
 
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = formatPhp(entry.amount),
+                text = FormatUtils.money(entry.amount),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,

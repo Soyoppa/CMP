@@ -1,5 +1,6 @@
 package org.example.project.ui
 
+import org.example.project.util.FormatUtils
 import org.example.project.ui.components.RemainingBudgetBanner
 import org.example.project.model.BudgetStatus
 import androidx.compose.animation.AnimatedVisibility
@@ -865,14 +866,14 @@ private fun HeroAmountField(
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .padding(vertical = 24.dp, horizontal = 24.dp),
         ) {
-            // PHP + amount centered independently of the clear button
+            // Currency + amount centered independently of the clear button
             Row(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "PHP",
+                    text = FormatUtils.CURRENCY,
                     style = phpStyle,
                     color = accentColor,
                     modifier = Modifier.padding(end = 10.dp),

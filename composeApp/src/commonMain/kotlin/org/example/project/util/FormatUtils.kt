@@ -19,9 +19,15 @@ object FormatUtils {
         return "$sign$grouped.$fraction"
     }
 
-    /** Whole pesos with thousands separators, sign dropped: 12345.6 -> "PHP 12,346". */
-    fun formatPesoWhole(amount: Double): String {
-        val whole = abs(amount).roundToLong().toString()
-        return "PHP " + whole.reversed().chunked(3).joinToString(",").reversed()
-    }
+    /**
+     * An amount as shown to the user: "P12,346", or "P1,234.50" with [cents]. The sign is dropped —
+     * callers say "over by" / "+" / "−" themselves. Uses a plain "P" because the peso glyph is
+     * missing from the web font.
+     */
+    fun money(amount: Double, cents: Boolean = false): String =
+        if (cents) CURRENCY + formatPeso(abs(amount))
+        else CURRENCY + abs(amount).roundToLong().toString().reversed().chunked(3).joinToString(",").reversed()
+
+    /** Currency marker used across the UI. */
+    const val CURRENCY = "P"
 }
