@@ -46,6 +46,7 @@ import org.example.project.ui.components.AppSheet
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.SheetActionPill
 import org.example.project.ui.components.CategoryGlyph
+import org.example.project.ui.components.YearStepper
 import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
@@ -71,7 +72,7 @@ fun TransactionHistoryScreen(
 
     AppSheet(
         title = "Transactions",
-        subtitle = "Everything you've logged, newest first",
+        subtitle = "Newest first · one year at a time",
         onClose = onClose,
         actions = { SheetActionPill("Refresh") { viewModel.onEvent(TransactionHistoryEvent.Refresh) } },
     ) {
@@ -113,6 +114,7 @@ fun TransactionHistoryScreen(
 
             else -> HistoryContent(
                 state = state,
+                onYearChange = { viewModel.onEvent(TransactionHistoryEvent.YearSelected(it)) },
                 onFilterSelected = { viewModel.onEvent(TransactionHistoryEvent.FilterSelected(it)) },
                 onDelete = { viewModel.onEvent(TransactionHistoryEvent.DeleteClicked(it)) },
                 onDismissError = { viewModel.onEvent(TransactionHistoryEvent.DeleteErrorShown) },
@@ -146,6 +148,7 @@ fun TransactionHistoryScreen(
 @Composable
 private fun HistoryContent(
     state: TransactionHistoryUiState,
+    onYearChange: (Int) -> Unit,
     onFilterSelected: (HistoryFilter) -> Unit,
     onDelete: (LedgerEntry) -> Unit,
     onDismissError: () -> Unit,
@@ -155,6 +158,18 @@ private fun HistoryContent(
     val groups = remember(entries) { entries.groupBy { it.monthNumber } }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            YearStepper(
+                year = state.year,
+                canGoBack = state.canGoBack,
+                canGoForward = !state.isCurrentYear,
+                onYearChange = onYearChange,
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -192,8 +207,11 @@ private fun HistoryContent(
         if (entries.isEmpty()) {
             CenteredBox {
                 Text(
-                    text = if (state.entries.isEmpty()) "No transactions yet — add one from the + tab."
-                    else "Nothing here for this filter.",
+                    text = when {
+                        state.entries.isNotEmpty() -> "Nothing here for this filter."
+                        state.isCurrentYear -> "No transactions yet — add one from the + tab."
+                        else -> "No transactions in ${state.year}."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

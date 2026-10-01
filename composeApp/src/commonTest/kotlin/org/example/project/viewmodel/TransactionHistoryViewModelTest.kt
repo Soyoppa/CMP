@@ -18,8 +18,10 @@ import org.example.project.auth.Session
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.data.ledger.LedgerYear
 import org.example.project.model.Transaction
 import org.example.project.repository.LedgerRepository
+import org.example.project.util.DateUtils
 import org.example.project.util.UserFacingException
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -28,7 +30,11 @@ class TransactionHistoryViewModelTest {
     private class FakeLedger(entries: List<LedgerEntry>) : LedgerDataSource {
         val stored = entries.toMutableList()
         var failDeletes = false
-        override suspend fun getEntries() = stored.toList()
+        override suspend fun readYear(year: Int) = LedgerYear(
+            year = year,
+            entries = stored.filter { it.date.startsWith("$year-") },
+            earliestYear = stored.minOfOrNull { it.date.take(4).toInt() },
+        )
         override suspend fun addTransaction(transaction: Transaction) = AddTransactionResult(true)
         override suspend fun deleteEntry(entry: LedgerEntry) {
             if (failDeletes) throw UserFacingException("The sheet changed since it was loaded. Refresh and try again.")
@@ -36,9 +42,10 @@ class TransactionHistoryViewModelTest {
         }
     }
 
-    private val lunch = LedgerEntry(id = "a", description = "Lunch", amount = 250.0, category = "Food & Dining", monthNumber = 3)
-    private val salary = LedgerEntry(id = "b", description = "Salary", amount = 50000.0, category = "Salary", monthNumber = 3, isIncome = true)
-    private val rent = LedgerEntry(id = "c", description = "Rent", amount = 9000.0, category = "Rent", monthNumber = 4)
+    private val year = DateUtils.today().year
+    private val lunch = LedgerEntry(id = "a", description = "Lunch", amount = 250.0, category = "Food & Dining", monthNumber = 3, date = "$year-03-02")
+    private val salary = LedgerEntry(id = "b", description = "Salary", amount = 50000.0, category = "Salary", monthNumber = 3, date = "$year-03-15", isIncome = true)
+    private val rent = LedgerEntry(id = "c", description = "Rent", amount = 9000.0, category = "Rent", monthNumber = 4, date = "$year-04-01")
 
     private lateinit var ledger: FakeLedger
 

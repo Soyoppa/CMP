@@ -15,6 +15,7 @@ import org.example.project.auth.Session
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.data.ledger.LedgerYear
 import org.example.project.model.Transaction
 import org.example.project.repository.LedgerRepository
 import org.example.project.util.UserFacingException
@@ -23,7 +24,7 @@ import org.example.project.util.UserFacingException
 class SummaryViewModelTest {
 
     private object FailingLedger : LedgerDataSource {
-        override suspend fun getEntries(): List<LedgerEntry> =
+        override suspend fun readYear(year: Int): LedgerYear =
             throw UserFacingException("The shared sheet returned an unexpected response. Please try again.")
         override suspend fun addTransaction(transaction: Transaction) = AddTransactionResult(false)
         override suspend fun deleteEntry(entry: LedgerEntry) = Unit

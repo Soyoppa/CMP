@@ -6,6 +6,7 @@ import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.DemoLedgerDataSource
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.data.ledger.LedgerYear
 import org.example.project.data.ledger.LedgerSource
 import org.example.project.model.Transaction
 
@@ -32,11 +33,11 @@ class LedgerRepository(
             }
         }
 
-    /** Every income/expense row in ledger order (oldest first). */
-    suspend fun getEntries(): List<LedgerEntry> = source.getEntries()
+    /** One calendar year of rows, plus how far back the ledger goes. */
+    suspend fun readYear(year: Int): LedgerYear = source.readYear(year)
 
-    /** Every expense row with category + month. */
-    suspend fun getExpenses(): List<LedgerEntry> = source.getExpenses()
+    /** [year]'s expense rows — the Summary, Paid & Unpaid and AI context all work per year. */
+    suspend fun expensesIn(year: Int): List<LedgerEntry> = source.readYear(year).expenses
 
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
         source.addTransaction(transaction)

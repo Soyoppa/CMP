@@ -18,10 +18,14 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.example.project.util.UserFacingException
 
 /** One stored document: its id (last path segment) and decoded fields. */
@@ -105,6 +109,83 @@ class FirestoreRestClient(
             pageToken = root["nextPageToken"]?.jsonPrimitive?.contentOrNull
         } while (pageToken != null)
         return documents
+    }
+
+    /**
+     * Documents of [collectionId] under [parentPath] whose [field] falls in [from]..[to]
+     * (inclusive), ordered by that field.
+     *
+     * Runs server-side via `runQuery`, so only the matching rows are downloaded — the app reads a
+     * ledger one year at a time instead of pulling the whole collection. A range filter on a
+     * single field needs no composite index.
+     */
+    suspend fun queryByRange(
+        parentPath: String,
+        collectionId: String,
+        field: String,
+        from: String,
+        to: String,
+    ): List<FirestoreDocument> = runQuery(parentPath) {
+        put("from", buildJsonArray { add(buildJsonObject { put("collectionId", collectionId) }) })
+        put("where", buildJsonObject {
+            put("compositeFilter", buildJsonObject {
+                put("op", "AND")
+                put("filters", buildJsonArray {
+                    add(fieldFilter(field, "GREATER_THAN_OR_EQUAL", from))
+                    add(fieldFilter(field, "LESS_THAN_OR_EQUAL", to))
+                })
+            })
+        })
+        put("orderBy", buildJsonArray { add(orderBy(field, ascending = true)) })
+    }
+
+    /**
+     * The document with the smallest [field] in [collectionId] under [parentPath], or null when
+     * the collection is empty — used to learn how far back a ledger goes without reading it.
+     */
+    suspend fun firstByField(parentPath: String, collectionId: String, field: String): FirestoreDocument? =
+        runQuery(parentPath) {
+            put("from", buildJsonArray { add(buildJsonObject { put("collectionId", collectionId) }) })
+            put("orderBy", buildJsonArray { add(orderBy(field, ascending = true)) })
+            put("limit", 1)
+        }.firstOrNull()
+
+    private fun fieldFilter(field: String, op: String, value: String) = buildJsonObject {
+        put("fieldFilter", buildJsonObject {
+            put("field", buildJsonObject { put("fieldPath", field) })
+            put("op", op)
+            put("value", buildJsonObject { put("stringValue", value) })
+        })
+    }
+
+    private fun orderBy(field: String, ascending: Boolean) = buildJsonObject {
+        put("field", buildJsonObject { put("fieldPath", field) })
+        put("direction", if (ascending) "ASCENDING" else "DESCENDING")
+    }
+
+    /** POSTs a `structuredQuery` and collects the documents from the streamed result array. */
+    private suspend fun runQuery(
+        parentPath: String,
+        query: JsonObjectBuilder.() -> Unit,
+    ): List<FirestoreDocument> {
+        val body = buildJsonObject { put("structuredQuery", buildJsonObject(query)) }.toString()
+        val response = authorized {
+            http.post(url("$parentPath:runQuery")) {
+                it()
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+        }
+        if (response.status == HttpStatusCode.NotFound) return emptyList()
+        val results = json.parseToJsonElement(requireSuccess(response)) as? JsonArray ?: return emptyList()
+        // Result items without a "document" are progress/readTime markers, not rows.
+        return results.mapNotNull { element ->
+            val doc = element.jsonObject["document"]?.jsonObject ?: return@mapNotNull null
+            FirestoreDocument(
+                id = documentId(doc["name"]?.jsonPrimitive?.contentOrNull),
+                fields = FirestoreValues.decodeFields(doc["fields"]?.jsonObject),
+            )
+        }
     }
 
     /** Deletes the document at [path]; deleting a missing document is not an error. */

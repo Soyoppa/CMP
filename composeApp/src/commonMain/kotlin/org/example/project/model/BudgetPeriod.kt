@@ -105,6 +105,10 @@ data class BudgetPeriod(val year: Int, val month: Int, val half: Int) : Comparab
             return runCatching { BudgetPeriod(parts[0], parts[1], parts[2]) }.getOrNull()
         }
 
+        /** Every cut-off of [year], oldest first: Jan 1–15 through Dec 16–31 (24 of them). */
+        fun allIn(year: Int): List<BudgetPeriod> =
+            (1..12).flatMap { month -> listOf(BudgetPeriod(year, month, 1), BudgetPeriod(year, month, 2)) }
+
         /** The [count] cut-offs ending at [last], oldest first. */
         fun recent(count: Int, last: BudgetPeriod = current()): List<BudgetPeriod> =
             generateSequence(last) { it.previous() }.take(count).toList().asReversed()

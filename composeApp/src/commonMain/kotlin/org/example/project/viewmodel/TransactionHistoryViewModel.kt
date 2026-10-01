@@ -10,12 +10,17 @@ import kotlinx.coroutines.launch
 import org.example.project.auth.Session
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.repository.LedgerRepository
+import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
 enum class HistoryFilter { ALL, EXPENSES, INCOME }
 
 data class TransactionHistoryUiState(
     val isLoading: Boolean = true,
+    /** The calendar year on screen; the ledger is read one year at a time. */
+    val year: Int = DateUtils.today().year,
+    /** Earliest year with any row; bounds the year picker. */
+    val earliestYear: Int? = null,
     /** Load failure; the screen shows it with a retry. */
     val error: String? = null,
     /** Every entry, newest first. */
@@ -30,6 +35,10 @@ data class TransactionHistoryUiState(
     /** A delete that failed (the row is restored); shown until dismissed. */
     val deleteError: String? = null,
 ) {
+    val isCurrentYear: Boolean get() = year >= DateUtils.today().year
+
+    val canGoBack: Boolean get() = earliestYear?.let { year > it } ?: false
+
     val visibleEntries: List<LedgerEntry>
         get() = when (filter) {
             HistoryFilter.ALL -> entries
@@ -40,6 +49,7 @@ data class TransactionHistoryUiState(
 
 sealed interface TransactionHistoryEvent {
     data object Refresh : TransactionHistoryEvent
+    data class YearSelected(val year: Int) : TransactionHistoryEvent
     data class FilterSelected(val filter: HistoryFilter) : TransactionHistoryEvent
     data class DeleteClicked(val entry: LedgerEntry) : TransactionHistoryEvent
     data object DeleteConfirmed : TransactionHistoryEvent
@@ -62,12 +72,14 @@ class TransactionHistoryViewModel(
     val uiState: StateFlow<TransactionHistoryUiState> = _uiState.asStateFlow()
 
     init {
-        load()
+        load(_uiState.value.year)
     }
 
     fun onEvent(event: TransactionHistoryEvent) {
         when (event) {
-            TransactionHistoryEvent.Refresh -> load()
+            TransactionHistoryEvent.Refresh -> load(_uiState.value.year)
+            is TransactionHistoryEvent.YearSelected ->
+                if (event.year != _uiState.value.year) load(event.year)
             is TransactionHistoryEvent.FilterSelected -> _uiState.update { it.copy(filter = event.filter) }
             is TransactionHistoryEvent.DeleteClicked ->
                 if (_uiState.value.canDelete && !_uiState.value.isDeleting) {
@@ -80,12 +92,20 @@ class TransactionHistoryViewModel(
     }
 
     /** @param quiet keep the current list on screen (no spinner, errors ignored) — used after a delete. */
-    private fun load(quiet: Boolean = false) {
-        if (!quiet) _uiState.update { it.copy(isLoading = true, error = null) }
+    private fun load(year: Int, quiet: Boolean = false) {
+        if (!quiet) _uiState.update { it.copy(year = year, isLoading = true, error = null) }
         viewModelScope.launch {
             try {
-                val entries = ledgerRepository.getEntries().asReversed()
-                _uiState.update { it.copy(isLoading = false, entries = entries) }
+                val ledgerYear = ledgerRepository.readYear(year)
+                _uiState.update {
+                    // Ignore a late result for a year the user has already navigated away from.
+                    if (it.year != year) it
+                    else it.copy(
+                        isLoading = false,
+                        earliestYear = ledgerYear.earliestYear?.coerceAtMost(year),
+                        entries = ledgerYear.entries.asReversed(),
+                    )
+                }
             } catch (e: Exception) {
                 if (!quiet) {
                     _uiState.update { it.copy(isLoading = false, error = e.toUserMessage("Couldn't load your transactions.")) }
@@ -105,7 +125,7 @@ class TransactionHistoryViewModel(
                 ledgerRepository.deleteEntry(entry)
                 _uiState.update { it.copy(isDeleting = false) }
                 // Sheet row numbers below a deleted row shift up; re-read so every id is current.
-                load(quiet = true)
+                load(_uiState.value.year, quiet = true)
             } catch (e: Exception) {
                 _uiState.update { state ->
                     val restored = state.entries.toMutableList().apply { add(index.coerceIn(0, size), entry) }

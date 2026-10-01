@@ -17,6 +17,7 @@ import org.example.project.data.ai.ChatTurn
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.model.ChatMessage
 import org.example.project.repository.LedgerRepository
+import org.example.project.util.DateUtils
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -61,11 +62,15 @@ class ChatViewModel(
         }
     }
 
-    /** Fresh ledger read for this turn's context. Empty (not thrown) on failure. */
+    /**
+     * Fresh read of this calendar year's expenses for the turn's context — the prompt talks about
+     * this month and year-to-date, so a year is exactly the window it needs. Empty (not thrown) on
+     * failure.
+     */
     private suspend fun fetchLedger(): List<LedgerEntry> {
         _uiState.update { it.copy(isLoadingTransactions = true) }
         return try {
-            ledgerRepository.getExpenses().also {
+            ledgerRepository.expensesIn(DateUtils.today().year).also {
                 _uiState.update { s -> s.copy(isLoadingTransactions = false, transactionsLoaded = true) }
             }
         } catch (e: Exception) {

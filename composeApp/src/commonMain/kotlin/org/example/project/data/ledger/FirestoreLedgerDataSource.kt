@@ -17,21 +17,33 @@ import org.example.project.util.UserFacingException
  *
  * Document shape: `date` (ISO yyyy-MM-dd), `description`, `inflow`, `outflow`, `category`,
  * `modeOfPayment`, `isPaid`, `createdAt` (epoch millis).
+ *
+ * Because `date` is stored ISO, a year is a plain string range (`2026-01-01`..`2026-12-31`) that
+ * Firestore can filter server-side with no composite index.
  */
 class FirestoreLedgerDataSource(
     private val firestore: FirestoreRestClient,
     private val currentUid: () -> String?,
 ) : LedgerDataSource {
 
-    private fun collectionPath(): String {
-        val uid = currentUid() ?: throw UserFacingException("Please sign in again.")
-        return "users/$uid/transactions"
-    }
+    private fun uid(): String = currentUid() ?: throw UserFacingException("Please sign in again.")
 
-    override suspend fun getEntries(): List<LedgerEntry> =
-        firestore.listDocuments(collectionPath())
+    private fun parentPath(): String = "users/${uid()}"
+
+    private fun collectionPath(): String = "${parentPath()}/$TRANSACTIONS"
+
+    override suspend fun readYear(year: Int): LedgerYear {
+        val parent = parentPath()
+        val entries = firestore.queryByRange(
+            parentPath = parent,
+            collectionId = TRANSACTIONS,
+            field = FIELD_DATE,
+            from = "$year-01-01",
+            to = "$year-12-31",
+        )
             .map(::toStored)
             .filter { it.description.isNotBlank() && (it.inflow > 0.0 || it.outflow > 0.0) }
+            // The query orders by date; createdAt breaks ties within the same day.
             .sortedWith(compareBy<StoredTransaction> { it.date }.thenBy { it.createdAt })
             .map { stored ->
                 val isIncome = stored.inflow > 0.0
@@ -47,6 +59,10 @@ class FirestoreLedgerDataSource(
                     isIncome = isIncome,
                 )
             }
+        val earliest = firestore.firstByField(parent, TRANSACTIONS, FIELD_DATE)
+            ?.fields?.string(FIELD_DATE)?.take(4)?.toIntOrNull()
+        return LedgerYear(year = year, entries = entries, earliestYear = earliest)
+    }
 
     override suspend fun deleteEntry(entry: LedgerEntry) {
         if (entry.id.isBlank()) throw UserFacingException("This transaction can't be deleted.")
@@ -106,5 +122,7 @@ class FirestoreLedgerDataSource(
     private companion object {
         /** Mirrors the firestore.rules string limit. */
         const val MAX_TEXT = 200
+        const val TRANSACTIONS = "transactions"
+        const val FIELD_DATE = "date"
     }
 }

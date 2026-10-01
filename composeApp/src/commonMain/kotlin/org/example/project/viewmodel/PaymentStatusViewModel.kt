@@ -26,6 +26,10 @@ data class PaymentModeOption(
 
 data class PaymentStatusUiState(
     val isLoading: Boolean = false,
+    /** The calendar year on screen; the ledger is read one year at a time. */
+    val year: Int = DateUtils.today().year,
+    /** Earliest year with any row; bounds the year picker. */
+    val earliestYear: Int? = null,
     val error: String? = null,
     /** Every mode seen in the ledger, most-used first. Stable across month/status changes. */
     val modes: List<PaymentModeOption> = emptyList(),
@@ -43,10 +47,15 @@ data class PaymentStatusUiState(
     val unpaidCount: Int = 0,
 ) {
     val hasEntries: Boolean get() = paidCount + unpaidCount > 0
+
+    val isCurrentYear: Boolean get() = year >= DateUtils.today().year
+
+    val canGoBack: Boolean get() = earliestYear?.let { year > it } ?: false
 }
 
 sealed interface PaymentStatusEvent {
     data object Refresh : PaymentStatusEvent
+    data class YearSelected(val year: Int) : PaymentStatusEvent
     /** [mode] is null for "All". */
     data class ModeSelected(val mode: String?) : PaymentStatusEvent
     /** [month] is null for "All". */
@@ -60,9 +69,9 @@ const val UNASSIGNED_MODE = "Unassigned"
 /**
  * Backs the Paid & Unpaid screen.
  *
- * Reads the same 'Data Dump' expense rows as the Summary drill-down ([LedgerRepository.getTransactions])
- * and slices them by the ledger's Paid checkbox, filtered by mode of payment and month. Read-only:
- * flipping a row's Paid state is a sheet write and isn't part of this screen.
+ * Reads one calendar year of expense rows ([LedgerRepository.readYear]) and slices them by the
+ * ledger's Paid checkbox, filtered by mode of payment and month. Read-only: flipping a row's Paid
+ * state is a sheet write and isn't part of this screen.
  */
 class PaymentStatusViewModel(
     private val repository: LedgerRepository = LedgerRepository(),
@@ -75,12 +84,13 @@ class PaymentStatusViewModel(
     private var allEntries: List<LedgerEntry> = emptyList()
 
     init {
-        load()
+        load(_uiState.value.year)
     }
 
     fun onEvent(event: PaymentStatusEvent) {
         when (event) {
-            PaymentStatusEvent.Refresh -> load()
+            PaymentStatusEvent.Refresh -> load(_uiState.value.year)
+            is PaymentStatusEvent.YearSelected -> if (event.year != _uiState.value.year) load(event.year)
             is PaymentStatusEvent.ModeSelected -> _uiState.update { it.copy(selectedMode = event.mode) }
             is PaymentStatusEvent.MonthSelected -> _uiState.update { it.copy(selectedMonth = event.month) }
             is PaymentStatusEvent.StatusSelected -> _uiState.update { it.copy(statusFilter = event.filter) }
@@ -88,11 +98,12 @@ class PaymentStatusViewModel(
         if (event !is PaymentStatusEvent.Refresh) recompute()
     }
 
-    private fun load() {
+    private fun load(year: Int) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(year = year, isLoading = true, error = null) }
             try {
-                val entries = repository.getExpenses()
+                val ledgerYear = repository.readYear(year)
+                val entries = ledgerYear.expenses
                 val spelling = canonicalSpellings(entries)
                 allEntries = entries.map { txn ->
                     val key = txn.modeOfPayment.trim().lowercase()
@@ -114,6 +125,7 @@ class PaymentStatusViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        earliestYear = ledgerYear.earliestYear?.coerceAtMost(year),
                         months = months,
                         selectedMonth = selectedMonth,
                         selectedMode = null,

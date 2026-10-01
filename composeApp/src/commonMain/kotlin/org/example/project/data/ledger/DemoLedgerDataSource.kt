@@ -47,7 +47,13 @@ object DemoLedgerDataSource : LedgerDataSource {
     /** The demo budget for every demo cut-off, keyed by [BudgetPeriod.id]. */
     fun budgetPlans(): Map<String, BudgetPlan> = periods().associate { it.id to demoBudget }
 
-    override suspend fun getEntries(): List<LedgerEntry> {
+    override suspend fun readYear(year: Int): LedgerYear = LedgerYear(
+        year = year,
+        entries = allEntries().filter { it.date.startsWith("$year-") },
+        earliestYear = periods().first().year,
+    )
+
+    private fun allEntries(): List<LedgerEntry> {
         val periods = periods()
         return periods.flatMapIndexed { periodIndex, period ->
             val factor = swing[periodIndex % swing.size]

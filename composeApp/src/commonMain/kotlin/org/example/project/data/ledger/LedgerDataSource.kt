@@ -31,6 +31,20 @@ data class LedgerEntry(
     val isIncome: Boolean = false,
 )
 
+/**
+ * One calendar year of a ledger: its rows, plus how far back the whole ledger goes so the year
+ * picker knows which years to offer.
+ */
+data class LedgerYear(
+    val year: Int,
+    /** Rows dated in [year] (income and expenses), oldest first. */
+    val entries: List<LedgerEntry>,
+    /** Earliest year with any row; null when the ledger is empty. */
+    val earliestYear: Int?,
+) {
+    val expenses: List<LedgerEntry> get() = entries.filterNot { it.isIncome }
+}
+
 /** Outcome of a ledger write. [errorMessage] is user-facing (never a raw URL or response body). */
 data class AddTransactionResult(
     val success: Boolean,
@@ -40,11 +54,11 @@ data class AddTransactionResult(
 /** Read + write access to one ledger backend. Picked per session by [org.example.project.repository.LedgerRepository]. */
 interface LedgerDataSource {
 
-    /** Every row, income and expenses, in ledger order (oldest first). */
-    suspend fun getEntries(): List<LedgerEntry>
-
-    /** Expense rows only — what the Summary, Paid & Unpaid and AI context work from. */
-    suspend fun getExpenses(): List<LedgerEntry> = getEntries().filterNot { it.isIncome }
+    /**
+     * One calendar year of rows. Reads are scoped by date at the source — Firestore filters
+     * server-side, the sheet filters the rows it returns — so the app never pulls a whole ledger.
+     */
+    suspend fun readYear(year: Int): LedgerYear
 
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult
 

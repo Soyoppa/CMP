@@ -54,6 +54,7 @@ import org.example.project.model.CategorySummary
 import org.example.project.model.SpendingBuckets
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.components.BudgetOverviewCard
+import org.example.project.ui.components.YearStepper
 import org.example.project.ui.components.CategoryGlyph
 import org.example.project.ui.components.categoryGlyphKind
 import org.example.project.ui.effects.rememberPressBounce
@@ -147,6 +148,10 @@ fun SummaryScreen(
                 uiState.categories.isEmpty() -> SummaryEmpty()
                 else -> SummaryContent(
                     categories = uiState.categories,
+                    year = uiState.year,
+                    isCurrentYear = uiState.isCurrentYear,
+                    canGoBack = uiState.canGoBack,
+                    onYearChange = { viewModel.onEvent(SummaryEvent.YearSelected(it)) },
                     periods = uiState.periods,
                     selectedPeriod = uiState.selectedPeriod,
                     totalBudgetByPeriod = uiState.totalBudgetByPeriod,
@@ -173,6 +178,11 @@ fun SummaryScreen(
 @Composable
 private fun SummaryContent(
     categories: List<CategorySummary>,
+    /** The calendar year on screen: the chart's twelve bars are this year's months. */
+    year: Int,
+    isCurrentYear: Boolean,
+    canGoBack: Boolean,
+    onYearChange: (Int) -> Unit,
     periods: List<BudgetPeriod>,
     selectedPeriod: BudgetPeriod?,
     totalBudgetByPeriod: Map<String, Double>,
@@ -227,9 +237,11 @@ private fun SummaryContent(
 
     val selectedTotal = selectedPeriod?.let { periodAmounts[it.id] } ?: periodAmounts.values.sum()
 
+    // Past years need the year spelled out; "Sep 16–30" alone would be ambiguous.
+    val periodLabel = selectedPeriod?.let { p -> if (isCurrentYear) p.label else "${p.label} $year" }
     val cardTitle = buildString {
         if (byCategory) append("${activeCategory!!.category} · ")
-        append(selectedPeriod?.let { "${it.label} budget" } ?: "All cut-offs")
+        append(periodLabel?.let { "$it budget" } ?: "$year")
     }
 
     // Remaining budget is the headline; spend sits beside it. A budget only applies to a single
@@ -272,6 +284,19 @@ private fun SummaryContent(
             selectedCategory = selectedCategory,
             categoryColors = categoryColors,
             onCategorySelected = onCategorySelected,
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        YearStepper(
+            year = year,
+            canGoBack = canGoBack,
+            // Later years can't have entries yet, so forward stops at the current one.
+            canGoForward = !isCurrentYear,
+            onYearChange = onYearChange,
         )
     }
 

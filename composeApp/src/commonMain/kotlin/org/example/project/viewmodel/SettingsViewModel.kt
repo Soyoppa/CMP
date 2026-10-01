@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.repository.LedgerRepository
+import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
 import org.example.project.util.toUserMessage
 
@@ -47,9 +48,10 @@ class SettingsViewModel(
         _uiState.update { it.copy(isTestingRead = true) }
         viewModelScope.launch {
             val result = try {
-                val recent = ledgerRepository.getEntries().takeLast(3).reversed()
+                val year = DateUtils.today().year
+                val recent = ledgerRepository.readYear(year).entries.takeLast(3).reversed()
                 if (recent.isEmpty()) {
-                    DiagnosticResult(DiagnosticKind.WARNING, "Read succeeded but your ledger has no transactions yet.")
+                    DiagnosticResult(DiagnosticKind.WARNING, "Read succeeded but your ledger has no transactions in $year.")
                 } else {
                     val lines = recent.joinToString("\n") { entry ->
                         val sign = if (entry.isIncome) "+" else "-"

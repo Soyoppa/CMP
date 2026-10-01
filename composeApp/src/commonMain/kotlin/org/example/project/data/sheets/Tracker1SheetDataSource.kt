@@ -3,7 +3,9 @@ package org.example.project.data.sheets
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.data.ledger.LedgerYear
 import org.example.project.model.Transaction
+import kotlinx.datetime.number
 import org.example.project.util.DateUtils
 
 /**
@@ -19,28 +21,36 @@ class Tracker1SheetDataSource(
 ) : LedgerDataSource {
 
     /**
-     * Every income/expense row. The id is the 1-based sheet row number (row 1 is the header), so
-     * a row can be deleted later. Blank rows and rows with no amount are skipped.
+     * One year of income/expense rows. The gateway returns the whole tab, so the year is applied
+     * here; the id is the 1-based sheet row number (row 1 is the header) so a row can be deleted
+     * later. Blank rows, rows with no amount, and rows with an unreadable date are skipped.
      */
-    override suspend fun getEntries(): List<LedgerEntry> =
-        gateway.readRows().withSheetRowNumbers().mapNotNull { (rowNumber, row) ->
+    override suspend fun readYear(year: Int): LedgerYear {
+        val dated = gateway.readRows().withSheetRowNumbers().mapNotNull { (rowNumber, row) ->
             val description = row.getOrNull(1)?.trim().orEmpty()
             val inflow = parseSheetAmount(row.getOrNull(2))
             val outflow = parseSheetAmount(row.getOrNull(3))
             if (description.isBlank() || (inflow <= 0.0 && outflow <= 0.0)) return@mapNotNull null
+            val date = DateUtils.parseLedgerDate(row.getOrNull(0)) ?: return@mapNotNull null
             val isIncome = inflow > 0.0
-            LedgerEntry(
+            date to LedgerEntry(
                 id = rowNumber.toString(),
                 description = description,
                 amount = if (isIncome) inflow else outflow,
                 category = row.getOrNull(4)?.trim().orEmpty(),
-                monthNumber = DateUtils.monthNumberFromDate(row.getOrNull(0)),
+                monthNumber = date.month.number,
                 date = row.getOrNull(0)?.trim().orEmpty(),
                 modeOfPayment = row.getOrNull(5)?.trim().orEmpty(),
                 isPaid = parsePaid(row.getOrNull(6)),
                 isIncome = isIncome,
             )
         }
+        return LedgerYear(
+            year = year,
+            entries = dated.filter { (date, _) -> date.year == year }.map { (_, entry) -> entry },
+            earliestYear = dated.minOfOrNull { (date, _) -> date.year },
+        )
+    }
 
     override suspend fun deleteEntry(entry: LedgerEntry) = gateway.deleteRow(entry)
 

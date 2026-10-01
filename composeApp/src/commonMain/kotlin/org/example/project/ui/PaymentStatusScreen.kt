@@ -53,6 +53,7 @@ import org.example.project.ui.components.SheetActionPill
 import org.example.project.ui.components.ChoiceField
 import org.example.project.ui.components.ChoicePickerSheet
 import org.example.project.ui.components.PaymentBadge
+import org.example.project.ui.components.YearStepper
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.ExpenseTerracotta
@@ -131,6 +132,7 @@ fun PaymentStatusScreen(
 
             else -> PaymentStatusContent(
                 state = uiState,
+                onYearChange = { viewModel.onEvent(PaymentStatusEvent.YearSelected(it)) },
                 onStatusSelected = { viewModel.onEvent(PaymentStatusEvent.StatusSelected(it)) },
                 onModeSelected = { viewModel.onEvent(PaymentStatusEvent.ModeSelected(it)) },
                 onMonthSelected = { viewModel.onEvent(PaymentStatusEvent.MonthSelected(it)) },
@@ -144,6 +146,7 @@ fun PaymentStatusScreen(
 @Composable
 private fun PaymentStatusContent(
     state: PaymentStatusUiState,
+    onYearChange: (Int) -> Unit,
     onStatusSelected: (PaymentStatusFilter) -> Unit,
     onModeSelected: (String?) -> Unit,
     onMonthSelected: (String?) -> Unit,
@@ -163,6 +166,22 @@ private fun PaymentStatusContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 28.dp),
     ) {
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                YearStepper(
+                    year = state.year,
+                    canGoBack = state.canGoBack,
+                    canGoForward = !state.isCurrentYear,
+                    onYearChange = onYearChange,
+                )
+            }
+        }
+
         item {
             Row(
                 modifier = Modifier
