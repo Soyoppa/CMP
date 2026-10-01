@@ -80,8 +80,6 @@ class RestAuthProvider(
             put("password", password)
         }
 
-    override suspend fun signInAnonymously(): AuthUser = identity("accounts:signUp") {}
-
     override suspend fun signOut() = store.save(null)
 
     override suspend fun deleteCurrentUser() {

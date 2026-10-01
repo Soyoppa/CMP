@@ -2,6 +2,7 @@ package org.example.project.data.sheets
 
 import org.example.project.data.ledger.AddTransactionResult
 import org.example.project.data.ledger.LedgerDataSource
+import org.example.project.data.ledger.LabelField
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.LedgerYear
 import org.example.project.model.Transaction
@@ -53,6 +54,10 @@ class Tracker1SheetDataSource(
     }
 
     override suspend fun deleteEntry(entry: LedgerEntry) = gateway.deleteRow(entry)
+
+    // The household sheet owns its labels (its formulas and dropdowns key on them), so renaming
+    // an option in the app never rewrites sheet rows.
+    override suspend fun relabel(field: LabelField, from: String, to: String): Int = 0
 
     /**
      * The ledger's Paid column (G) is a checkbox, so the API returns "TRUE"/"FALSE" — but the

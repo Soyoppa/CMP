@@ -7,7 +7,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.repository.LedgerRepository
+import org.example.project.AppContainer
+import org.example.project.SessionGraph
+import org.example.project.auth.AppUser
+import org.example.project.auth.SessionRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
 import org.example.project.util.toUserMessage
@@ -21,25 +24,107 @@ data class DiagnosticResult(val kind: DiagnosticKind, val message: String) {
 }
 
 data class SettingsUiState(
+    /** Null when using the app without an account (data on this phone only). */
+    val email: String? = null,
+    val hasAccount: Boolean = false,
+    val expenseCategoryCount: Int = 0,
+    val incomeCategoryCount: Int = 0,
+    val paymentModeCount: Int = 0,
+    /** Developer-only: this account may read its ledger from the household sheet. */
+    val sheetsGranted: Boolean = false,
+    val sheetsEnabled: Boolean = false,
+    val isSwitchingSheets: Boolean = false,
+    /** Waiting for the user to confirm wiping the phone's data. */
+    val confirmErase: Boolean = false,
+    val isErasing: Boolean = false,
     val isTestingRead: Boolean = false,
     val readResult: DiagnosticResult = DiagnosticResult.Idle,
+    val error: String? = null,
 )
 
 sealed interface SettingsEvent {
+    data object SignOutClicked : SettingsEvent
+    data object EraseClicked : SettingsEvent
+    data object EraseConfirmed : SettingsEvent
+    data object EraseDismissed : SettingsEvent
+    data class SheetsToggled(val enabled: Boolean) : SettingsEvent
     data object TestReadClicked : SettingsEvent
+    data object ErrorShown : SettingsEvent
 }
 
-/** Settings' stateful bits: currently the ledger read diagnostic (signed-in users only). */
+/**
+ * Settings: the session (account or this-phone-only), counts for the list editors, the
+ * developer-only Sheets switch and its read diagnostic, and wiping the phone's data.
+ */
 class SettingsViewModel(
-    private val ledgerRepository: LedgerRepository = LedgerRepository(),
+    private val sessionRepository: SessionRepository = AppContainer.sessionRepository,
+    private val session: SessionGraph = AppContainer.session(),
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SettingsUiState())
+    private val _uiState = MutableStateFlow(
+        when (val user = session.user) {
+            AppUser.Device -> SettingsUiState()
+            is AppUser.Account -> SettingsUiState(
+                email = user.email,
+                hasAccount = true,
+                sheetsGranted = user.sheets.granted,
+                sheetsEnabled = user.sheets.isActive,
+            )
+        }
+    )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch { session.config.ensureLoaded() }
+        viewModelScope.launch {
+            session.config.state.collect { configState ->
+                val config = configState.config
+                _uiState.update {
+                    it.copy(
+                        expenseCategoryCount = config.expenseCategories.size,
+                        incomeCategoryCount = config.incomeCategories.size,
+                        paymentModeCount = config.paymentModes.size,
+                    )
+                }
+            }
+        }
+    }
 
     fun onEvent(event: SettingsEvent) {
         when (event) {
+            SettingsEvent.SignOutClicked -> viewModelScope.launch { sessionRepository.signOut() }
+            SettingsEvent.EraseClicked -> _uiState.update { it.copy(confirmErase = true) }
+            SettingsEvent.EraseDismissed -> _uiState.update { it.copy(confirmErase = false) }
+            SettingsEvent.EraseConfirmed -> erase()
+            is SettingsEvent.SheetsToggled -> toggleSheets(event.enabled)
             SettingsEvent.TestReadClicked -> testRead()
+            SettingsEvent.ErrorShown -> _uiState.update { it.copy(error = null) }
+        }
+    }
+
+    private fun erase() {
+        if (_uiState.value.isErasing) return
+        _uiState.update { it.copy(isErasing = true) }
+        viewModelScope.launch {
+            // Success ends the session, which disposes this screen; only failures come back here.
+            sessionRepository.eraseDeviceData().onFailure { e ->
+                _uiState.update {
+                    it.copy(isErasing = false, confirmErase = false, error = e.toUserMessage("Couldn't erase the data on this phone."))
+                }
+            }
+        }
+    }
+
+    private fun toggleSheets(enabled: Boolean) {
+        if (_uiState.value.isSwitchingSheets || !_uiState.value.sheetsGranted) return
+        _uiState.update { it.copy(isSwitchingSheets = true, sheetsEnabled = enabled) }
+        viewModelScope.launch {
+            // Success starts a new session on the other ledger, rebuilding every screen.
+            sessionRepository.setSheetsEnabled(enabled).onFailure { e ->
+                _uiState.update {
+                    it.copy(isSwitchingSheets = false, sheetsEnabled = !enabled, error = e.toUserMessage("Couldn't switch ledgers."))
+                }
+            }
         }
     }
 
@@ -49,9 +134,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             val result = try {
                 val year = DateUtils.today().year
-                val recent = ledgerRepository.readYear(year).entries.takeLast(3).reversed()
+                val recent = session.ledger.readYear(year).entries.takeLast(3).reversed()
                 if (recent.isEmpty()) {
-                    DiagnosticResult(DiagnosticKind.WARNING, "Read succeeded but your ledger has no transactions in $year.")
+                    DiagnosticResult(DiagnosticKind.WARNING, "Read succeeded but the ledger has no transactions in $year.")
                 } else {
                     val lines = recent.joinToString("\n") { entry ->
                         val sign = if (entry.isIncome) "+" else "-"

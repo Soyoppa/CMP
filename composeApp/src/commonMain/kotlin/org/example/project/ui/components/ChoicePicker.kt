@@ -18,15 +18,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +49,8 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -208,6 +219,9 @@ fun ChoiceField(
  *
  * [badges] maps an option to a small trailing count (the Paid & Unpaid screen uses it for
  * outstanding rows per card). Options absent from the map, or mapped to 0, render no badge.
+ *
+ * With [onAddOption], the sheet ends in a "new …" field: lists start empty, so the first category
+ * or payment mode can be created right where it's needed instead of in Settings.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -222,6 +236,10 @@ fun ChoicePickerSheet(
     showPaymentBadges: Boolean = false,
     badges: Map<String, Int> = emptyMap(),
     badgeColor: Color? = null,
+    /** Creates (and selects) a new option; null hides the add field. */
+    onAddOption: ((String) -> Unit)? = null,
+    /** Singular noun for the add field and empty state, e.g. "category". */
+    optionNoun: String = "option",
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -233,6 +251,8 @@ fun ChoicePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Keeps the "new …" field above the keyboard.
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .padding(top = 4.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -242,6 +262,14 @@ fun ChoicePickerSheet(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
+            if (options.isEmpty()) {
+                Text(
+                    text = if (onAddOption != null) "Nothing here yet — add your first one below."
+                    else "Nothing to pick yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -260,6 +288,64 @@ fun ChoicePickerSheet(
                     )
                 }
             }
+            if (onAddOption != null) {
+                NewOptionField(noun = optionNoun, accentColor = accentColor, onAdd = onAddOption)
+            }
+        }
+    }
+}
+
+/** "New category" + Add, at the foot of a picker. */
+@Composable
+private fun NewOptionField(noun: String, accentColor: Color, onAdd: (String) -> Unit) {
+    // Transient text until it's submitted as an event; the saved list lives in the ViewModel.
+    var text by remember { mutableStateOf("") }
+    val submit = {
+        if (text.isNotBlank()) {
+            onAdd(text)
+            text = ""
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it.take(60) },
+            singleLine = true,
+            placeholder = {
+                Text(
+                    text = "New $noun",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            },
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+            shape = AppShapes.field,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accentColor,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                cursorColor = accentColor,
+            ),
+            modifier = Modifier.weight(1f),
+        )
+        BounceSurface(
+            onClick = submit,
+            enabled = text.isNotBlank(),
+            shape = AppShapes.pill,
+            color = if (text.isNotBlank()) accentColor else accentColor.copy(alpha = 0.4f),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
+            modifier = Modifier.heightIn(min = 52.dp),
+        ) {
+            Text(
+                text = "Add",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.surface,
+            )
         }
     }
 }

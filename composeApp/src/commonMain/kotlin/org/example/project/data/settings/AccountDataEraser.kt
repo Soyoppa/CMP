@@ -1,7 +1,9 @@
 package org.example.project.data.settings
 
+import org.example.project.data.config.CloudConfigStore
 import org.example.project.data.firestore.FirestoreRestClient
-import org.example.project.data.ledger.LedgerAccessResolver
+import org.example.project.data.ledger.FirestoreLedgerDataSource
+import org.example.project.data.sheets.SheetsAccessStore
 
 /**
  * Deletes everything the app stored for an account in Firestore — required before deleting the
@@ -12,17 +14,14 @@ import org.example.project.data.ledger.LedgerAccessResolver
 class AccountDataEraser(private val firestore: FirestoreRestClient) {
 
     suspend fun eraseAll(uid: String) {
-        val transactions = "users/$uid/transactions"
-        firestore.listDocuments(transactions).forEach { doc ->
-            firestore.deleteDocument("$transactions/${doc.id}")
-        }
-        val budgets = UserSettingsStore.budgetsPath(uid)
-        firestore.listDocuments(budgets).forEach { doc ->
-            firestore.deleteDocument("$budgets/${doc.id}")
-        }
-        UserSettingsStore.ALL_DOCS.forEach { docId ->
-            firestore.deleteDocument(UserSettingsStore.path(uid, docId))
-        }
-        firestore.deleteDocument(LedgerAccessResolver.accessPath(uid))
+        deleteCollection("users/$uid/${FirestoreLedgerDataSource.TRANSACTIONS}")
+        deleteCollection(CloudConfigStore.budgetsPath(uid))
+        // Option lists, the developer switch, and documents from earlier versions alike.
+        deleteCollection(CloudConfigStore.settingsPath(uid))
+        firestore.deleteDocument(SheetsAccessStore.grantPath(uid))
+    }
+
+    private suspend fun deleteCollection(path: String) {
+        firestore.listDocuments(path).forEach { doc -> firestore.deleteDocument("$path/${doc.id}") }
     }
 }

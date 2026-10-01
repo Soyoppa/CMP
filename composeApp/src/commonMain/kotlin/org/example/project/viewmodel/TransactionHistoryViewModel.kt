@@ -5,9 +5,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.auth.Session
+import org.example.project.AppContainer
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.repository.LedgerRepository
 import org.example.project.util.DateUtils
@@ -26,8 +27,6 @@ data class TransactionHistoryUiState(
     /** Every entry, newest first. */
     val entries: List<LedgerEntry> = emptyList(),
     val filter: HistoryFilter = HistoryFilter.ALL,
-    /** Guests browse demo data, which can't be deleted. */
-    val canDelete: Boolean = false,
     /** Entry awaiting the user's delete confirmation. */
     val pendingDelete: LedgerEntry? = null,
     /** One delete at a time, so a quiet reload can't resurrect a row that's still being deleted. */
@@ -61,18 +60,20 @@ sealed interface TransactionHistoryEvent {
  * Backs the Transactions screen: the user's ledger newest-first, with delete.
  *
  * Deletes are optimistic — the row disappears immediately and is put back (with an error) if the
- * backend refuses, e.g. the shared sheet changed underneath us. After a successful delete the list
- * is re-read quietly so ids stay valid (sheet rows renumber when one above them is removed).
+ * backend refuses, e.g. the shared sheet changed underneath us.
  */
 class TransactionHistoryViewModel(
-    private val ledgerRepository: LedgerRepository = LedgerRepository(),
+    private val ledgerRepository: LedgerRepository = AppContainer.session().ledger,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TransactionHistoryUiState(canDelete = !Session.isGuest))
+    private val _uiState = MutableStateFlow(TransactionHistoryUiState())
     val uiState: StateFlow<TransactionHistoryUiState> = _uiState.asStateFlow()
 
     init {
         load(_uiState.value.year)
+        // Any change to the ledger (a delete here, an add on the Add tab) re-reads quietly, which
+        // also keeps ids current — sheet rows renumber when one above them is removed.
+        viewModelScope.launch { ledgerRepository.revision.drop(1).collect { load(_uiState.value.year, quiet = true) } }
     }
 
     fun onEvent(event: TransactionHistoryEvent) {
@@ -82,7 +83,7 @@ class TransactionHistoryViewModel(
                 if (event.year != _uiState.value.year) load(event.year)
             is TransactionHistoryEvent.FilterSelected -> _uiState.update { it.copy(filter = event.filter) }
             is TransactionHistoryEvent.DeleteClicked ->
-                if (_uiState.value.canDelete && !_uiState.value.isDeleting) {
+                if (!_uiState.value.isDeleting) {
                     _uiState.update { it.copy(pendingDelete = event.entry) }
                 }
             TransactionHistoryEvent.DeleteConfirmed -> deletePending()
@@ -124,8 +125,6 @@ class TransactionHistoryViewModel(
             try {
                 ledgerRepository.deleteEntry(entry)
                 _uiState.update { it.copy(isDeleting = false) }
-                // Sheet row numbers below a deleted row shift up; re-read so every id is current.
-                load(_uiState.value.year, quiet = true)
             } catch (e: Exception) {
                 _uiState.update { state ->
                     val restored = state.entries.toMutableList().apply { add(index.coerceIn(0, size), entry) }

@@ -15,7 +15,6 @@ actual fun createFeatureFlagLoader(): FeatureFlagLoader = RemoteConfigFeatureFla
 @Serializable
 private data class FbFlags(
     val signup_enabled: Boolean = true,
-    val guest_mode_enabled: Boolean = true,
     val chat_enabled: Boolean = true,
 )
 
@@ -35,7 +34,6 @@ internal class RemoteConfigFeatureFlagLoader : FeatureFlagLoader {
             FeatureFlagStore.set(
                 FeatureFlags(
                     signupEnabled = f.signup_enabled,
-                    guestModeEnabled = f.guest_mode_enabled,
                     chatEnabled = f.chat_enabled,
                 )
             )

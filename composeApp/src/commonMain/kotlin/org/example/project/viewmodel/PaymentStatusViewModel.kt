@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.example.project.AppContainer
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.repository.LedgerRepository
 import org.example.project.util.DateUtils
@@ -74,7 +76,7 @@ const val UNASSIGNED_MODE = "Unassigned"
  * state is a sheet write and isn't part of this screen.
  */
 class PaymentStatusViewModel(
-    private val repository: LedgerRepository = LedgerRepository(),
+    private val repository: LedgerRepository = AppContainer.session().ledger,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PaymentStatusUiState())
@@ -85,6 +87,8 @@ class PaymentStatusViewModel(
 
     init {
         load(_uiState.value.year)
+        // A transaction added or deleted anywhere changes the totals.
+        viewModelScope.launch { repository.revision.drop(1).collect { load(_uiState.value.year) } }
     }
 
     fun onEvent(event: PaymentStatusEvent) {

@@ -7,15 +7,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import org.example.project.auth.AppUser
-import org.example.project.auth.Session
 import org.example.project.data.ledger.AddTransactionResult
+import org.example.project.data.ledger.LabelField
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.LedgerYear
@@ -40,6 +38,7 @@ class TransactionHistoryViewModelTest {
             if (failDeletes) throw UserFacingException("The sheet changed since it was loaded. Refresh and try again.")
             stored.removeAll { it.id == entry.id }
         }
+        override suspend fun relabel(field: LabelField, from: String, to: String) = 0
     }
 
     private val year = DateUtils.today().year
@@ -49,18 +48,16 @@ class TransactionHistoryViewModelTest {
 
     private lateinit var ledger: FakeLedger
 
-    private fun viewModel() = TransactionHistoryViewModel(LedgerRepository(cloud = ledger, sheets = { ledger }))
+    private fun viewModel() = TransactionHistoryViewModel(LedgerRepository(ledger))
 
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        Session.setAuthenticated(AppUser(email = "a@b.co", isGuest = false, uid = "u1"))
         ledger = FakeLedger(listOf(lunch, salary, rent))
     }
 
     @AfterTest
     fun tearDown() {
-        Session.setSignedOut()
         Dispatchers.resetMain()
     }
 
@@ -110,15 +107,5 @@ class TransactionHistoryViewModelTest {
 
         vm.onEvent(TransactionHistoryEvent.DeleteErrorShown)
         assertNull(vm.uiState.value.deleteError)
-    }
-
-    @Test
-    fun guestsCannotDelete() {
-        Session.setAuthenticated(AppUser(email = null, isGuest = true, uid = "anon"))
-        val vm = viewModel()
-        assertFalse(vm.uiState.value.canDelete)
-        assertTrue(vm.uiState.value.entries.isNotEmpty()) // demo ledger
-        vm.onEvent(TransactionHistoryEvent.DeleteClicked(vm.uiState.value.entries.first()))
-        assertNull(vm.uiState.value.pendingDelete)
     }
 }

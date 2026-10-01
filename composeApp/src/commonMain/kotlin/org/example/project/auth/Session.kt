@@ -4,44 +4,62 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.example.project.data.ledger.LedgerSource
+import org.example.project.data.sheets.SheetsAccess
 
-/** The signed-in principal. Guests are real (anonymous) Firebase users with no email. */
-data class AppUser(
-    val email: String?,
-    val isGuest: Boolean,
-    /** Firebase Auth uid — the key for all per-user cloud data. */
-    val uid: String,
-    /** Which ledger this session reads and writes; resolved once at sign-in. */
-    val ledgerSource: LedgerSource = LedgerSource.CLOUD,
-)
+/** Who is using the app, which decides where every piece of their data lives. */
+sealed interface AppUser {
+    val ledgerSource: LedgerSource
 
-// --- Capabilities: single source of truth for guest gating across the app. ---
-/** Max AI messages a guest may send in a session (full users: unlimited). */
-val AppUser.aiMessageLimit: Int get() = if (isGuest) 2 else Int.MAX_VALUE
-/** Max characters per AI message: a small taste for guests, a generous cap for everyone else. */
-val AppUser.aiCharLimit: Int get() = if (isGuest) 20 else 4_000
+    /** No account (mobile only): transactions, lists and budgets stay on this phone. */
+    data object Device : AppUser {
+        override val ledgerSource: LedgerSource get() = LedgerSource.DEVICE
+    }
 
-sealed interface AuthState {
-    /** Determining persisted session at startup. */
-    data object Loading : AuthState
-    data object SignedOut : AuthState
-    data class Authenticated(val user: AppUser) : AuthState
+    /** A Firebase account: everything lives in Firestore and syncs between the web and phones. */
+    data class Account(
+        val uid: String,
+        val email: String?,
+        /** The developer-only household-sheet ledger; [SheetsAccess.NONE] for every store user. */
+        val sheets: SheetsAccess = SheetsAccess.NONE,
+    ) : AppUser {
+        override val ledgerSource: LedgerSource
+            get() = if (sheets.isActive) LedgerSource.SHEETS else LedgerSource.CLOUD
+    }
+}
+
+/** Identifies a session's data: a new key means a fresh set of ViewModels and repositories. */
+val AppUser.sessionKey: String
+    get() = when (this) {
+        AppUser.Device -> "device"
+        is AppUser.Account -> "$uid/$ledgerSource"
+    }
+
+sealed interface SessionState {
+    /** Restoring the previous session at startup. */
+    data object Loading : SessionState
+    /** Nobody is in: show the welcome / sign-in screen. */
+    data object SignedOut : SessionState
+    data class Active(val user: AppUser) : SessionState
 }
 
 /**
- * Process-wide auth session, read by the App gate, repositories (for routing) and screens.
- * Only [AuthRepository] mutates it; everything else observes [state].
+ * Process-wide session, read by the App gate and the session graph. Only [SessionRepository]
+ * changes it; everything else observes [state].
  */
 object Session {
-    private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
-    val state: StateFlow<AuthState> = _state.asStateFlow()
+    private val _state = MutableStateFlow<SessionState>(SessionState.Loading)
+    val state: StateFlow<SessionState> = _state.asStateFlow()
+
+    private val _notice = MutableStateFlow<String?>(null)
+    /** A one-off message for the signed-in app to show (e.g. after moving data to an account). */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
 
     val currentUser: AppUser?
-        get() = (_state.value as? AuthState.Authenticated)?.user
+        get() = (_state.value as? SessionState.Active)?.user
 
-    val isGuest: Boolean
-        get() = currentUser?.isGuest == true
+    internal fun start(user: AppUser) { _state.value = SessionState.Active(user) }
+    internal fun end() { _state.value = SessionState.SignedOut }
 
-    internal fun setAuthenticated(user: AppUser) { _state.value = AuthState.Authenticated(user) }
-    internal fun setSignedOut() { _state.value = AuthState.SignedOut }
+    internal fun post(notice: String) { _notice.value = notice }
+    fun consumeNotice() { _notice.value = null }
 }

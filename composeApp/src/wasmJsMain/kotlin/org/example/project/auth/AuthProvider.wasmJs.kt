@@ -30,7 +30,6 @@ private fun authSignIn(email: String, password: String): Promise<JsString> =
     js("window.__financeAuth.signIn(email, password)")
 private fun authSignUp(email: String, password: String): Promise<JsString> =
     js("window.__financeAuth.signUp(email, password)")
-private fun authGuest(): Promise<JsString> = js("window.__financeAuth.guest()")
 private fun authSignOut(): Promise<JsString> = js("window.__financeAuth.signOut()")
 private fun authIdToken(forceRefresh: Boolean): Promise<JsString> = js("window.__financeAuth.idToken(forceRefresh)")
 private fun authDeleteUser(): Promise<JsString> = js("window.__financeAuth.deleteUser()")
@@ -45,8 +44,6 @@ internal class FirebaseJsAuthProvider : AuthProvider {
 
     override suspend fun signUp(email: String, password: String): AuthUser =
         requireUser(call { authSignUp(email, password) })
-
-    override suspend fun signInAnonymously(): AuthUser = requireUser(call { authGuest() })
 
     override suspend fun signOut() {
         call { authSignOut() }

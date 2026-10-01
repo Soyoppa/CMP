@@ -2,21 +2,24 @@ package org.example.project.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.example.project.auth.Session
+import org.example.project.AppContainer
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetStatus
 import org.example.project.model.BudgetSummaryMapper
 import org.example.project.model.CategorySummary
-import org.example.project.repository.BudgetRepository
+import org.example.project.model.SpendingBuckets
+import org.example.project.model.UserConfig
+import org.example.project.repository.ConfigRepository
 import org.example.project.repository.LedgerRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
@@ -26,14 +29,16 @@ enum class SummaryViewMode { TOTAL, BY_CATEGORY }
 
 data class SummaryUiState(
     /** First load: nothing to show yet. */
-    val isLoading: Boolean = false,
-    /** Reloading with data already on screen (pull-to-refresh, after a save). */
+    val isLoading: Boolean = true,
+    /** Reloading with data already on screen (pull-to-refresh, after a change elsewhere). */
     val isRefreshing: Boolean = false,
     /** The calendar year on screen — the app reads and charts one year at a time. */
     val year: Int = DateUtils.today().year,
     /** Earliest year with any row; bounds how far back the year picker goes. */
     val earliestYear: Int? = null,
     val categories: List<CategorySummary> = emptyList(),
+    /** How ledger categories roll up into [categories] (one per user category, or the sheet's buckets). */
+    val buckets: SpendingBuckets = SpendingBuckets.of(emptyList()),
     /** [year]'s cut-offs, oldest first: Jan 1–15 through Dec 16–31. */
     val periods: List<BudgetPeriod> = emptyList(),
     /** [BudgetPeriod.id] of the cut-off in focus; null = the whole year. */
@@ -44,21 +49,23 @@ data class SummaryUiState(
     val currentPeriod: BudgetPeriod = BudgetPeriod.current(),
     /**
      * The current cut-off's spending against its budget — the "left to spend" figure the Add
-     * screen shows. Always about today, whichever year is being browsed, and kept across
-     * refreshes so it never flickers.
+     * screen shows. Always about today, whichever year is being browsed.
      */
     val thisPeriod: BudgetStatus? = null,
     /**
      * The cut-off the user should budget now: its budgeting window is open (salary has arrived)
      * and it has no budget yet. Can be the *upcoming* cut-off in the last days of the current one.
-     * Null outside the windows, once a budget is saved, and for guests.
      */
     val budgetPrompt: BudgetPeriod? = null,
+    /**
+     * Whether [budgetPrompt] may open the budget sheet by itself. Not for someone who has never
+     * set a budget (e.g. on their very first launch): they get the banner, not a pop-up.
+     */
+    val budgetPromptOpensSheet: Boolean = false,
     val viewMode: SummaryViewMode = SummaryViewMode.TOTAL,
     val selectedCategory: String? = null,
+    /** [year]'s expense rows, for the By Category drill-down. */
     val transactions: List<LedgerEntry> = emptyList(),
-    val transactionsLoading: Boolean = false,
-    val transactionsError: String? = null,
     val error: String? = null,
 ) {
     val selectedPeriod: BudgetPeriod? get() = periods.firstOrNull { it.id == selectedPeriodId }
@@ -84,7 +91,7 @@ data class SummaryUiState(
 }
 
 sealed interface SummaryEvent {
-    /** Reload the year and its budgets (pull-to-refresh, retry, after a save or budget edit). */
+    /** Reload the year (pull-to-refresh, retry). */
     data object Refresh : SummaryEvent
     /** Open another calendar year; reads are scoped to it. */
     data class YearSelected(val year: Int) : SummaryEvent
@@ -96,24 +103,30 @@ sealed interface SummaryEvent {
 }
 
 /**
- * Backs the Summary screen. Reads exactly one calendar year at a time (Jan–Dec of [SummaryUiState.year],
- * defaulting to the year today falls in) rather than a rolling window, so the chart's twelve bars
- * are always the real months of a real year and the ledger read stays bounded.
+ * Backs the Summary screen (and the Add screen's "left to spend" banner). Reads exactly one
+ * calendar year at a time and recomputes on its own whenever the ledger changes (a transaction
+ * added or deleted anywhere) or the user's lists and budgets change.
  */
 class SummaryViewModel(
-    private val repository: LedgerRepository = LedgerRepository(),
-    private val budgetRepository: BudgetRepository = BudgetRepository(),
+    private val ledger: LedgerRepository = AppContainer.session().ledger,
+    private val config: ConfigRepository = AppContainer.session().config,
+    private val profile: LedgerProfile = AppContainer.session().profile,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SummaryUiState())
     val uiState: StateFlow<SummaryUiState> = _uiState.asStateFlow()
 
-    // Drill-down transactions load lazily the first time the user opens "By Category",
-    // then refresh whenever the summary itself is reloaded.
-    private var transactionsLoaded = false
+    /** The loaded year's expenses — kept so a budget edit recomputes without re-reading the ledger. */
+    private var loaded: LoadedYear? = null
+
+    private class LoadedYear(val year: Int, val expenses: List<LedgerEntry>, val earliestYear: Int?)
 
     init {
         load(_uiState.value.year)
+        viewModelScope.launch { ledger.revision.drop(1).collect { load(_uiState.value.year) } }
+        viewModelScope.launch {
+            config.state.map { it.config }.distinctUntilChanged().drop(1).collect { recompute() }
+        }
     }
 
     fun onEvent(event: SummaryEvent) {
@@ -123,93 +136,93 @@ class SummaryViewModel(
                 if (event.year != _uiState.value.year) load(event.year)
             is SummaryEvent.MonthSelected -> _uiState.update { it.copy(selectedPeriodId = it.periodIn(event.monthKey)) }
             is SummaryEvent.PeriodSelected -> _uiState.update { it.copy(selectedPeriodId = event.periodId) }
-            is SummaryEvent.ViewModeSelected -> selectViewMode(event.mode)
+            is SummaryEvent.ViewModeSelected -> _uiState.update { state ->
+                state.copy(
+                    viewMode = event.mode,
+                    selectedCategory = state.selectedCategory ?: state.categories.maxByOrNull { it.totalSpent }?.category,
+                )
+            }
             is SummaryEvent.CategorySelected -> _uiState.update { it.copy(selectedCategory = event.category) }
         }
     }
 
     private fun load(year: Int) {
         viewModelScope.launch {
-            transactionsLoaded = false
             val switchingYear = year != _uiState.value.year
             _uiState.update {
                 // Keep what's on screen while reloading the same year; switching year starts clean.
-                val hasData = it.categories.isNotEmpty() && !switchingYear
+                val hasData = !it.isLoading && !switchingYear && it.error == null
                 it.copy(
                     year = year,
                     isLoading = !hasData,
                     isRefreshing = hasData,
                     error = null,
                     categories = if (switchingYear) emptyList() else it.categories,
-                    transactions = emptyList(),
-                    transactionsError = null,
                 )
             }
             try {
-                // coroutineScope (not bare async inside launch): if a read fails, the error is
-                // rethrown here for the catch below. A bare async child would instead cancel
-                // the whole launch and crash the app with an uncaught exception.
-                val (ledgerYear, plans) = coroutineScope {
-                    val ledgerDeferred = async { repository.readYear(year) }
-                    val plansDeferred = async { budgetRepository.getPlans() }
-                    ledgerDeferred.await() to plansDeferred.await()
-                }
-
-                val currentPeriod = BudgetPeriod.current()
-                val periods = BudgetPeriod.allIn(year)
-                val categories = BudgetSummaryMapper.build(
-                    entries = ledgerYear.expenses,
-                    periods = periods,
-                    plans = plans,
-                    buckets = LedgerProfile.current().spendingBuckets,
-                )
-                val totalBudgetByPeriod = periods
-                    .mapNotNull { p -> plans[p.id]?.effectiveTotal?.takeIf { it > 0.0 }?.let { p.id to it } }
-                    .toMap()
-                val viewingCurrentYear = year == currentPeriod.year
-
-                _uiState.update { state ->
-                    state.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        earliestYear = ledgerYear.earliestYear?.coerceAtMost(year),
-                        categories = categories,
-                        periods = periods,
-                        totalBudgetByPeriod = totalBudgetByPeriod,
-                        currentPeriod = currentPeriod,
-                        // The Add screen's banner is always about today, so only the current
-                        // year's load may set it — browsing 2025 must not change it.
-                        thisPeriod = if (viewingCurrentYear) {
-                            BudgetStatus(
-                                spent = categories.sumOf { c -> c.spentIn(currentPeriod.id) },
-                                budget = totalBudgetByPeriod[currentPeriod.id] ?: 0.0,
-                            )
-                        } else {
-                            state.thisPeriod
-                        },
-                        // Guests run on demo budgets; everyone else is asked once the window opens.
-                        budgetPrompt = if (viewingCurrentYear) {
-                            BudgetPeriod.budgetingNow()
-                                ?.takeIf { p -> !Session.isGuest && plans[p.id]?.isEmpty != false }
-                        } else {
-                            state.budgetPrompt
-                        },
-                        selectedPeriodId = focusedPeriod(state.selectedPeriodId, periods, categories, currentPeriod),
-                        // Keep the chosen category on a refresh; otherwise pre-pick the biggest
-                        // spender so "By Category" has data the instant the user switches to it.
-                        selectedCategory = state.selectedCategory?.takeIf { c -> categories.any { s -> s.category == c } }
-                            ?: categories.maxByOrNull { s -> s.totalSpent }?.category,
-                    )
-                }
-                // Refreshing while the drill-down is open should reload its rows too.
-                if (_uiState.value.viewMode == SummaryViewMode.BY_CATEGORY) {
-                    ensureTransactionsLoaded()
-                }
+                // Budgets and categories first: the prompt and the breakdown both depend on them.
+                config.ensureLoaded()
+                val ledgerYear = ledger.readYear(year)
+                if (_uiState.value.year != year) return@launch // the user moved on meanwhile
+                loaded = LoadedYear(year, ledgerYear.expenses, ledgerYear.earliestYear)
+                recompute()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoading = false, isRefreshing = false, error = e.toUserMessage("Couldn't load your summary."))
                 }
             }
+        }
+    }
+
+    /** Rebuilds every figure from the loaded year and the current lists and budgets. */
+    private fun recompute() {
+        val year = loaded?.takeIf { it.year == _uiState.value.year } ?: return
+        val configState = config.state.value
+        val userConfig: UserConfig = configState.config
+        val plans = userConfig.budgets
+        val buckets = profile.bucketsFor(userConfig)
+        val currentPeriod = BudgetPeriod.current()
+        val periods = BudgetPeriod.allIn(year.year)
+        val categories = BudgetSummaryMapper.build(year.expenses, periods, plans, buckets)
+        val totalBudgetByPeriod = periods
+            .mapNotNull { p -> plans[p.id]?.effectiveTotal?.takeIf { it > 0.0 }?.let { p.id to it } }
+            .toMap()
+        val viewingCurrentYear = year.year == currentPeriod.year
+
+        _uiState.update { state ->
+            state.copy(
+                isLoading = false,
+                isRefreshing = false,
+                earliestYear = year.earliestYear?.coerceAtMost(year.year),
+                categories = categories,
+                buckets = buckets,
+                periods = periods,
+                totalBudgetByPeriod = totalBudgetByPeriod,
+                currentPeriod = currentPeriod,
+                transactions = year.expenses,
+                // The Add screen's banner is always about today, so only the current year may set it.
+                thisPeriod = if (viewingCurrentYear) {
+                    BudgetStatus(
+                        spent = categories.sumOf { c -> c.spentIn(currentPeriod.id) },
+                        budget = totalBudgetByPeriod[currentPeriod.id] ?: 0.0,
+                    )
+                } else {
+                    state.thisPeriod
+                },
+                // Only ask once the saved budgets are known — never on a failed or partial load.
+                budgetPrompt = when {
+                    !viewingCurrentYear -> state.budgetPrompt
+                    configState.error != null -> null
+                    else -> BudgetPeriod.budgetingNow()?.takeIf { p -> plans[p.id]?.isEmpty != false }
+                },
+                budgetPromptOpensSheet = plans.values.any { !it.isEmpty },
+                selectedPeriodId = focusedPeriod(state.selectedPeriodId, periods, categories, currentPeriod),
+                // Keep the chosen category on a refresh; otherwise pre-pick the biggest spender so
+                // "By Category" has data the instant the user switches to it.
+                selectedCategory = state.selectedCategory?.takeIf { c -> categories.any { s -> s.category == c } }
+                    ?: categories.maxByOrNull { s -> s.totalSpent }?.category,
+            )
         }
     }
 
@@ -228,35 +241,5 @@ class SummaryViewModel(
         periods.firstOrNull { it == today }?.let { return it.id }
         return periods.lastOrNull { p -> categories.any { c -> c.spentIn(p.id) > 0.0 } }?.id
             ?: periods.lastOrNull()?.id
-    }
-
-    private fun selectViewMode(mode: SummaryViewMode) {
-        _uiState.update { state ->
-            val category = state.selectedCategory
-                ?: state.categories.maxByOrNull { it.totalSpent }?.category
-            state.copy(viewMode = mode, selectedCategory = category)
-        }
-        if (mode == SummaryViewMode.BY_CATEGORY) ensureTransactionsLoaded()
-    }
-
-    /** Loads the drill-down transactions for the charted year once; no-op if already loaded. */
-    private fun ensureTransactionsLoaded() {
-        if (transactionsLoaded || _uiState.value.transactionsLoading) return
-        viewModelScope.launch {
-            _uiState.update { it.copy(transactionsLoading = true, transactionsError = null) }
-            val year = _uiState.value.year
-            try {
-                val txns = repository.expensesIn(year)
-                transactionsLoaded = true
-                _uiState.update {
-                    // Ignore a late result for a year the user has already navigated away from.
-                    if (it.year != year) it else it.copy(transactions = txns, transactionsLoading = false)
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(transactionsLoading = false, transactionsError = e.toUserMessage("Couldn't load transactions."))
-                }
-            }
-        }
     }
 }

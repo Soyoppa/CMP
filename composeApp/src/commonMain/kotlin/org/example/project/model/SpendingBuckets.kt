@@ -1,9 +1,9 @@
 package org.example.project.model
 
 /**
- * The Summary and Budget screens show a handful of roll-up buckets (Food, Bills, …) while the
- * ledger records finer per-transaction categories. A [SpendingBuckets] set maps each bucket to
- * the categories that feed it.
+ * The Summary and Budget screens show spending per bucket. For everyone that's simply each of their
+ * own categories ([of]); the household sheet rolls its finer categories up into a few buckets
+ * ([HOUSEHOLD]). A [SpendingBuckets] set maps each bucket to the categories that feed it.
  *
  * Matching is normalized (lower-cased, trimmed, collapsed whitespace). A bucket always includes
  * its own name as a member, so data that already uses the bucket name directly still resolves.
@@ -16,7 +16,9 @@ class SpendingBuckets(
 ) {
     /** normalized bucket -> normalized member categories (bucket name included). */
     private val groups: Map<String, Set<String>> =
-        members.entries.associate { (bucket, cats) -> normalize(bucket) to (cats.map(::normalize).toSet() + normalize(bucket)) }
+        (names + members.keys).distinct().associate { bucket ->
+            normalize(bucket) to (members[bucket].orEmpty().map(::normalize).toSet() + normalize(bucket))
+        }
 
     private val displayByKey: Map<String, String> = names.associateBy(::normalize)
 
@@ -40,18 +42,9 @@ class SpendingBuckets(
         private fun normalize(value: String): String =
             value.trim().lowercase().split(Regex("\\s+")).joinToString(" ")
 
-        /** Buckets for the default (store) category list, see [StandardCategories]. */
-        val STANDARD = SpendingBuckets(
-            names = listOf("Food", "Bills", "Transport", "Shopping", "Lifestyle", "Giving"),
-            members = mapOf(
-                "Food" to setOf("Food & Dining", "Groceries"),
-                "Bills" to setOf("Bills & Utilities", "Rent"),
-                "Transport" to setOf("Transportation", "Travel"),
-                "Shopping" to setOf("Shopping", "Personal Care"),
-                "Lifestyle" to setOf("Health", "Entertainment", "Education"),
-                "Giving" to setOf("Gifts & Donations"),
-            ),
-        )
+        /** One bucket per category: the user budgets exactly the categories they created. */
+        fun of(categories: List<String>): SpendingBuckets =
+            SpendingBuckets(names = categories, members = emptyMap())
 
         /** Buckets for the tracker_1 household sheet ('Data Dump' categories). */
         val HOUSEHOLD = SpendingBuckets(

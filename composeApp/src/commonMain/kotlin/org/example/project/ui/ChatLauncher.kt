@@ -209,7 +209,6 @@ fun ChatModal(
     visible: Boolean,
     onClose: () -> Unit,
     viewModel: ChatViewModel,
-    onRequestSignUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -256,7 +255,6 @@ fun ChatModal(
                     modifier = Modifier.fillMaxSize(),
                     viewModel = viewModel,
                     bottomPadding = 24.dp,
-                    onRequestSignUp = onRequestSignUp,
                     onClose = onClose,
                 )
             }

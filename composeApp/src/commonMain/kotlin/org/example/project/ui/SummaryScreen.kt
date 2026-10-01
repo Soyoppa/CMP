@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetStatus
@@ -158,8 +157,7 @@ fun SummaryScreen(
                     viewMode = uiState.viewMode,
                     selectedCategory = uiState.selectedCategory,
                     transactions = uiState.transactions,
-                    transactionsLoading = uiState.transactionsLoading,
-                    transactionsError = uiState.transactionsError,
+                    buckets = uiState.buckets,
                     onPeriodSelected = { viewModel.onEvent(SummaryEvent.PeriodSelected(it)) },
                     onMonthSelected = { viewModel.onEvent(SummaryEvent.MonthSelected(it)) },
                     onViewModeSelected = { viewModel.onEvent(SummaryEvent.ViewModeSelected(it)) },
@@ -189,8 +187,8 @@ private fun SummaryContent(
     viewMode: SummaryViewMode,
     selectedCategory: String?,
     transactions: List<LedgerEntry>,
-    transactionsLoading: Boolean,
-    transactionsError: String?,
+    /** How a transaction's category maps onto the breakdown's rows. */
+    buckets: SpendingBuckets,
     onPeriodSelected: (String) -> Unit,
     onMonthSelected: (String) -> Unit,
     onViewModeSelected: (SummaryViewMode) -> Unit,
@@ -326,8 +324,7 @@ private fun SummaryContent(
         if (showTransactions && activeCategory != null) {
             CategoryTransactions(
                 transactions = transactions,
-                isLoading = transactionsLoading,
-                error = transactionsError,
+                buckets = buckets,
                 category = activeCategory.category,
                 period = selectedPeriod,
                 chartedPeriods = periods,
@@ -350,18 +347,17 @@ private fun SummaryContent(
 @Composable
 private fun CategoryTransactions(
     transactions: List<LedgerEntry>,
-    isLoading: Boolean,
-    error: String?,
+    buckets: SpendingBuckets,
     category: String,
     /** The selected cut-off, or null for every charted one. */
     period: BudgetPeriod?,
     chartedPeriods: List<BudgetPeriod>,
     accent: Color,
 ) {
-    val items = remember(transactions, category, period, chartedPeriods) {
+    val items = remember(transactions, buckets, category, period, chartedPeriods) {
         transactions
             .filter {
-                LedgerProfile.current().spendingBuckets.matches(it.category, category) &&
+                buckets.bucketFor(it.category) == category &&
                     BudgetPeriod.of(it).let { p -> if (period != null) p == period else p in chartedPeriods }
             }
             .sortedByDescending { it.amount }
@@ -401,21 +397,6 @@ private fun CategoryTransactions(
         }
 
         when {
-            isLoading -> Box(
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(
-                    color = accent,
-                    strokeWidth = 2.5.dp,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-
-            error != null -> TransactionsNotice(
-                text = "Couldn't load transactions.\n$error",
-            )
-
             items.isEmpty() -> TransactionsNotice(
                 text = "No transactions recorded for $category in ${period?.label ?: "these cut-offs"}.",
             )
@@ -1301,7 +1282,7 @@ private fun SummaryEmpty() {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "No summary data found.\nMake sure the 'Summary' tab exists in your sheet.",
+            text = "Nothing to summarise yet.\nLog an expense from the + tab and it shows up here.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

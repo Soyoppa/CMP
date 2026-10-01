@@ -8,10 +8,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
+import org.example.project.AppContainer
 import org.example.project.config.LedgerProfile
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
-import org.example.project.repository.BudgetRepository
+import org.example.project.repository.ConfigRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
@@ -35,7 +36,7 @@ data class BudgetUiState(
     val isSuggestion: Boolean = false,
     /** Raw text of the overall budget field (empty = use the category sum). */
     val totalInput: String = "",
-    /** The editable buckets, in display order. */
+    /** The editable buckets, in display order — the user's expense categories. Empty until they add some. */
     val buckets: List<String> = emptyList(),
     /** bucket name -> the raw text in its input field (empty = no budget). */
     val amounts: Map<String, String> = emptyMap(),
@@ -70,13 +71,13 @@ sealed interface BudgetEvent {
  *
  * It opens on the cut-off whose budgeting window is open (see [BudgetPeriod.budgetingNow]) — that
  * can be the upcoming one in the days just before it starts — otherwise on the current cut-off.
- * A cut-off with no budget yet is pre-filled from the most recent earlier one (or half the old
- * monthly budget) so the user reviews and saves instead of retyping. Saving writes every field,
- * with explicit zeros for cleared ones.
+ * A cut-off with no budget yet is pre-filled from the most recent earlier one so the user reviews
+ * and saves instead of retyping. Budgets live with the rest of the user's config (on the phone or
+ * in their account), so a save shows up on the Summary straight away.
  */
 class BudgetViewModel(
-    private val budgetRepository: BudgetRepository = BudgetRepository(),
-    buckets: List<String> = LedgerProfile.current().spendingBuckets.names,
+    private val config: ConfigRepository = AppContainer.session().config,
+    private val profile: LedgerProfile = AppContainer.session().profile,
     private val today: LocalDate = DateUtils.today(),
 ) : ViewModel() {
 
@@ -87,7 +88,6 @@ class BudgetViewModel(
             BudgetUiState(
                 period = target,
                 selectablePeriods = listOf(currentPeriod, target).distinct(),
-                buckets = buckets,
             )
         }
     )
@@ -106,22 +106,26 @@ class BudgetViewModel(
                 isLoading = true,
                 isSuggestion = false,
                 totalInput = "",
-                amounts = state.buckets.associateWith { "" },
+                amounts = emptyMap(),
                 saved = false,
                 error = null,
             )
         }
         viewModelScope.launch {
-            val plans = budgetRepository.getPlans()
-            val saved = plans[period.id]?.takeUnless { it.isEmpty }
-            val plan = saved ?: budgetRepository.suggestPlan(period, plans)
+            config.ensureLoaded()
+            val userConfig = config.config
+            val saved = userConfig.budgets[period.id]?.takeUnless { it.isEmpty }
+            val plan = saved ?: userConfig.suggestedPlan(period)
+            val buckets = profile.bucketsFor(userConfig).names
             _uiState.update { state ->
                 if (state.period != period) return@update state // the user switched again meanwhile
                 state.copy(
                     isLoading = false,
+                    error = config.state.value.error,
                     isSuggestion = saved == null && plan != null,
+                    buckets = buckets,
                     totalInput = plan?.total?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty(),
-                    amounts = state.buckets.associateWith { bucket ->
+                    amounts = buckets.associateWith { bucket ->
                         plan?.byBucket?.get(bucket)?.takeIf { it > 0.0 }?.let(::formatAmount).orEmpty()
                     },
                 )
@@ -152,7 +156,7 @@ class BudgetViewModel(
                 total = state.totalInput.toDoubleOrNull() ?: 0.0,
                 byBucket = state.buckets.associateWith { bucket -> state.amounts[bucket]?.toDoubleOrNull() ?: 0.0 },
             )
-            val result = budgetRepository.savePlan(state.period, plan)
+            val result = config.saveBudget(state.period, plan)
             _uiState.update {
                 if (result.isSuccess) it.copy(isSaving = false, saved = true, isSuggestion = false)
                 else it.copy(

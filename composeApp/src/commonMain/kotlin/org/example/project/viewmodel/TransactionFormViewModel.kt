@@ -8,21 +8,23 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.AppContainer
-import org.example.project.auth.Session
+import org.example.project.auth.AppUser
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiRepository
-import org.example.project.data.settings.UserSettingsStore
-import org.example.project.domain.transaction.AddTransactionUseCase
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.TransactionFormReducer
 import org.example.project.domain.transaction.TransactionFormState
 import org.example.project.domain.transaction.VoiceAiUsage
+import org.example.project.model.OptionList
 import org.example.project.model.Transaction
-import org.example.project.repository.UserListRepository
+import org.example.project.repository.ConfigRepository
+import org.example.project.repository.LedgerRepository
 import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 import org.example.project.voice.VoiceInputController
@@ -36,20 +38,25 @@ import org.example.project.voice.provideVoiceInputController
  * the pure [TransactionFormReducer] folds them into [formState], and one-time outcomes
  * (success / error / clear) are emitted as [TransactionFormEffect]s for the UI to react to.
  *
+ * The pickers show the user's own lists from [ConfigRepository] and follow every edit made
+ * elsewhere; a name typed into a picker is added to the list on the spot.
+ *
  * Voice entry is layered on top: the platform [VoiceInputController] streams recognition state,
  * which the ViewModel translates into form updates — parsing the transcript locally and falling
- * back to [AiRepository.classifyCategory] only when the spoken category is ambiguous.
+ * back to [AiRepository.classifyCategory] only when the spoken category is ambiguous (and the
+ * session has AI at all).
  */
 class TransactionFormViewModel(
-    private val addTransactionUseCase: AddTransactionUseCase = AddTransactionUseCase(),
+    private val ledger: LedgerRepository = AppContainer.session().ledger,
+    private val config: ConfigRepository = AppContainer.session().config,
+    private val profile: LedgerProfile = AppContainer.session().profile,
     private val voiceController: VoiceInputController = provideVoiceInputController(),
-    private val aiRepository: AiRepository = AppContainer.aiRepository,
-    private val categoryRepository: UserListRepository = UserListRepository(UserSettingsStore.CATEGORIES_LIST),
-    private val paymentModeRepository: UserListRepository = UserListRepository(UserSettingsStore.PAYMENT_MODES_LIST),
-    private val profile: LedgerProfile = LedgerProfile.current(),
+    /** Voice category fallback; null without an account (the AI assistant is an account feature). */
+    private val aiRepository: AiRepository? =
+        AppContainer.aiRepository.takeIf { AppContainer.session().user is AppUser.Account },
 ) : ViewModel() {
 
-    private val _formState = MutableStateFlow(createInitialFormState())
+    private val _formState = MutableStateFlow(initialFormState())
     val formState: StateFlow<TransactionFormState> = _formState.asStateFlow()
 
     private val _effects = MutableSharedFlow<TransactionFormEffect>()
@@ -60,23 +67,7 @@ class TransactionFormViewModel(
             _formState.update { it.copy(isVoiceSupported = true) }
             observeVoice()
         }
-        refreshOptions()
-    }
-
-    /**
-     * Re-fetches the user's cloud-saved category/payment-mode lists, falling back to the schema
-     * defaults already seeding [TransactionFormState]. Called at init, and again by the caller
-     * after the Manage Categories/Payment Modes screens close so edits show up without a restart.
-     */
-    fun refreshOptions() {
-        viewModelScope.launch {
-            val categories = categoryRepository.getItems(profile.categoryOptions)
-            _formState.update { it.copy(categoryOptions = categories) }
-        }
-        viewModelScope.launch {
-            val paymentModes = paymentModeRepository.getItems(profile.paymentModeOptions)
-            _formState.update { it.copy(paymentModeOptions = paymentModes) }
-        }
+        observeOptions()
     }
 
     fun onEvent(event: TransactionFormEvent) {
@@ -84,7 +75,33 @@ class TransactionFormViewModel(
             TransactionFormEvent.FormSubmitted -> addTransaction()
             TransactionFormEvent.VoiceInputToggled -> toggleVoice()
             TransactionFormEvent.ClearForm -> viewModelScope.launch { resetForm() }
-            else -> _formState.update { TransactionFormReducer.reduce(it, event) }
+            is TransactionFormEvent.OptionCreated -> createOption(event.list, event.name)
+            else -> reduce(event)
+        }
+    }
+
+    private fun reduce(event: TransactionFormEvent) = _formState.update { TransactionFormReducer.reduce(it, event) }
+
+    /** Keeps the pickers in step with the session's lists, wherever they're edited. */
+    private fun observeOptions() {
+        viewModelScope.launch { config.ensureLoaded() }
+        viewModelScope.launch {
+            config.state.map { it.config }.distinctUntilChanged().collect { c ->
+                reduce(TransactionFormEvent.OptionsLoaded(c.expenseCategories, c.incomeCategories, c.paymentModes))
+            }
+        }
+    }
+
+    private fun createOption(list: OptionList, name: String) {
+        viewModelScope.launch {
+            config.addOption(list, name)
+                .onSuccess { saved ->
+                    reduce(
+                        if (list == OptionList.PAYMENT_MODES) TransactionFormEvent.PaymentModeSelected(saved)
+                        else TransactionFormEvent.CategorySelected(saved)
+                    )
+                }
+                .onFailure { e -> _effects.emit(TransactionFormEffect.ShowError(e.toUserMessage("Couldn't add that."))) }
         }
     }
 
@@ -104,17 +121,15 @@ class TransactionFormViewModel(
         viewModelScope.launch {
             voiceController.state.collect { state ->
                 when (state) {
-                    is VoiceState.Idle ->
-                        dispatchVoiceStatus(VoiceStatus.Idle)
-                    is VoiceState.Listening ->
-                        dispatchVoiceStatus(VoiceStatus.Listening)
+                    is VoiceState.Idle -> reduce(TransactionFormEvent.VoiceStatusChanged(VoiceStatus.Idle))
+                    is VoiceState.Listening -> reduce(TransactionFormEvent.VoiceStatusChanged(VoiceStatus.Listening))
                     is VoiceState.Result -> {
-                        dispatchVoiceStatus(VoiceStatus.Processing)
+                        reduce(TransactionFormEvent.VoiceStatusChanged(VoiceStatus.Processing))
                         applyTranscript(state.transcript)
                         voiceController.reset()
                     }
                     is VoiceState.Error -> {
-                        dispatchVoiceStatus(VoiceStatus.Idle)
+                        reduce(TransactionFormEvent.VoiceStatusChanged(VoiceStatus.Idle))
                         _effects.emit(TransactionFormEffect.ShowError(state.message))
                         voiceController.reset()
                     }
@@ -123,110 +138,75 @@ class TransactionFormViewModel(
         }
     }
 
-    private fun dispatchVoiceStatus(status: VoiceStatus) =
-        _formState.update { TransactionFormReducer.reduce(it, TransactionFormEvent.VoiceStatusChanged(status)) }
-
     /**
      * Local-first: parse amount/description/income + a best-effort category from the transcript.
      * Only when the category is still unknown do we spend an AI round-trip to classify it.
      */
     private suspend fun applyTranscript(transcript: String) {
-        val features = profile
-
         // First pass detects the income/expense cue so we can pick the correct category list.
-        val probe = VoiceTransactionParser.parse(transcript, emptyList(), features.showIncomeOption)
-        val income = probe.isIncome ?: _formState.value.isIncome
-        // Income categories are still schema-static; expense categories reflect the user's
-        // custom (or default) list currently loaded in the form.
-        val options =
-            if (features.showIncomeOption && income) features.incomeCategoryOptions
-            else _formState.value.categoryOptions
+        val probe = VoiceTransactionParser.parse(transcript, emptyList(), profile.showIncomeOption)
+        val income = profile.showIncomeOption && (probe.isIncome ?: _formState.value.isIncome)
+        val options = with(_formState.value) { if (income) incomeCategories else expenseCategories }
 
-        val parsed = VoiceTransactionParser.parse(transcript, options, features.showIncomeOption)
+        val parsed = VoiceTransactionParser.parse(transcript, options, profile.showIncomeOption)
 
         if (parsed.amount == null && parsed.description.isBlank()) {
-            dispatchVoiceStatus(VoiceStatus.Idle)
+            reduce(TransactionFormEvent.VoiceStatusChanged(VoiceStatus.Idle))
             _effects.emit(TransactionFormEffect.ShowError("Couldn't understand that — try \"250 for groceries\"."))
             return
         }
 
-        _formState.update {
-            TransactionFormReducer.reduce(
-                it,
-                TransactionFormEvent.VoiceResultApplied(
-                    amount = parsed.amount,
-                    description = parsed.description,
-                    category = parsed.category,
-                    isIncome = probe.isIncome,
-                ),
+        reduce(
+            TransactionFormEvent.VoiceResultApplied(
+                amount = parsed.amount,
+                description = parsed.description,
+                category = parsed.category,
+                isIncome = probe.isIncome,
             )
-        }
+        )
 
-        // Category fallback: parser couldn't match a known option → let the AI decide.
-        if (parsed.category == null) {
-            val classification = aiRepository.classifyCategory(transcript, options)
+        val ai = aiRepository
+        if (parsed.category == null && ai != null && options.isNotEmpty()) {
+            // The parser couldn't match one of the user's categories → let the AI pick one.
+            val classification = ai.classifyCategory(transcript, options)
             val result = classification.result
-            // Report the token cost of this round-trip for the per-add usage readout.
-            dispatchVoiceAiUsage(
-                VoiceAiUsage(
-                    aiInvoked = true,
-                    provider = result?.provider?.displayName,
-                    model = result?.model,
-                    promptTokens = result?.promptTokens ?: 0,
-                    responseTokens = result?.responseTokens ?: 0,
+            reduce(
+                TransactionFormEvent.VoiceAiUsageReported(
+                    VoiceAiUsage(
+                        aiInvoked = true,
+                        provider = result?.provider?.displayName,
+                        model = result?.model,
+                        promptTokens = result?.promptTokens ?: 0,
+                        responseTokens = result?.responseTokens ?: 0,
+                    )
                 )
             )
-            if (classification.category != null) {
-                _formState.update {
-                    TransactionFormReducer.reduce(
-                        it,
-                        TransactionFormEvent.VoiceResultApplied(
-                            amount = null,
-                            description = "",
-                            category = classification.category,
-                            isIncome = null,
-                        ),
-                    )
-                }
+            classification.category?.let { category ->
+                reduce(TransactionFormEvent.VoiceResultApplied(amount = null, description = "", category = category, isIncome = null))
             }
         } else {
-            // Category matched locally — no AI round-trip, no tokens spent.
-            dispatchVoiceAiUsage(VoiceAiUsage(aiInvoked = false))
+            // Matched locally (or nothing to match against) — no AI round-trip, no tokens spent.
+            reduce(TransactionFormEvent.VoiceAiUsageReported(VoiceAiUsage(aiInvoked = false)))
         }
 
-        dispatchVoiceStatus(VoiceStatus.Idle)
+        reduce(TransactionFormEvent.VoiceStatusChanged(VoiceStatus.Idle))
     }
-
-    private fun dispatchVoiceAiUsage(usage: VoiceAiUsage) =
-        _formState.update {
-            TransactionFormReducer.reduce(it, TransactionFormEvent.VoiceAiUsageReported(usage))
-        }
 
     // --- Save ----------------------------------------------------------------
 
     private fun addTransaction() {
         val state = _formState.value
-
         validateForm(state)?.let { error ->
             viewModelScope.launch { _effects.emit(TransactionFormEffect.ShowError(error)) }
-            return
-        }
-
-        // Guest/demo mode: never write to the sheet, but show an honest success.
-        if (Session.isGuest) {
-            viewModelScope.launch {
-                _effects.emit(TransactionFormEffect.ShowSuccess("Demo mode — transaction not saved."))
-                resetForm()
-            }
             return
         }
 
         _formState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
-                val result = addTransactionUseCase(buildTransaction(state))
+                val result = ledger.addTransaction(buildTransaction(state))
                 if (result.success) {
-                    _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved successfully!"))
+                    _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved"))
                     resetForm()
                 } else {
                     _effects.emit(TransactionFormEffect.ShowError(result.errorMessage ?: "Failed to save transaction."))
@@ -239,16 +219,16 @@ class TransactionFormViewModel(
         }
     }
 
-    /** Clears the form back to defaults and signals the UI to drop focus/keyboard. */
+    /** Clears the form (keeping the loaded lists) and signals the UI to drop focus/keyboard. */
     private suspend fun resetForm() {
-        val loadedOptions = _formState.value
-        _formState.value = createInitialFormState().copy(
-            isVoiceSupported = voiceController.isSupported,
-            // Keep whatever category/payment lists are currently loaded — otherwise every save
-            // would silently revert the pickers back to schema defaults until the next refresh.
-            categoryOptions = loadedOptions.categoryOptions,
-            paymentModeOptions = loadedOptions.paymentModeOptions,
-        )
+        _formState.update { current ->
+            initialFormState().copy(
+                isVoiceSupported = current.isVoiceSupported,
+                expenseCategories = current.expenseCategories,
+                incomeCategories = current.incomeCategories,
+                paymentModes = current.paymentModes,
+            )
+        }
         _effects.emit(TransactionFormEffect.FormCleared)
     }
 
@@ -274,17 +254,5 @@ class TransactionFormViewModel(
         )
     }
 
-    private fun createInitialFormState() = TransactionFormState(
-        selectedDate = DateUtils.getCurrentDateFormatted(),
-        selectedCategory = DEFAULT_OPTION,
-        selectedPaymentMode = DEFAULT_OPTION,
-        // Instant defaults so the form is usable before refreshOptions()'s cloud fetch resolves.
-        categoryOptions = profile.categoryOptions,
-        paymentModeOptions = profile.paymentModeOptions,
-    )
-
-    private companion object {
-        /** Pre-selected category / payment mode; every default list ends with "Other". */
-        const val DEFAULT_OPTION = "Other"
-    }
+    private fun initialFormState() = TransactionFormState(selectedDate = DateUtils.getCurrentDateFormatted())
 }

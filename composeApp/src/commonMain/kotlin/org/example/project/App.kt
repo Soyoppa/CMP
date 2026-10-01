@@ -57,7 +57,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.add
 import kotlinproject.composeapp.generated.resources.app_logo
@@ -67,21 +66,24 @@ import kotlinproject.composeapp.generated.resources.failed
 import kotlinproject.composeapp.generated.resources.success
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import org.example.project.auth.AppUser
-import org.example.project.auth.AuthState
 import org.example.project.auth.Session
+import org.example.project.auth.SessionState
+import org.example.project.auth.sessionKey
 import org.example.project.config.FeatureFlagStore
-import org.example.project.config.LedgerProfile
 import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
+import org.example.project.ui.AccountSheet
 import org.example.project.ui.BudgetScreen
-import org.example.project.ui.CategoryManagementScreen
+import org.example.project.ui.CategoriesScreen
 import org.example.project.ui.ChatBubble
 import org.example.project.ui.ChatModal
 import org.example.project.ui.DeleteAccountDialog
-import org.example.project.ui.LoginScreen
-import org.example.project.ui.PaymentModeManagementScreen
 import org.example.project.ui.OverlayScope
+import org.example.project.ui.PaymentModesScreen
 import org.example.project.ui.PaymentStatusScreen
 import org.example.project.ui.PlatformBackHandler
 import org.example.project.ui.SessionScope
@@ -89,12 +91,12 @@ import org.example.project.ui.SettingsScreen
 import org.example.project.ui.SummaryScreen
 import org.example.project.ui.TransactionFormScreen
 import org.example.project.ui.TransactionHistoryScreen
+import org.example.project.ui.WelcomeScreen
 import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.FinanceTrackerTheme
-import org.example.project.viewmodel.AuthEvent
-import org.example.project.viewmodel.AuthViewModel
-import org.example.project.viewmodel.SummaryEvent
+import org.example.project.viewmodel.AuthMode
+import org.example.project.viewmodel.createAuthViewModel
 import org.example.project.viewmodel.createChatViewModel
 import org.example.project.viewmodel.createSummaryViewModel
 import org.example.project.viewmodel.createTransactionFormViewModel
@@ -131,32 +133,28 @@ fun App() {
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val resolvedDark = darkThemeOverride ?: systemDark
     FinanceTrackerTheme(darkTheme = resolvedDark) {
-        val authRepository = AppContainer.authRepository
-        val authViewModel = viewModel { AuthViewModel(authRepository) }
-        val authState by Session.state.collectAsState()
+        val sessionState by Session.state.collectAsState()
 
-        // Restore any persisted session and fetch remote feature flags once at startup.
-        LaunchedEffect(Unit) { authRepository.restoreSession() }
+        // Restore the previous session (account, or this-phone-only) and fetch remote feature
+        // flags once at startup.
+        LaunchedEffect(Unit) { AppContainer.sessionRepository.restore() }
         LaunchedEffect(Unit) { createFeatureFlagLoader().load() }
 
-        when (val auth = authState) {
-            AuthState.Loading -> AuthSplash()
+        when (val session = sessionState) {
+            SessionState.Loading -> AuthSplash()
 
-            AuthState.SignedOut -> LoginScreen(
-                viewModel = authViewModel,
-                modifier = Modifier.fillMaxSize(),
-            )
+            // Its own scope, so every return to this screen starts from a clean form.
+            SessionState.SignedOut -> OverlayScope {
+                WelcomeScreen(viewModel = createAuthViewModel(), modifier = Modifier.fillMaxSize())
+            }
 
-            // Everything behind the gate lives in a per-session scope: signing out (or in as
-            // someone else) discards every ViewModel, so no data survives into the next session.
-            is AuthState.Authenticated -> SessionScope(sessionKey = auth.user.uid) {
+            // Everything behind the gate lives in a per-session scope: signing out, switching
+            // account or ledger discards every ViewModel, so no data survives into the next session.
+            is SessionState.Active -> SessionScope(sessionKey = session.user.sessionKey) {
                 SignedInApp(
-                    user = auth.user,
+                    user = session.user,
                     isDarkTheme = resolvedDark,
                     onDarkThemeChange = { darkThemeOverride = it },
-                    // Guest -> "Create account": sign the guest out and land on sign-up.
-                    onRequestSignUp = { authViewModel.onEvent(AuthEvent.SignUpRequested) },
-                    onSignOut = { authViewModel.onEvent(AuthEvent.SignOutClicked) },
                 )
             }
         }
@@ -168,19 +166,34 @@ private fun SignedInApp(
     user: AppUser,
     isDarkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
-    onRequestSignUp: () -> Unit,
-    onSignOut: () -> Unit,
 ) {
-    val profile = remember(user) { LedgerProfile.forUser(user) }
+    val graph = remember(user) { AppContainer.session() }
+    val profile = graph.profile
     val transactionFormViewModel = createTransactionFormViewModel()
-    val chatViewModel = createChatViewModel()
-    // Owned here so we can refresh it after the budget editor closes (reflect saved changes).
+    // Owned here: it also feeds the Add screen's "left to spend" banner and the budget prompt.
     val summaryViewModel = createSummaryViewModel()
     val summaryState by summaryViewModel.uiState.collectAsState()
     val featureFlags by FeatureFlagStore.state.collectAsState()
-    // Chat needs Gemini on this platform (web + Android) and the remote kill-switch on.
-    val chatAvailable = featureFlags.chatEnabled && AppContainer.aiRepository.isGeminiAvailable
+    // The assistant is an account feature, and needs Gemini on this platform (web + Android) and
+    // the remote kill-switch on.
+    val chatAvailable = user is AppUser.Account && featureFlags.chatEnabled && AppContainer.aiRepository.isGeminiAvailable
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Accounts can be edited elsewhere (the web, another phone): coming back to the app re-reads.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    if (user is AppUser.Account) {
+        LaunchedEffect(graph, lifecycleOwner) {
+            var firstResume = true
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                if (firstResume) {
+                    firstResume = false
+                } else {
+                    graph.ledger.invalidate()
+                    graph.config.refresh()
+                }
+            }
+        }
+    }
 
     // Every session lands on ADD.
     var selectedTab by remember { mutableStateOf(NavTab.ADD) }
@@ -193,19 +206,17 @@ private fun SignedInApp(
     var paymentStatusOpen by remember { mutableStateOf(false) }
     var transactionsOpen by remember { mutableStateOf(false) }
     var deleteAccountOpen by remember { mutableStateOf(false) }
-    // Deleting transactions changes totals, so the Summary reloads whenever the history closes.
-    val closeTransactions = {
-        transactionsOpen = false
-        summaryViewModel.onEvent(SummaryEvent.Refresh)
-    }
+    // No-account mode: the sign-in / sign-up sheet that moves this phone's data into an account.
+    var accountSheetMode by remember { mutableStateOf<AuthMode?>(null) }
     val anyOverlayOpen = chatOpen || budgetOpen || categoriesOpen || paymentModesOpen ||
-        paymentStatusOpen || transactionsOpen || deleteAccountOpen
+        paymentStatusOpen || transactionsOpen || deleteAccountOpen || accountSheetMode != null
 
     // System back closes the top-most overlay instead of leaving the app.
     PlatformBackHandler(enabled = anyOverlayOpen) {
         when {
+            accountSheetMode != null -> accountSheetMode = null
             deleteAccountOpen -> deleteAccountOpen = false
-            transactionsOpen -> closeTransactions()
+            transactionsOpen -> transactionsOpen = false
             paymentStatusOpen -> paymentStatusOpen = false
             paymentModesOpen -> paymentModesOpen = false
             categoriesOpen -> categoriesOpen = false
@@ -217,12 +228,15 @@ private fun SignedInApp(
     // Budgets are set when the salary arrives, so the app only asks while a cut-off's budgeting
     // window is open (the 14th–20th, and two days before the 1st through the 5th) and it has no
     // budget yet. Then the editor opens by itself, pre-filled from the last budget — once per
-    // cut-off per session; dismissing it leaves the prompt banner on the Add screen.
+    // cut-off per session; dismissing it leaves the prompt banner on the Add screen. Someone who
+    // has never budgeted (a first launch) only gets the banner.
     var promptedPeriodId by remember { mutableStateOf<String?>(null) }
     val budgetPromptId = summaryState.budgetPrompt?.id
     LaunchedEffect(budgetPromptId, summaryState.isLoading) {
         val ready = !summaryState.isLoading && summaryState.error == null
-        if (ready && budgetPromptId != null && profile.summaryAvailable && promptedPeriodId != budgetPromptId) {
+        if (ready && budgetPromptId != null && summaryState.budgetPromptOpensSheet &&
+            profile.summaryAvailable && promptedPeriodId != budgetPromptId
+        ) {
             promptedPeriodId = budgetPromptId
             budgetOpen = true
         }
@@ -236,13 +250,8 @@ private fun SignedInApp(
     LaunchedEffect(transactionFormViewModel) {
         transactionFormViewModel.effects.collect { effect ->
             val visuals = when (effect) {
-                is TransactionFormEffect.ShowSuccess -> {
-                    // A new expense changes "left this month" — reload so the banner and Summary match.
-                    summaryViewModel.onEvent(SummaryEvent.Refresh)
-                    FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
-                }
-                is TransactionFormEffect.ShowError ->
-                    FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
+                is TransactionFormEffect.ShowSuccess -> FeedbackSnackbarVisuals(effect.message, FeedbackKind.SUCCESS)
+                is TransactionFormEffect.ShowError -> FeedbackSnackbarVisuals(effect.message, FeedbackKind.ERROR)
                 TransactionFormEffect.FormCleared -> null
             }
             if (visuals != null) {
@@ -256,6 +265,19 @@ private fun SignedInApp(
                 autoDismiss.cancel()
             }
         }
+    }
+
+    // One-off session messages, e.g. "Moved your data from this phone to your account."
+    val notice by Session.notice.collectAsState()
+    LaunchedEffect(notice) {
+        val message = notice ?: return@LaunchedEffect
+        Session.consumeNotice()
+        val autoDismiss = launch {
+            delay(4000)
+            snackbarHostState.currentSnackbarData?.dismiss()
+        }
+        snackbarHostState.showSnackbar(FeedbackSnackbarVisuals(message, FeedbackKind.SUCCESS))
+        autoDismiss.cancel()
     }
 
     Scaffold(snackbarHost = {}) { paddingValues ->
@@ -277,16 +299,8 @@ private fun SignedInApp(
                 }
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                if (user.isGuest) {
-                    GuestBanner(
-                        onCreateAccount = onRequestSignUp,
-                        signupEnabled = featureFlags.signupEnabled,
-                    )
-                }
                 Box(modifier = Modifier.weight(1f)) {
-                    // Budgets and option lists are per-account cloud data — only real users may edit them.
-                    val openBudgets: (() -> Unit)? =
-                        if (user.isGuest) null else ({ budgetOpen = true })
+                    val openBudgets: (() -> Unit)? = if (profile.summaryAvailable) ({ budgetOpen = true }) else null
                     val openPaymentStatus: (() -> Unit)? =
                         if (profile.showPaidToggle) ({ paymentStatusOpen = true }) else null
                     when (selectedTab) {
@@ -316,8 +330,8 @@ private fun SignedInApp(
                             modifier = Modifier.fillMaxSize(),
                             isDarkTheme = isDarkTheme,
                             onDarkThemeChange = onDarkThemeChange,
-                            accountEmail = user.email,
-                            onSignOut = onSignOut,
+                            aiAvailable = chatAvailable,
+                            onOpenAccount = { accountSheetMode = it },
                             onDeleteAccount = { deleteAccountOpen = true },
                             onOpenBudgets = { budgetOpen = true },
                             onOpenCategories = { categoriesOpen = true },
@@ -349,49 +363,36 @@ private fun SignedInApp(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            ChatModal(
-                visible = chatOpen,
-                onClose = { chatOpen = false },
-                viewModel = chatViewModel,
-                onRequestSignUp = onRequestSignUp,
-            )
+            if (chatAvailable) {
+                ChatModal(
+                    visible = chatOpen,
+                    onClose = { chatOpen = false },
+                    viewModel = createChatViewModel(),
+                )
+            }
 
-            // Refreshes the summary on close so saved budgets show in the chart + breakdown.
-            if (budgetOpen && !user.isGuest) {
+            // Every screen reads the same session repositories, so saved budgets and list edits
+            // show up everywhere without refresh calls.
+            if (budgetOpen && profile.summaryAvailable) {
                 OverlayScope {
                     BudgetScreen(
-                        onClose = {
+                        onClose = { budgetOpen = false },
+                        onManageCategories = {
                             budgetOpen = false
-                            summaryViewModel.onEvent(SummaryEvent.Refresh)
+                            categoriesOpen = true
                         },
                     )
                 }
             }
 
-            // Refresh the Add Transaction pickers on close so edits show up immediately.
-            if (categoriesOpen && !user.isGuest) {
-                OverlayScope {
-                    CategoryManagementScreen(
-                        onClose = {
-                            categoriesOpen = false
-                            transactionFormViewModel.refreshOptions()
-                        },
-                    )
-                }
+            if (categoriesOpen) {
+                OverlayScope { CategoriesScreen(onClose = { categoriesOpen = false }) }
             }
 
-            if (paymentModesOpen && !user.isGuest) {
-                OverlayScope {
-                    PaymentModeManagementScreen(
-                        onClose = {
-                            paymentModesOpen = false
-                            transactionFormViewModel.refreshOptions()
-                        },
-                    )
-                }
+            if (paymentModesOpen) {
+                OverlayScope { PaymentModesScreen(onClose = { paymentModesOpen = false }) }
             }
 
-            // Read-only ledger view, so guests get it too (backed by the demo dataset).
             if (paymentStatusOpen && profile.showPaidToggle) {
                 OverlayScope {
                     PaymentStatusScreen(
@@ -403,16 +404,19 @@ private fun SignedInApp(
             // Ledger history with delete.
             if (transactionsOpen) {
                 OverlayScope {
-                    TransactionHistoryScreen(onClose = closeTransactions)
+                    TransactionHistoryScreen(onClose = { transactionsOpen = false })
                 }
             }
 
-            if (deleteAccountOpen) {
+            if (deleteAccountOpen && user is AppUser.Account) {
                 OverlayScope {
-                    DeleteAccountDialog(
-                        isGuest = user.isGuest,
-                        onDismiss = { deleteAccountOpen = false },
-                    )
+                    DeleteAccountDialog(onDismiss = { deleteAccountOpen = false })
+                }
+            }
+
+            accountSheetMode?.let { mode ->
+                OverlayScope {
+                    AccountSheet(initialMode = mode, onClose = { accountSheetMode = null })
                 }
             }
 
@@ -443,41 +447,6 @@ private fun AuthSplash() {
             modifier = Modifier.size(96.dp),
         )
         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-    }
-}
-
-@Composable
-private fun GuestBanner(onCreateAccount: () -> Unit, signupEnabled: Boolean) {
-    val accent = MaterialTheme.colorScheme.primary
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(accent.copy(alpha = 0.12f))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "Exploring as guest",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        if (signupEnabled) {
-            BounceSurface(
-                onClick = onCreateAccount,
-                shape = AppShapes.pill,
-                color = accent,
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "Create account",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-        }
     }
 }
 

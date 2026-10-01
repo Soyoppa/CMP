@@ -46,9 +46,6 @@ import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.app_logo
 import kotlinproject.composeapp.generated.resources.send
 import kotlinx.coroutines.launch
-import org.example.project.auth.AuthState
-import org.example.project.auth.Session
-import org.example.project.config.FeatureFlagStore
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiProviderId
@@ -71,7 +68,6 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = createChatViewModel(),
     bottomPadding: Dp = 0.dp,
-    onRequestSignUp: () -> Unit = {},
     // When the chat is hosted in the floating modal, this collapses it back to the bubble.
     // Null on a full-screen host (no collapse affordance is shown).
     onClose: (() -> Unit)? = null,
@@ -86,10 +82,6 @@ fun ChatScreen(
     val uiState by viewModel.uiState.collectAsState()
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
-    val flags by FeatureFlagStore.state.collectAsState()
-    val authState by Session.state.collectAsState()
-    val authUser = (authState as? AuthState.Authenticated)?.user
-    val isGuest = authUser?.isGuest == true
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
@@ -118,9 +110,7 @@ fun ChatScreen(
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.messages.isEmpty()) {
                 EmptyState(
-                    onSuggestionClick = { suggestion ->
-                        if (isGuest) viewModel.onEvent(ChatEvent.SendClicked(suggestion)) else inputText = suggestion
-                    },
+                    onSuggestionClick = { suggestion -> inputText = suggestion },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
@@ -149,90 +139,19 @@ fun ChatScreen(
             )
         }
 
-        when {
-            isGuest && uiState.guestLocked ->
-                GuestChatUpsell(
-                    onSignUp = onRequestSignUp,
-                    signupEnabled = flags.signupEnabled,
-                    bottomPadding = bottomPadding,
-                )
-
-            // Guests interact by tapping suggestions only — no free-text composer.
-            isGuest ->
-                GuestSuggestHint(bottomPadding = bottomPadding)
-
-            else -> ChatInputBar(
-                value = inputText,
-                isLoading = uiState.isLoading,
-                onValueChange = { inputText = it },
-                onSend = {
-                    if (inputText.isNotBlank()) {
-                        viewModel.onEvent(ChatEvent.SendClicked(inputText))
-                        inputText = ""
-                    }
-                },
-                bottomPadding = bottomPadding,
-                hint = "Ask about your finances…",
-            )
-        }
-    }
-}
-
-/** Replaces the composer for guests before they spend their message — they can only tap a suggestion. */
-@Composable
-private fun GuestSuggestHint(bottomPadding: Dp) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp + bottomPadding),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(AppShapes.field)
-                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f))
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            Text(
-                text = "Guest preview · tap a suggested question above to try the assistant",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
-}
-
-/** Replaces the composer once a guest has used their free message. */
-@Composable
-private fun GuestChatUpsell(onSignUp: () -> Unit, signupEnabled: Boolean, bottomPadding: Dp) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp + bottomPadding),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = "You've used your free guest message.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+        ChatInputBar(
+            value = inputText,
+            isLoading = uiState.isLoading,
+            onValueChange = { inputText = it },
+            onSend = {
+                if (inputText.isNotBlank()) {
+                    viewModel.onEvent(ChatEvent.SendClicked(inputText))
+                    inputText = ""
+                }
+            },
+            bottomPadding = bottomPadding,
+            hint = "Ask about your finances…",
         )
-        if (signupEnabled) {
-            BounceSurface(
-                onClick = onSignUp,
-                shape = AppShapes.field,
-                color = MaterialTheme.colorScheme.primary,
-            ) {
-                Text(
-                    text = "Sign up to keep chatting",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-        }
     }
 }
 
@@ -681,7 +600,7 @@ private fun ChatInputBar(
         val inputBounce = rememberPressBounce(pressedScale = 0.98f)
         OutlinedTextField(
             value = value,
-            onValueChange = { if (it.length <= 4_000) onValueChange(it) },
+            onValueChange = { if (it.length <= ChatViewModel.MAX_MESSAGE_LENGTH) onValueChange(it) },
             modifier = Modifier.weight(1f).then(inputBounce.modifier),
             placeholder = { Text(hint, style = MaterialTheme.typography.labelMedium) },
             maxLines = 3,

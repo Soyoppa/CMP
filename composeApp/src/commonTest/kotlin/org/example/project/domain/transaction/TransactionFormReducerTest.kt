@@ -32,7 +32,21 @@ class TransactionFormReducerTest {
             TransactionFormEvent.TransactionTypeChanged(isIncome = true),
         )
         assertTrue(state.isIncome)
-        assertEquals("Other", state.selectedCategory)
+        assertEquals("", state.selectedCategory) // expense and income lists differ
+    }
+
+    @Test
+    fun aSelectionRemovedElsewhereIsCleared() {
+        val state = reduce(
+            TransactionFormEvent.OptionsLoaded(listOf("Food", "Rent"), emptyList(), listOf("Cash")),
+            TransactionFormEvent.CategorySelected("Rent"),
+            TransactionFormEvent.PaymentModeSelected("Cash"),
+            // "Rent" renamed in the editor; "Cash" untouched.
+            TransactionFormEvent.OptionsLoaded(listOf("Food", "Housing"), emptyList(), listOf("Cash")),
+        )
+        assertEquals("", state.selectedCategory)
+        assertEquals("Cash", state.selectedPaymentMode)
+        assertEquals(listOf("Food", "Housing"), state.categoryOptions)
     }
 
     @Test

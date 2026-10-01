@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.AppContainer
-import org.example.project.auth.AuthRepository
+import org.example.project.auth.SessionRepository
 import org.example.project.util.toUserMessage
 
 data class DeleteAccountUiState(
@@ -23,11 +23,11 @@ sealed interface DeleteAccountEvent {
 }
 
 /**
- * Backs the delete-account confirmation. On success [AuthRepository] signs the user out, which
+ * Backs the delete-account confirmation. On success [SessionRepository] ends the session, which
  * swaps the whole signed-in scope (and this ViewModel) away — so there's no success state here.
  */
 class DeleteAccountViewModel(
-    private val authRepository: AuthRepository = AppContainer.authRepository,
+    private val sessionRepository: SessionRepository = AppContainer.sessionRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DeleteAccountUiState())
@@ -45,7 +45,7 @@ class DeleteAccountViewModel(
         if (_uiState.value.isDeleting) return
         _uiState.update { it.copy(isDeleting = true, error = null) }
         viewModelScope.launch {
-            authRepository.deleteAccount(password = _uiState.value.password).onFailure { e ->
+            sessionRepository.deleteAccount(password = _uiState.value.password).onFailure { e ->
                 _uiState.update {
                     it.copy(isDeleting = false, error = e.toUserMessage("Couldn't delete your account. Please try again."))
                 }

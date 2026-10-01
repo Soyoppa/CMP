@@ -8,9 +8,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.example.project.AppContainer
-import org.example.project.auth.Session
-import org.example.project.auth.aiCharLimit
-import org.example.project.auth.aiMessageLimit
 import org.example.project.data.ai.AiRepository
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ChatTurn
@@ -25,8 +22,6 @@ data class ChatUiState(
     val isLoadingTransactions: Boolean = false,
     val error: String? = null,
     val transactionsLoaded: Boolean = false,
-    /** True once a guest has used up their free message allowance. */
-    val guestLocked: Boolean = false,
 )
 
 sealed interface ChatEvent {
@@ -41,14 +36,13 @@ sealed interface ChatEvent {
  */
 class ChatViewModel(
     private val aiRepository: AiRepository = AppContainer.aiRepository,
-    private val ledgerRepository: LedgerRepository = LedgerRepository(),
+    private val ledgerRepository: LedgerRepository = AppContainer.session().ledger,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private val conversationHistory = mutableListOf<ChatTurn>()
-    private var guestMessagesSent = 0
     private var nextMessageId = 0L
 
     fun onEvent(event: ChatEvent) {
@@ -83,15 +77,7 @@ class ChatViewModel(
         val text = userInput.trim()
         if (text.isEmpty() || _uiState.value.isLoading) return
 
-        val user = Session.currentUser ?: return
-        if (text.length > user.aiCharLimit) return // the composer enforces this; guard anyway
-
-        // Guest allowance: cap total messages; lock the composer once exhausted.
-        if (user.isGuest && guestMessagesSent >= user.aiMessageLimit) {
-            _uiState.update { it.copy(guestLocked = true) }
-            return
-        }
-        if (user.isGuest) guestMessagesSent++
+        if (text.length > MAX_MESSAGE_LENGTH) return // the composer enforces this; guard anyway
 
         val userMsg = ChatMessage(id = newMessageId(), role = ChatMessage.Role.USER, content = text)
         val thinkingMsg = ChatMessage(id = newMessageId(), role = ChatMessage.Role.ASSISTANT, content = "", isStreaming = true)
@@ -101,7 +87,6 @@ class ChatViewModel(
                 messages = it.messages + userMsg + thinkingMsg,
                 isLoading = true,
                 error = null,
-                guestLocked = user.isGuest && guestMessagesSent >= user.aiMessageLimit,
             )
         }
 
@@ -143,4 +128,9 @@ class ChatViewModel(
     }
 
     private fun newMessageId(): String = "msg_${nextMessageId++}"
+
+    companion object {
+        /** Longest message the composer accepts. */
+        const val MAX_MESSAGE_LENGTH = 4_000
+    }
 }

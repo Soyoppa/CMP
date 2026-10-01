@@ -12,6 +12,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.runTest
+import org.example.project.config.LedgerProfile
+import org.example.project.data.config.DeviceConfigStore
+import org.example.project.data.device.InMemoryDeviceStore
+import org.example.project.repository.ConfigRepository
 import kotlinx.datetime.LocalDate
 import org.example.project.viewmodel.BudgetEvent
 import org.example.project.viewmodel.BudgetViewModel
@@ -68,7 +73,7 @@ class BudgetingWindowTest {
 
     @Test
     fun editorOpensOnTheUpcomingCutOffDuringItsLeadDaysAndCanSwitchBack() {
-        val vm = BudgetViewModel(buckets = listOf("Food"), today = LocalDate(2026, 9, 14))
+        val vm = budgetViewModel(LocalDate(2026, 9, 14))
         val state = vm.uiState.value
         assertEquals(sepSecondHalf, state.period)
         assertTrue(state.isUpcoming)
@@ -82,9 +87,31 @@ class BudgetingWindowTest {
 
     @Test
     fun editorStaysOnTheCurrentCutOffOutsideTheWindows() {
-        val state = BudgetViewModel(buckets = listOf("Food"), today = LocalDate(2026, 9, 10)).uiState.value
+        val state = budgetViewModel(LocalDate(2026, 9, 10)).uiState.value
         assertEquals(BudgetPeriod(2026, 9, 1), state.period)
         assertEquals(listOf(BudgetPeriod(2026, 9, 1)), state.selectablePeriods)
         assertFalse(state.isUpcoming)
     }
+
+    @Test
+    fun editorBudgetsTheUsersOwnCategoriesAndSuggestsTheLastPlan() = runTest {
+        val config = ConfigRepository(DeviceConfigStore(InMemoryDeviceStore()))
+        config.addOption(OptionList.EXPENSE_CATEGORIES, "Food")
+        config.addOption(OptionList.EXPENSE_CATEGORIES, "Rent")
+        config.saveBudget(BudgetPeriod(2026, 9, 1), BudgetPlan(total = 9_000.0, byBucket = mapOf("Rent" to 5_000.0)))
+
+        val state = BudgetViewModel(config, LedgerProfile.STANDARD, today = LocalDate(2026, 9, 17)).uiState.value
+
+        assertEquals(sepSecondHalf, state.period)
+        assertEquals(listOf("Food", "Rent"), state.buckets)
+        assertTrue(state.isSuggestion)
+        assertEquals("9000", state.totalInput)
+        assertEquals(mapOf("Food" to "", "Rent" to "5000"), state.amounts)
+    }
+
+    private fun budgetViewModel(today: LocalDate) = BudgetViewModel(
+        config = ConfigRepository(DeviceConfigStore(InMemoryDeviceStore())),
+        profile = LedgerProfile.STANDARD,
+        today = today,
+    )
 }

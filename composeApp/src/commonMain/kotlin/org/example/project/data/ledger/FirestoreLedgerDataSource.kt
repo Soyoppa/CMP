@@ -2,127 +2,119 @@ package org.example.project.data.ledger
 
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import org.example.project.data.firestore.FirestoreDocument
 import org.example.project.data.firestore.FirestoreRestClient
 import org.example.project.data.firestore.boolean
 import org.example.project.data.firestore.number
 import org.example.project.data.firestore.string
+import org.example.project.data.sync.RecordImporter
 import org.example.project.model.Transaction
-import org.example.project.util.DateUtils
 import org.example.project.util.UserFacingException
 
 /**
- * The default ledger: one Firestore document per transaction at `users/{uid}/transactions/{id}`.
+ * An account's ledger: one Firestore document per transaction at `users/{uid}/transactions/{id}`.
  * `firestore.rules` restricts the collection to its owner and validates every field.
  *
  * Document shape: `date` (ISO yyyy-MM-dd), `description`, `inflow`, `outflow`, `category`,
- * `modeOfPayment`, `isPaid`, `createdAt` (epoch millis).
+ * `modeOfPayment`, `isPaid`, `createdAt` (epoch millis) — a [LedgerRecord].
  *
  * Because `date` is stored ISO, a year is a plain string range (`2026-01-01`..`2026-12-31`) that
  * Firestore can filter server-side with no composite index.
  */
 class FirestoreLedgerDataSource(
     private val firestore: FirestoreRestClient,
-    private val currentUid: () -> String?,
-) : LedgerDataSource {
+    uid: String,
+) : LedgerDataSource, RecordImporter {
 
-    private fun uid(): String = currentUid() ?: throw UserFacingException("Please sign in again.")
-
-    private fun parentPath(): String = "users/${uid()}"
-
-    private fun collectionPath(): String = "${parentPath()}/$TRANSACTIONS"
+    private val parentPath = "users/$uid"
+    private val collectionPath = "$parentPath/$TRANSACTIONS"
 
     override suspend fun readYear(year: Int): LedgerYear {
-        val parent = parentPath()
         val entries = firestore.queryByRange(
-            parentPath = parent,
+            parentPath = parentPath,
             collectionId = TRANSACTIONS,
             field = FIELD_DATE,
             from = "$year-01-01",
             to = "$year-12-31",
         )
-            .map(::toStored)
-            .filter { it.description.isNotBlank() && (it.inflow > 0.0 || it.outflow > 0.0) }
-            // The query orders by date; createdAt breaks ties within the same day.
-            .sortedWith(compareBy<StoredTransaction> { it.date }.thenBy { it.createdAt })
-            .map { stored ->
-                val isIncome = stored.inflow > 0.0
-                LedgerEntry(
-                    id = stored.id,
-                    description = stored.description,
-                    amount = if (isIncome) stored.inflow else stored.outflow,
-                    category = stored.category,
-                    monthNumber = DateUtils.monthNumberFromDate(stored.date),
-                    date = stored.date,
-                    modeOfPayment = stored.modeOfPayment,
-                    isPaid = stored.isPaid,
-                    isIncome = isIncome,
-                )
-            }
-        val earliest = firestore.firstByField(parent, TRANSACTIONS, FIELD_DATE)
+            .map(::toRecord)
+            .filter { it.isValid }
+            .sortedWith(LedgerRecord.chronological)
+            .map { it.toEntry() }
+        val earliest = firestore.firstByField(parentPath, TRANSACTIONS, FIELD_DATE)
             ?.fields?.string(FIELD_DATE)?.take(4)?.toIntOrNull()
         return LedgerYear(year = year, entries = entries, earliestYear = earliest)
     }
 
     override suspend fun deleteEntry(entry: LedgerEntry) {
         if (entry.id.isBlank()) throw UserFacingException("This transaction can't be deleted.")
-        firestore.deleteDocument("${collectionPath()}/${entry.id}")
+        firestore.deleteDocument("$collectionPath/${entry.id}")
     }
 
-    @OptIn(ExperimentalTime::class)
+    @OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
     override suspend fun addTransaction(transaction: Transaction): AddTransactionResult {
-        firestore.createDocument(
-            collectionPath(),
-            mapOf(
-                "date" to toIsoDate(transaction.date),
-                "description" to transaction.description.take(MAX_TEXT),
-                "inflow" to transaction.inflow,
-                "outflow" to transaction.outflow,
-                "category" to transaction.category.take(MAX_TEXT),
-                "modeOfPayment" to transaction.modeOfPayment.take(MAX_TEXT),
-                "isPaid" to transaction.isPaid,
-                "createdAt" to Clock.System.now().toEpochMilliseconds(),
-            ),
+        val record = LedgerRecord.from(
+            transaction,
+            id = Uuid.random().toString(),
+            createdAt = Clock.System.now().toEpochMilliseconds(),
         )
+        importRecord(record)
         return AddTransactionResult(success = true)
     }
 
-    /** The form produces M/d/yyyy; store ISO so documents sort and read unambiguously. */
-    private fun toIsoDate(formDate: String): String =
-        DateUtils.parseDate(formDate)?.toString()
-            ?: throw UserFacingException("Please pick a valid date.")
+    override suspend fun relabel(field: LabelField, from: String, to: String): Int {
+        val name = when (field) {
+            LabelField.CATEGORY -> FIELD_CATEGORY
+            LabelField.PAYMENT_MODE -> FIELD_PAYMENT_MODE
+        }
+        val matches = firestore.queryByValue(parentPath, TRANSACTIONS, name, from)
+        matches.forEach { doc ->
+            firestore.updateFields("$collectionPath/${doc.id}", mapOf(name to to.take(LedgerRecord.MAX_TEXT)))
+        }
+        return matches.size
+    }
 
-    private fun toStored(document: FirestoreDocument): StoredTransaction {
+    /**
+     * Writes [record] under its own id. Idempotent — re-running a device → cloud upload after a
+     * failure rewrites the same documents instead of duplicating them.
+     */
+    override suspend fun importRecord(record: LedgerRecord) {
+        firestore.setDocument(
+            "$collectionPath/${record.id}",
+            mapOf(
+                FIELD_DATE to record.date,
+                "description" to record.description.take(LedgerRecord.MAX_TEXT),
+                "inflow" to record.inflow,
+                "outflow" to record.outflow,
+                FIELD_CATEGORY to record.category.take(LedgerRecord.MAX_TEXT),
+                FIELD_PAYMENT_MODE to record.modeOfPayment.take(LedgerRecord.MAX_TEXT),
+                "isPaid" to record.isPaid,
+                "createdAt" to record.createdAt,
+            ),
+        )
+    }
+
+    private fun toRecord(document: FirestoreDocument): LedgerRecord {
         val f = document.fields
-        return StoredTransaction(
+        return LedgerRecord(
             id = document.id,
-            date = f.string("date").orEmpty(),
+            date = f.string(FIELD_DATE).orEmpty(),
             description = f.string("description").orEmpty(),
             inflow = f.number("inflow") ?: 0.0,
             outflow = f.number("outflow") ?: 0.0,
-            category = f.string("category").orEmpty(),
-            modeOfPayment = f.string("modeOfPayment").orEmpty(),
+            category = f.string(FIELD_CATEGORY).orEmpty(),
+            modeOfPayment = f.string(FIELD_PAYMENT_MODE).orEmpty(),
             isPaid = f.boolean("isPaid") ?: false,
             createdAt = f.number("createdAt")?.toLong() ?: 0L,
         )
     }
 
-    private data class StoredTransaction(
-        val id: String,
-        val date: String,
-        val description: String,
-        val inflow: Double,
-        val outflow: Double,
-        val category: String,
-        val modeOfPayment: String,
-        val isPaid: Boolean,
-        val createdAt: Long,
-    )
-
-    private companion object {
-        /** Mirrors the firestore.rules string limit. */
-        const val MAX_TEXT = 200
+    companion object {
         const val TRANSACTIONS = "transactions"
-        const val FIELD_DATE = "date"
+        private const val FIELD_DATE = "date"
+        private const val FIELD_CATEGORY = "category"
+        private const val FIELD_PAYMENT_MODE = "modeOfPayment"
     }
 }

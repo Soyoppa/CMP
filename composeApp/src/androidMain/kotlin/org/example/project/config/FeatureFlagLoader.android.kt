@@ -8,7 +8,7 @@ actual fun createFeatureFlagLoader(): FeatureFlagLoader = RemoteConfigFeatureFla
 
 /**
  * Firebase Remote Config kill-switches on Android — the same parameters the web build reads
- * (`signup_enabled`, `guest_mode_enabled`, `chat_enabled`). Fails open to [FeatureFlags] defaults.
+ * (`signup_enabled`, `chat_enabled`). Fails open to [FeatureFlags] defaults.
  */
 internal class RemoteConfigFeatureFlagLoader : FeatureFlagLoader {
 
@@ -24,7 +24,6 @@ internal class RemoteConfigFeatureFlagLoader : FeatureFlagLoader {
             rc.setDefaultsAsync(
                 mapOf(
                     "signup_enabled" to defaults.signupEnabled,
-                    "guest_mode_enabled" to defaults.guestModeEnabled,
                     "chat_enabled" to defaults.chatEnabled,
                 )
             ).await()
@@ -32,7 +31,6 @@ internal class RemoteConfigFeatureFlagLoader : FeatureFlagLoader {
             FeatureFlagStore.set(
                 FeatureFlags(
                     signupEnabled = rc.getBoolean("signup_enabled"),
-                    guestModeEnabled = rc.getBoolean("guest_mode_enabled"),
                     chatEnabled = rc.getBoolean("chat_enabled"),
                 )
             )

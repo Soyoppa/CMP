@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,23 +44,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import org.example.project.auth.AuthState
-import org.example.project.auth.Session
+import org.example.project.config.FeatureFlagStore
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiPrefs
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ProviderUsage
 import org.example.project.data.ai.SessionUsage
+import org.example.project.ui.components.BounceSurface
 import org.example.project.ui.effects.rememberPressBounce
 import org.example.project.ui.theme.AppShapes
 import org.example.project.ui.theme.IncomeGreen
 import org.example.project.viewmodel.DiagnosticKind
 import org.example.project.viewmodel.DiagnosticResult
 import org.example.project.viewmodel.SettingsEvent
+import org.example.project.viewmodel.AuthMode
 import org.example.project.viewmodel.SettingsViewModel
+import org.example.project.viewmodel.createSettingsViewModel
 
 
 @Composable
@@ -65,25 +70,24 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     isDarkTheme: Boolean = false,
     onDarkThemeChange: (Boolean) -> Unit = {},
-    accountEmail: String? = null,
-    onSignOut: () -> Unit = {},
+    /** The AI assistant is on for this session (account + a platform with Gemini). */
+    aiAvailable: Boolean = false,
+    /** Opens sign-in / sign-up from no-account mode. */
+    onOpenAccount: (AuthMode) -> Unit = {},
     onDeleteAccount: () -> Unit = {},
     onOpenBudgets: () -> Unit = {},
     onOpenCategories: () -> Unit = {},
     onOpenPaymentModes: () -> Unit = {},
-    /** null on schemas whose ledger has no Paid column, which hides the row entirely. */
+    /** null on ledgers without a Paid column, which hides the row entirely. */
     onOpenPaymentStatus: (() -> Unit)? = null,
     onOpenTransactions: () -> Unit = {},
-    viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
+    viewModel: SettingsViewModel = createSettingsViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val usage by AiUsageTracker.state.collectAsState()
     val showPerMessageTokens by AiPrefs.showPerMessageTokens.collectAsState()
-    val authState by Session.state.collectAsState()
-    val isGuest = (authState as? AuthState.Authenticated)?.user?.isGuest == true
-    // Tracker 2 has no analysis sheets yet, so the AI section is hidden there (same flag the chat uses).
-    val aiAvailable = remember { LedgerProfile.current().summaryAvailable }
-    val categoryLabel = remember { LedgerProfile.current().categoryLabel }
+    val signupEnabled = FeatureFlagStore.state.collectAsState().value.signupEnabled
+    val profile = remember { LedgerProfile.current() }
 
     Column(
         modifier = modifier
@@ -100,32 +104,52 @@ fun SettingsScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 
-        SettingsSection(title = "Account") {
-            AccountRow(
-                email = accountEmail,
-                isGuest = isGuest,
-                onSignOut = onSignOut,
+        uiState.error?.let { error ->
+            ErrorBanner(message = error, onDismiss = { viewModel.onEvent(SettingsEvent.ErrorShown) })
+        }
+
+        if (uiState.hasAccount) {
+            SettingsSection(title = "Account") {
+                AccountRow(email = uiState.email, onSignOut = { viewModel.onEvent(SettingsEvent.SignOutClicked) })
+            }
+        } else {
+            DeviceModeCard(
+                signupEnabled = signupEnabled,
+                onCreateAccount = { onOpenAccount(AuthMode.SIGN_UP) },
+                onSignIn = { onOpenAccount(AuthMode.SIGN_IN) },
+            )
+        }
+
+        SettingsSection(title = "Your setup") {
+            NavigationRow(
+                title = profile.categoryListTitle,
+                subtitle = when {
+                    uiState.expenseCategoryCount + uiState.incomeCategoryCount == 0 -> "None yet — add the ones you use"
+                    profile.showIncomeOption ->
+                        "${uiState.expenseCategoryCount} for expenses · ${uiState.incomeCategoryCount} for income"
+                    else -> countLabel(uiState.expenseCategoryCount, "option")
+                },
+                onClick = onOpenCategories,
             )
             NavigationRow(
-                title = "Delete account",
-                subtitle = if (isGuest) "Remove this guest session permanently"
-                else "Permanently delete your account and all of its data",
-                onClick = onDeleteAccount,
+                title = "Payment modes",
+                subtitle = if (uiState.paymentModeCount == 0) "None yet — cash, cards, e-wallets…"
+                else countLabel(uiState.paymentModeCount, "payment mode"),
+                onClick = onOpenPaymentModes,
             )
+            if (profile.summaryAvailable) {
+                NavigationRow(
+                    title = "Budgets",
+                    subtitle = "Set what you can spend each cut-off",
+                    onClick = onOpenBudgets,
+                )
+            }
         }
 
-        SettingsSection(title = "Appearance") {
-            DarkModeToggleRow(
-                isDarkTheme = isDarkTheme,
-                onDarkThemeChange = onDarkThemeChange,
-            )
-        }
-
-        // Available to guests too — they browse the demo dataset (read-only).
         SettingsSection(title = "Ledger") {
             NavigationRow(
                 title = "Transactions",
-                subtitle = if (isGuest) "Browse the demo ledger" else "Review or delete what you've logged",
+                subtitle = "Review or delete what you've logged",
                 onClick = onOpenTransactions,
             )
             if (onOpenPaymentStatus != null) {
@@ -137,51 +161,37 @@ fun SettingsScreen(
             }
         }
 
-        // Category/payment-mode lists are per-account cloud data — hidden for guests (who can't save them).
-        if (!isGuest) {
-            SettingsSection(title = "$categoryLabel & payment") {
-                NavigationRow(
-                    title = "Manage ${categoryLabel.lowercase()}s",
-                    subtitle = "Add or remove options in the ${categoryLabel.lowercase()} picker",
-                    onClick = onOpenCategories,
-                )
-                NavigationRow(
-                    title = "Manage payment modes",
-                    subtitle = "Add or remove options in the payment picker",
-                    onClick = onOpenPaymentModes,
-                )
-            }
+        SettingsSection(title = "Appearance") {
+            DarkModeToggleRow(
+                isDarkTheme = isDarkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+            )
         }
 
-        // Budgets are per-account cloud data — hidden for guests (who can't save them).
-        if (!isGuest && aiAvailable) {
-            SettingsSection(title = "Budgets") {
-                NavigationRow(
-                    title = "Category budgets",
-                    subtitle = "Set your monthly budget per category",
-                    onClick = onOpenBudgets,
-                )
-            }
-        }
-
-        if (aiAvailable) {
+        if (aiAvailable && profile.summaryAvailable) {
             SettingsSection(title = "AI Assistant") {
                 PerMessageTokensToggleRow(
                     checked = showPerMessageTokens,
-                    enabled = !isGuest,
                     onCheckedChange = AiPrefs::setShowPerMessageTokens,
                 )
-                AiUsageCard(usage = usage, canReset = !isGuest, onReset = AiUsageTracker::reset)
+                AiUsageCard(usage = usage, onReset = AiUsageTracker::reset)
                 AiTokenInfoCard()
             }
         }
 
-        // Diagnostics read the real ledger, so they're for signed-in users only — a guest is an
-        // anonymous session and must never see real rows.
-        if (!isGuest) {
-            SettingsSection(title = "Diagnostics") {
+        // Only accounts the project owner granted the household sheet ever see this.
+        if (uiState.sheetsGranted) {
+            SettingsSection(title = "Developer") {
+                SwitchRow(
+                    title = "Household sheet ledger",
+                    subtitle = if (uiState.sheetsEnabled) "Transactions read from and save to the household Google Sheet."
+                    else "Transactions use this account's cloud ledger.",
+                    checked = uiState.sheetsEnabled,
+                    enabled = !uiState.isSwitchingSheets,
+                    onCheckedChange = { viewModel.onEvent(SettingsEvent.SheetsToggled(it)) },
+                )
                 TestActionButton(
-                    label = "Test Read",
+                    label = "Test read",
                     isLoading = uiState.isTestingRead,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { viewModel.onEvent(SettingsEvent.TestReadClicked) },
@@ -189,6 +199,122 @@ fun SettingsScreen(
                 ResultCard(result = uiState.readResult)
             }
         }
+
+        SettingsSection(title = "Data") {
+            if (uiState.hasAccount) {
+                NavigationRow(
+                    title = "Delete account",
+                    subtitle = "Permanently delete your account and all of its data",
+                    onClick = onDeleteAccount,
+                    destructive = true,
+                )
+            } else {
+                NavigationRow(
+                    title = "Erase data on this phone",
+                    subtitle = "Delete every transaction, list and budget stored here",
+                    onClick = { viewModel.onEvent(SettingsEvent.EraseClicked) },
+                    destructive = true,
+                )
+            }
+        }
+    }
+
+    if (uiState.confirmErase) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isErasing) viewModel.onEvent(SettingsEvent.EraseDismissed) },
+            shape = AppShapes.card,
+            title = { Text("Erase everything?", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Text(
+                    text = "This deletes every transaction, list and budget on this phone. There's no backup, so it can't be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(SettingsEvent.EraseConfirmed) },
+                    enabled = !uiState.isErasing,
+                ) {
+                    if (uiState.isErasing) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Erase", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(SettingsEvent.EraseDismissed) }, enabled = !uiState.isErasing) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+}
+
+private fun countLabel(count: Int, noun: String): String = if (count == 1) "1 $noun" else "$count ${noun}s"
+
+/** No-account mode: say plainly where the data lives, and offer the way to back it up. */
+@Composable
+private fun DeviceModeCard(signupEnabled: Boolean, onCreateAccount: () -> Unit, onSignIn: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.card)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "Saved on this phone only",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Nothing is backed up yet. With an account your data is kept safe in the cloud and you can use it on the web too — everything you've logged comes along.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
+            if (signupEnabled) {
+                PillButton(label = "Create account", primary = true, onClick = onCreateAccount, modifier = Modifier.weight(1f))
+            }
+            PillButton(label = "Sign in", primary = !signupEnabled, onClick = onSignIn, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun PillButton(label: String, primary: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    BounceSurface(
+        onClick = onClick,
+        shape = AppShapes.pill,
+        color = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        modifier = modifier.heightIn(min = 48.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onDismiss) { Text("OK", color = MaterialTheme.colorScheme.onErrorContainer) }
     }
 }
 
@@ -214,9 +340,9 @@ private fun SettingsSection(
     }
 }
 
-/** Account status + sign-out (or "Exit guest"). */
+/** Account email + sign-out. */
 @Composable
-private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) {
+private fun AccountRow(email: String?, onSignOut: () -> Unit) {
     val bounce = rememberPressBounce(pressedScale = 0.95f)
     Row(
         modifier = Modifier
@@ -228,12 +354,14 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = if (isGuest) "Guest mode" else "Signed in",
+                text = email ?: "Signed in",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = email ?: if (isGuest) "Browsing without an account" else "Not signed in",
+                text = "Synced across your devices",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -254,7 +382,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (isGuest) "Exit guest" else "Sign out",
+                text = "Sign out",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -265,7 +393,7 @@ private fun AccountRow(email: String?, isGuest: Boolean, onSignOut: () -> Unit) 
 
 /** A tappable settings row that navigates elsewhere (title + subtitle + chevron). */
 @Composable
-private fun NavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun NavigationRow(title: String, subtitle: String, onClick: () -> Unit, destructive: Boolean = false) {
     val bounce = rememberPressBounce(pressedScale = 0.97f)
     Row(
         modifier = Modifier
@@ -286,6 +414,7 @@ private fun NavigationRow(title: String, subtitle: String, onClick: () -> Unit) 
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
+                color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = subtitle,
@@ -298,6 +427,56 @@ private fun NavigationRow(title: String, subtitle: String, onClick: () -> Unit) 
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** A labelled switch row (title + subtitle + Switch), the whole row toggles. */
+@Composable
+private fun SwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+) {
+    val bounce = rememberPressBounce(pressedScale = 0.97f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                interactionSource = bounce.interactionSource,
+                indication = null,
+                onValueChange = onCheckedChange,
+            )
+            .then(bounce.modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
+            ),
         )
     }
 }
@@ -748,7 +927,7 @@ private fun ResultCard(result: DiagnosticResult) {
     val title = when (result.kind) {
         DiagnosticKind.IDLE -> "Awaiting test"
         DiagnosticKind.SUCCESS -> "Success"
-        DiagnosticKind.WARNING -> "Check your sheet"
+        DiagnosticKind.WARNING -> "Nothing to show"
         DiagnosticKind.ERROR -> "Failed"
     }
 

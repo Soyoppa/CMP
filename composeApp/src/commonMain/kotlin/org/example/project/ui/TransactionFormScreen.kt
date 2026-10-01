@@ -110,6 +110,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.example.project.config.LedgerProfile
+import org.example.project.model.OptionList
 import org.example.project.domain.transaction.TransactionFormEffect
 import org.example.project.domain.transaction.TransactionFormEvent
 import org.example.project.domain.transaction.VoiceAiUsage
@@ -373,15 +374,9 @@ fun TransactionFormScreen(
             onClick = { showDatePicker = true },
         )
 
-        // Income uses its own short source list (e.g. Renz/Gen); expense uses the full category set.
-        val useIncomeCategories = schemaFeatures.showIncomeOption && formState.isIncome
-        val categoryPickerTitle =
-            if (useIncomeCategories) schemaFeatures.incomeCategoryPickerTitle else schemaFeatures.categoryPickerTitle
-        // Expense categories and payment modes are the user's cloud-saved lists (schema
-        // defaults until that loads); income categories are still schema-static.
-        val categoryOptions =
-            if (useIncomeCategories) schemaFeatures.incomeCategoryOptions else formState.categoryOptions
-        val paymentOptions = formState.paymentModeOptions
+        // Income picks from the user's income sources; expenses from their categories.
+        val categoryList = if (formState.isIncome) OptionList.INCOME_CATEGORIES else OptionList.EXPENSE_CATEGORIES
+        val categoryNoun = if (formState.isIncome) categoryList.noun else schemaFeatures.categoryLabel.lowercase()
 
         // Category + Payment are the same kind of decision (how to file this transaction),
         // so they sit together as a two-up row — chevron-less tiles matching the Date tile above.
@@ -390,8 +385,8 @@ fun TransactionFormScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ChoiceField(
-                label = schemaFeatures.categoryLabel,
-                placeholder = "Select ${schemaFeatures.categoryLabel.lowercase()}",
+                label = if (formState.isIncome) "Source" else schemaFeatures.categoryLabel,
+                placeholder = if (formState.categoryOptions.isEmpty()) "Add one" else "Optional",
                 selected = formState.selectedCategory,
                 isExpanded = formState.showCategoryDropdown,
                 isEnabled = !formState.isLoading,
@@ -403,7 +398,7 @@ fun TransactionFormScreen(
             )
             ChoiceField(
                 label = "Payment",
-                placeholder = "How paid?",
+                placeholder = if (formState.paymentModes.isEmpty()) "Add one" else "Optional",
                 selected = formState.selectedPaymentMode,
                 isExpanded = formState.showPaymentDropdown,
                 isEnabled = !formState.isLoading,
@@ -417,25 +412,29 @@ fun TransactionFormScreen(
 
         if (formState.showCategoryDropdown) {
             ChoicePickerSheet(
-                title = categoryPickerTitle,
-                options = categoryOptions,
+                title = "Pick ${if (formState.isIncome) "an" else "a"} $categoryNoun",
+                options = formState.categoryOptions,
                 selected = formState.selectedCategory,
                 accentColor = accentColor,
                 onDismiss = onCategoryToggle,
                 onSelect = onCategorySelect,
                 showGlyphs = true,
+                onAddOption = { viewModel.onEvent(TransactionFormEvent.OptionCreated(categoryList, it)) },
+                optionNoun = categoryNoun,
             )
         }
 
         if (formState.showPaymentDropdown) {
             ChoicePickerSheet(
                 title = "Pick a payment mode",
-                options = paymentOptions,
+                options = formState.paymentModes,
                 selected = formState.selectedPaymentMode,
                 accentColor = accentColor,
                 onDismiss = onPaymentToggle,
                 onSelect = onPaymentSelect,
                 showPaymentBadges = true,
+                onAddOption = { viewModel.onEvent(TransactionFormEvent.OptionCreated(OptionList.PAYMENT_MODES, it)) },
+                optionNoun = OptionList.PAYMENT_MODES.noun,
             )
         }
 

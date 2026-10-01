@@ -2,13 +2,11 @@ package org.example.project.viewmodel
 
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
-import org.example.project.config.LedgerProfile
-import org.example.project.data.settings.UserSettingsStore
-import org.example.project.repository.UserListRepository
+import org.example.project.model.OptionList
 
 // ViewModels are scoped to the nearest LocalViewModelStoreOwner — the per-session store set up by
-// SessionScope — so they survive recomposition and configuration changes, and are cleared on
-// sign-out on every platform.
+// SessionScope, or an overlay's own store (OverlayScope) — so they survive recomposition and
+// configuration changes, and are cleared when the session or overlay ends.
 
 @Composable
 fun createTransactionFormViewModel(): TransactionFormViewModel = viewModel { TransactionFormViewModel() }
@@ -26,20 +24,20 @@ fun createBudgetViewModel(): BudgetViewModel = viewModel { BudgetViewModel() }
 fun createPaymentStatusViewModel(): PaymentStatusViewModel = viewModel { PaymentStatusViewModel() }
 
 @Composable
-fun createCategoryListViewModel(): ManagedListViewModel = viewModel(key = UserSettingsStore.CATEGORIES_LIST) {
-    val profile = LedgerProfile.current()
-    ManagedListViewModel(
-        repository = UserListRepository(UserSettingsStore.CATEGORIES_LIST),
-        defaults = profile.categoryOptions,
-        itemNoun = profile.categoryLabel.lowercase(),
-    )
-}
+fun createTransactionHistoryViewModel(): TransactionHistoryViewModel = viewModel { TransactionHistoryViewModel() }
 
 @Composable
-fun createPaymentModeListViewModel(): ManagedListViewModel = viewModel(key = UserSettingsStore.PAYMENT_MODES_LIST) {
-    ManagedListViewModel(
-        repository = UserListRepository(UserSettingsStore.PAYMENT_MODES_LIST),
-        defaults = LedgerProfile.current().paymentModeOptions,
-        itemNoun = "payment mode",
-    )
-}
+fun createSettingsViewModel(): SettingsViewModel = viewModel { SettingsViewModel() }
+
+@Composable
+fun createDeleteAccountViewModel(): DeleteAccountViewModel = viewModel { DeleteAccountViewModel() }
+
+/** The editor for [lists] — tabs when there's more than one (expense categories + income sources). */
+@Composable
+fun createOptionListViewModel(lists: List<OptionList>): OptionListViewModel =
+    viewModel(key = lists.joinToString { it.id }) { OptionListViewModel(lists) }
+
+/** The welcome / sign-in flow; [startWithForm] opens straight on the email form (in-app sheet). */
+@Composable
+fun createAuthViewModel(startWithForm: Boolean = false, initialMode: AuthMode = AuthMode.SIGN_IN): AuthViewModel =
+    viewModel(key = "auth-$startWithForm-$initialMode") { AuthViewModel(startWithForm = startWithForm, initialMode = initialMode) }

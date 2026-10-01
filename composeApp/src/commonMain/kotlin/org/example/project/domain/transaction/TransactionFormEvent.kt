@@ -1,5 +1,6 @@
 package org.example.project.domain.transaction
 
+import org.example.project.model.OptionList
 import org.example.project.voice.VoiceStatus
 
 sealed interface TransactionFormEvent {
@@ -13,6 +14,16 @@ sealed interface TransactionFormEvent {
     data object CategoryDropdownToggled : TransactionFormEvent
     data object PaymentDropdownToggled : TransactionFormEvent
     data object FormSubmitted : TransactionFormEvent
+
+    /** A new option typed into a picker: saved to the user's list and selected. Handled in the ViewModel. */
+    data class OptionCreated(val list: OptionList, val name: String) : TransactionFormEvent
+
+    /** ViewModel-internal: the user's lists changed (loaded, or edited on another screen). */
+    data class OptionsLoaded(
+        val expenseCategories: List<String>,
+        val incomeCategories: List<String>,
+        val paymentModes: List<String>,
+    ) : TransactionFormEvent
 
     /** Mic tapped — start listening if idle, stop if already listening. Side effect; handled in the ViewModel. */
     data object VoiceInputToggled : TransactionFormEvent

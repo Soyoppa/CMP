@@ -10,10 +10,10 @@ data class TransactionFormState(
     val isIncome: Boolean = false,
     val selectedCategory: String = "",
     val selectedPaymentMode: String = "",
-    /** Category picker options — schema defaults until the user's cloud-saved list (if any) loads. */
-    val categoryOptions: List<String> = emptyList(),
-    /** Payment picker options — [org.example.project.model.PaymentMode] defaults until the user's cloud-saved list (if any) loads. */
-    val paymentModeOptions: List<String> = emptyList(),
+    /** The user's own lists (they start empty; the pickers can add to them on the spot). */
+    val expenseCategories: List<String> = emptyList(),
+    val incomeCategories: List<String> = emptyList(),
+    val paymentModes: List<String> = emptyList(),
     val selectedDate: String = "",
     val isPaid: Boolean = false,
     val showCategoryDropdown: Boolean = false,
@@ -31,6 +31,9 @@ data class TransactionFormState(
      */
     val voiceAiUsage: VoiceAiUsage? = null,
 ) {
+    /** The category picker's options: income sources for income, categories for expenses. */
+    val categoryOptions: List<String> get() = if (isIncome) incomeCategories else expenseCategories
+
     val isValid: Boolean
         get() = amount.isNotBlank() &&
                 amount.toDoubleOrNull() != null &&

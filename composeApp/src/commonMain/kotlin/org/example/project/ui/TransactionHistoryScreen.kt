@@ -60,7 +60,6 @@ import org.example.project.viewmodel.TransactionHistoryViewModel
 
 /**
  * Every transaction the user has logged, newest first and grouped by month, with delete.
- * Guests see the demo ledger read-only (no delete buttons).
  *
  */
 @Composable
@@ -233,7 +232,7 @@ private fun HistoryContent(
                     )
                 }
                 items(monthEntries, key = { entry -> "${entry.id}|${entry.description}|${entry.date}" }) { entry ->
-                    HistoryRow(entry = entry, canDelete = state.canDelete, onDelete = { onDelete(entry) })
+                    HistoryRow(entry = entry, onDelete = { onDelete(entry) })
                 }
             }
         }
@@ -241,7 +240,7 @@ private fun HistoryContent(
 }
 
 @Composable
-private fun HistoryRow(entry: LedgerEntry, canDelete: Boolean, onDelete: () -> Unit) {
+private fun HistoryRow(entry: LedgerEntry, onDelete: () -> Unit) {
     val accent = if (entry.isIncome) IncomeGreen else ExpenseTerracotta
     Row(
         modifier = Modifier
@@ -290,19 +289,17 @@ private fun HistoryRow(entry: LedgerEntry, canDelete: Boolean, onDelete: () -> U
             maxLines = 1,
         )
 
-        if (canDelete) {
-            BounceSurface(
-                onClick = onDelete,
-                shape = AppShapes.pill,
-                color = Color.Transparent,
-                pressedScale = 0.88f,
-                contentPadding = PaddingValues(12.dp),
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Delete ${entry.description}" },
-            ) {
-                TrashGlyph(color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        BounceSurface(
+            onClick = onDelete,
+            shape = AppShapes.pill,
+            color = Color.Transparent,
+            pressedScale = 0.88f,
+            contentPadding = PaddingValues(12.dp),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = "Delete ${entry.description}" },
+        ) {
+            TrashGlyph(color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -19,20 +19,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import org.example.project.ui.theme.AppShapes
 import org.example.project.viewmodel.DeleteAccountEvent
 import org.example.project.viewmodel.DeleteAccountViewModel
+import org.example.project.viewmodel.createDeleteAccountViewModel
 
 /**
  * Confirms permanent account deletion (required by the App Store and Google Play for apps that
- * let users create accounts). Email accounts re-enter their password; guests just confirm.
+ * let users create accounts). The password is re-entered to confirm.
  */
 @Composable
 fun DeleteAccountDialog(
-    isGuest: Boolean,
     onDismiss: () -> Unit,
-    viewModel: DeleteAccountViewModel = viewModel { DeleteAccountViewModel() },
+    viewModel: DeleteAccountViewModel = createDeleteAccountViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -43,26 +42,20 @@ fun DeleteAccountDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = if (isGuest) {
-                        "This ends your guest session and removes it permanently."
-                    } else {
-                        "This permanently deletes your account, transactions, budgets and saved lists. It can't be undone."
-                    },
+                    text = "This permanently deletes your account, transactions, budgets and saved lists. It can't be undone.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                if (!isGuest) {
-                    OutlinedTextField(
-                        value = state.password,
-                        onValueChange = { viewModel.onEvent(DeleteAccountEvent.PasswordChanged(it)) },
-                        label = { Text("Password") },
-                        singleLine = true,
-                        enabled = !state.isDeleting,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        shape = AppShapes.field,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                OutlinedTextField(
+                    value = state.password,
+                    onValueChange = { viewModel.onEvent(DeleteAccountEvent.PasswordChanged(it)) },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    enabled = !state.isDeleting,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    shape = AppShapes.field,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 state.error?.let { error ->
                     Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
@@ -71,7 +64,7 @@ fun DeleteAccountDialog(
         confirmButton = {
             TextButton(
                 onClick = { viewModel.onEvent(DeleteAccountEvent.ConfirmClicked) },
-                enabled = !state.isDeleting && (isGuest || state.password.isNotEmpty()),
+                enabled = !state.isDeleting && state.password.isNotEmpty(),
             ) {
                 if (state.isDeleting) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)

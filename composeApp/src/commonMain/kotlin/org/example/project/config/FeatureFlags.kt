@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 data class FeatureFlags(
     val signupEnabled: Boolean = true,
-    val guestModeEnabled: Boolean = true,
     val chatEnabled: Boolean = true,
 )
 

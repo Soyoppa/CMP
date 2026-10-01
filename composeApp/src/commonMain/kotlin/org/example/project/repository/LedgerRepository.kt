@@ -1,37 +1,28 @@
 package org.example.project.repository
 
-import org.example.project.AppContainer
-import org.example.project.auth.Session
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import org.example.project.data.ledger.AddTransactionResult
-import org.example.project.data.ledger.DemoLedgerDataSource
+import org.example.project.data.ledger.LabelField
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.LedgerYear
-import org.example.project.data.ledger.LedgerSource
 import org.example.project.model.Transaction
 
 /**
- * The single entry point the app uses for ledger data. Routes every call to the backend that
- * belongs to the current session:
- *  - guests → [DemoLedgerDataSource] (anonymous sessions must never see real rows)
- *  - accounts granted [LedgerSource.SHEETS] → the household Google Sheet (via the gateway)
- *  - everyone else → their own Firestore ledger
+ * The session's ledger — the only way screens read or write transactions. Bound to one
+ * [LedgerDataSource] for the whole session (device, cloud, or the developer-only sheet; see
+ * [org.example.project.SessionGraph]), so a screen can never read the wrong ledger.
  *
- * Deciding here (not in each ViewModel) means a new screen can't accidentally read the wrong ledger.
+ * [revision] ticks after every change, so every open screen reloads on its own — adding an
+ * expense updates the Summary without anyone wiring a refresh call.
  */
-class LedgerRepository(
-    private val cloud: LedgerDataSource = AppContainer.cloudLedger,
-    private val sheets: () -> LedgerDataSource = { AppContainer.sheetsLedger },
-) {
-    private val source: LedgerDataSource
-        get() {
-            val user = Session.currentUser
-            return when {
-                user == null || user.isGuest -> DemoLedgerDataSource
-                user.ledgerSource == LedgerSource.SHEETS -> sheets()
-                else -> cloud
-            }
-        }
+class LedgerRepository(private val source: LedgerDataSource) {
+
+    private val _revision = MutableStateFlow(0)
+    val revision: StateFlow<Int> = _revision.asStateFlow()
 
     /** One calendar year of rows, plus how far back the ledger goes. */
     suspend fun readYear(year: Int): LedgerYear = source.readYear(year)
@@ -40,8 +31,20 @@ class LedgerRepository(
     suspend fun expensesIn(year: Int): List<LedgerEntry> = source.readYear(year).expenses
 
     suspend fun addTransaction(transaction: Transaction): AddTransactionResult =
-        source.addTransaction(transaction)
+        source.addTransaction(transaction).also { if (it.success) changed() }
 
-    /** Permanently deletes [entry]; guests (demo data) get a user-facing refusal. */
-    suspend fun deleteEntry(entry: LedgerEntry) = source.deleteEntry(entry)
+    /** Permanently deletes [entry]; throws a user-facing error on failure. */
+    suspend fun deleteEntry(entry: LedgerEntry) {
+        source.deleteEntry(entry)
+        changed()
+    }
+
+    /** Renames a label on every past row; see [LedgerDataSource.relabel]. */
+    suspend fun relabel(field: LabelField, from: String, to: String): Int =
+        source.relabel(field, from, to).also { if (it > 0) changed() }
+
+    /** The data may have changed elsewhere (the web, another phone): make open screens reload. */
+    fun invalidate() = changed()
+
+    private fun changed() = _revision.update { it + 1 }
 }

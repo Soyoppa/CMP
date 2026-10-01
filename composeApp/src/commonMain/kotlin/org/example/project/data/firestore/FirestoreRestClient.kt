@@ -70,6 +70,24 @@ class FirestoreRestClient(
         })
     }
 
+    /**
+     * Overwrites only [fields] of the existing document at [path] (an `updateMask` patch), leaving
+     * the rest untouched. Field names must be plain identifiers.
+     */
+    suspend fun updateFields(path: String, fields: Map<String, Any?>) {
+        val body = buildJsonObject { put("fields", FirestoreValues.encodeFields(fields)) }.toString()
+        requireSuccess(authorized {
+            http.patch(url(path)) {
+                it()
+                fields.keys.forEach { name -> parameter("updateMask.fieldPaths", name) }
+                // Never resurrect a document that was deleted meanwhile.
+                parameter("currentDocument.exists", true)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+        })
+    }
+
     /** Adds a document with a generated id to [collectionPath]; returns the new id. */
     suspend fun createDocument(collectionPath: String, fields: Map<String, Any?>): String {
         val body = buildJsonObject { put("fields", FirestoreValues.encodeFields(fields)) }.toString()
@@ -137,6 +155,17 @@ class FirestoreRestClient(
             })
         })
         put("orderBy", buildJsonArray { add(orderBy(field, ascending = true)) })
+    }
+
+    /** Documents of [collectionId] under [parentPath] whose [field] equals [value]. */
+    suspend fun queryByValue(
+        parentPath: String,
+        collectionId: String,
+        field: String,
+        value: String,
+    ): List<FirestoreDocument> = runQuery(parentPath) {
+        put("from", buildJsonArray { add(buildJsonObject { put("collectionId", collectionId) }) })
+        put("where", fieldFilter(field, "EQUAL", value))
     }
 
     /**

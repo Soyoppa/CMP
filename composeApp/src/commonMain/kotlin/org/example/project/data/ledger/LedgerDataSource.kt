@@ -3,12 +3,16 @@ package org.example.project.data.ledger
 import org.example.project.model.Transaction
 
 /**
- * Where a signed-in user's ledger lives.
- *  - [CLOUD]: the user's own Firestore collection — the default for every account.
- *  - [SHEETS]: the household Google Sheet — granted per account from the Firebase
- *    console (see [LedgerAccessResolver]).
+ * Where a session's ledger lives.
+ *  - [DEVICE]: this phone's storage — mobile users without an account.
+ *  - [CLOUD]: the account's own Firestore collection — every account (always on the web).
+ *  - [SHEETS]: the household Google Sheet — a developer-only option for accounts granted it in
+ *    the Firebase console (see [org.example.project.data.sheets.SheetsAccessStore]).
  */
-enum class LedgerSource { CLOUD, SHEETS }
+enum class LedgerSource { DEVICE, CLOUD, SHEETS }
+
+/** A label column that can be renamed across the whole ledger. */
+enum class LabelField { CATEGORY, PAYMENT_MODE }
 
 /**
  * One ledger row (income or expense). [amount] is always positive; [isIncome] tells the sides
@@ -64,4 +68,10 @@ interface LedgerDataSource {
 
     /** Permanently removes [entry] (identified by [LedgerEntry.id]). Throws a user-facing error on failure. */
     suspend fun deleteEntry(entry: LedgerEntry)
+
+    /**
+     * Renames a label on every row that carries it — a category or payment mode was renamed, and
+     * past transactions should follow. Returns how many rows changed.
+     */
+    suspend fun relabel(field: LabelField, from: String, to: String): Int
 }

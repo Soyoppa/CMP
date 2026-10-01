@@ -36,9 +36,9 @@ object TransactionFormReducer {
                     showPaymentDropdown = false
                 )
             is TransactionFormEvent.TransactionTypeChanged ->
-                // Income and expense have different category lists; reset to "Other"
-                // (valid in both) so a stale selection can't leak across types.
-                state.copy(isIncome = event.isIncome, selectedCategory = "Other")
+                // Income and expense have different category lists, so a selection never carries over.
+                if (event.isIncome == state.isIncome) state
+                else state.copy(isIncome = event.isIncome, selectedCategory = "")
             is TransactionFormEvent.IsPaidChanged ->
                 state.copy(isPaid = event.isPaid)
             TransactionFormEvent.CategoryDropdownToggled ->
@@ -57,6 +57,19 @@ object TransactionFormReducer {
             // Side effects owned by the ViewModel; no state change here.
             TransactionFormEvent.VoiceInputToggled -> state
             TransactionFormEvent.ClearForm -> state
+            is TransactionFormEvent.OptionCreated -> state
+
+            is TransactionFormEvent.OptionsLoaded -> state.copy(
+                expenseCategories = event.expenseCategories,
+                incomeCategories = event.incomeCategories,
+                paymentModes = event.paymentModes,
+            ).let { next ->
+                // A selection that was renamed or deleted elsewhere is no longer a valid choice.
+                next.copy(
+                    selectedCategory = next.selectedCategory.takeIf { it in next.categoryOptions }.orEmpty(),
+                    selectedPaymentMode = next.selectedPaymentMode.takeIf { it in next.paymentModes }.orEmpty(),
+                )
+            }
 
             is TransactionFormEvent.VoiceStatusChanged ->
                 state.copy(voiceStatus = event.status)

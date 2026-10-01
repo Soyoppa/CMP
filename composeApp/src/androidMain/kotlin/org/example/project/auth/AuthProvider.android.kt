@@ -28,10 +28,6 @@ internal class FirebaseAndroidAuthProvider(
         auth.createUserWithEmailAndPassword(email, password).await().user.required()
     }
 
-    override suspend fun signInAnonymously(): AuthUser = firebaseCall {
-        auth.signInAnonymously().await().user.required()
-    }
-
     override suspend fun signOut() = auth.signOut()
 
     override suspend fun deleteCurrentUser() {

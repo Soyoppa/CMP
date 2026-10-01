@@ -1,6 +1,9 @@
 package org.example.project.auth
 
-/** A Firebase Auth user as reported by the platform provider. */
+/**
+ * A Firebase Auth user as reported by the platform provider. [isAnonymous] only flags sessions left
+ * over from the retired guest mode, which are signed out on launch.
+ */
 data class AuthUser(
     val uid: String,
     val email: String?,
@@ -21,7 +24,6 @@ interface AuthProvider {
     suspend fun currentUser(): AuthUser?
     suspend fun signIn(email: String, password: String): AuthUser
     suspend fun signUp(email: String, password: String): AuthUser
-    suspend fun signInAnonymously(): AuthUser
     suspend fun signOut()
 
     /** Deletes the signed-in Firebase account. May require a recent sign-in. */

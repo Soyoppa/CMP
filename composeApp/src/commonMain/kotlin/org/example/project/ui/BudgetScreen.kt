@@ -61,11 +61,13 @@ private fun colorForIndex(index: Int): Color = BucketColors[index % BucketColors
 /**
  * Budget editor sheet for the current cut-off (1st–15th or 16th–end of month): an overall budget
  * (what "Remaining" is measured against) and optional per-category budgets. The Save bar stays
- * pinned at the bottom however long the list is. Shown only to real (non-guest) users.
+ * pinned at the bottom however long the list is.
  */
 @Composable
 fun BudgetScreen(
     onClose: () -> Unit,
+    /** Opens the category editor (from the "no categories yet" hint). */
+    onManageCategories: () -> Unit = {},
     viewModel: BudgetViewModel = createBudgetViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -142,6 +144,10 @@ fun BudgetScreen(
                     modifier = Modifier.padding(start = 4.dp),
                 )
 
+                if (uiState.buckets.isEmpty()) {
+                    NoCategoriesHint(onManageCategories = onManageCategories)
+                }
+
                 uiState.buckets.forEachIndexed { index, bucket ->
                     BudgetRow(
                         bucket = bucket,
@@ -153,6 +159,41 @@ fun BudgetScreen(
 
                 Spacer(Modifier.height(12.dp))
             }
+        }
+    }
+}
+
+/** Category budgets need categories; the user creates their own, so point the way. */
+@Composable
+private fun NoCategoriesHint(onManageCategories: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
+            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Add categories to budget each one separately.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        BounceSurface(
+            onClick = onManageCategories,
+            shape = AppShapes.pill,
+            color = MaterialTheme.colorScheme.surface,
+            pressedScale = 0.94f,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.heightIn(min = 44.dp),
+        ) {
+            Text(
+                text = "Add categories",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

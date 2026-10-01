@@ -44,14 +44,6 @@ class RestAuthProviderTest {
     }
 
     @Test
-    fun anonymousSignInHasNoEmail() = runTest {
-        val auth = provider {
-            HttpStatusCode.OK to """{"localId":"anon","idToken":"id","refreshToken":"r","expiresIn":"3600"}"""
-        }
-        assertEquals(true, auth.signInAnonymously().isAnonymous)
-    }
-
-    @Test
     fun firebaseErrorCodesBecomeFriendlyMessages() = runTest {
         val auth = provider {
             HttpStatusCode.BadRequest to """{"error":{"message":"WEAK_PASSWORD : Password should be at least 6 characters"}}"""

@@ -56,8 +56,8 @@ window.__financeAi = {
 };
 
 /*
- * Firebase Auth bridge. Exposes window.__financeAuth.{init, signIn, signUp, guest, signOut,
- * idToken, deleteUser}; called from FirebaseJsAuthProvider (wasmJsMain). Email/Password + Anonymous (guest) providers,
+ * Firebase Auth bridge. Exposes window.__financeAuth.{init, signIn, signUp, signOut,
+ * idToken, deleteUser}; called from FirebaseJsAuthProvider (wasmJsMain). Email/Password provider,
  * with browserLocalPersistence so sessions survive restarts until explicit sign-out.
  */
 window.__financeAuth = {
@@ -97,7 +97,6 @@ window.__financeAuth = {
       "auth/weak-password": "Password must be at least 6 characters.",
       "auth/too-many-requests": "Too many attempts — try again later.",
       "auth/operation-not-allowed": "Email/Password sign-in isn't enabled in Firebase.",
-      "auth/admin-restricted-operation": "Guest mode (Anonymous auth) isn't enabled in Firebase.",
       "auth/requires-recent-login": "For your security, sign out, sign back in, and try again.",
       "auth/network-request-failed": "No connection — check your network and try again.",
     };
@@ -128,13 +127,6 @@ window.__financeAuth = {
       return this._user(cred.user);
     } catch (e) { throw new Error(this._friendly(e)); }
   },
-  async guest() {
-    await this._ready;
-    try {
-      const cred = await this._lib.signInAnonymously(this._auth);
-      return this._user(cred.user);
-    } catch (e) { throw new Error(this._friendly(e)); }
-  },
   async signOut() {
     await this._ready;
     await this._lib.signOut(this._auth);
@@ -161,10 +153,10 @@ window.__financeAuth = {
 /*
  * Firebase Remote Config bridge. Exposes window.__financeFlags.get(configJson);
  * called from RemoteConfigRepository (wasmJsMain). Acts as a remote kill-switch for UI
- * features (sign-up, guest mode, chat). Defaults below are the "fail-open" values used
+ * features (sign-up, chat). Defaults below are the "fail-open" values used
  * before the first successful fetch or if Remote Config is unreachable.
  */
-const DEFAULTS = { signup_enabled: true, guest_mode_enabled: true, chat_enabled: true };
+const DEFAULTS = { signup_enabled: true, chat_enabled: true };
 window.__financeFlags = {
   _rc: null,
   _lib: null,
@@ -193,7 +185,6 @@ window.__financeFlags = {
       await this._lib.fetchAndActivate(this._rc);
       return JSON.stringify({
         signup_enabled: this._lib.getValue(this._rc, "signup_enabled").asBoolean(),
-        guest_mode_enabled: this._lib.getValue(this._rc, "guest_mode_enabled").asBoolean(),
         chat_enabled: this._lib.getValue(this._rc, "chat_enabled").asBoolean(),
       });
     } catch (e) {
