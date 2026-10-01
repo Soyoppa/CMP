@@ -799,8 +799,7 @@ private fun CutOffChips(
     onSelected: (String) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         periods.forEach { period ->
             val selected = period.id == selectedId
@@ -810,12 +809,12 @@ private fun CutOffChips(
                 color = if (selected) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceContainer,
                 pressedScale = 0.94f,
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                modifier = Modifier.heightIn(min = 40.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp),
+                modifier = Modifier.heightIn(min = 32.dp),
             ) {
                 Text(
                     text = period.rangeLabel,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     color = if (selected) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
