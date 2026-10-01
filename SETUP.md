@@ -14,14 +14,14 @@ cp local.properties.example local.properties
 |---|---|---|
 | `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID` | yes | Firebase console → Project settings → Web app `firebaseConfig`. Not secret: access is enforced by Firebase Auth + `firestore.rules`. |
 | `GEMINI_MODEL` | yes | Firebase AI Logic model, e.g. `gemini-2.0-flash`. |
-| `SHEET_SCHEMA` | yes | `tracker_1` or `tracker_2` — the household sheet layout for accounts granted Sheets access. |
+| `SHEET_SCHEMA` | yes | `tracker_1` or `tracker_2` — the household sheet layout for the developer-only Sheets ledger. |
 | `<schema>.SHEETS_GATEWAY_URL` | optional | `/exec` URL of the Sheets gateway (step 4). Builds without it never use the sheet — leave it out of store builds unless your granted accounts should reach the sheet there too. |
 
 The build fails loudly when a required key is missing.
 
 ## 2. Firebase project
 
-1. Enable **Authentication** → Email/Password and Anonymous providers.
+1. Enable **Authentication** → Email/Password (the Anonymous provider is no longer used).
 2. Create a **Cloud Firestore** database, then deploy the rules:
    ```bash
    npx -y firebase-tools@latest deploy --only firestore:rules
@@ -29,7 +29,7 @@ The build fails loudly when a required key is missing.
 3. Android: add an Android app with package `org.example.project`, download
    `google-services.json` into `composeApp/`.
 4. Enable **Firebase AI Logic** (Gemini Developer API) and **Remote Config**
-   (booleans `signup_enabled`, `guest_mode_enabled`, `chat_enabled`).
+   (booleans `signup_enabled`, `chat_enabled`).
 5. Strongly recommended before a public launch: enable **App Check** (Play Integrity on
    Android, App Attest on iOS, reCAPTCHA Enterprise on web) and enforce it for Firestore and
    AI Logic, so only your apps can spend your quota.
@@ -38,21 +38,28 @@ The build fails loudly when a required key is missing.
 
 | Who | Ledger | Budgets / lists |
 |---|---|---|
-| Every account (store users) | `users/{uid}/transactions` in Firestore | `users/{uid}/budgets/{cut-off}` and `users/{uid}/settings/*` |
-| Accounts granted Sheets access (any platform whose build has the gateway URL) | Household Google Sheet via the gateway | `users/{uid}/budgets/{cut-off}` and `users/{uid}/settings/*` |
-| Guests | Built-in demo data (read-only) | — |
+| Mobile without an account | This phone (app-private files on Android, NSUserDefaults on iOS) | This phone |
+| Any account (mobile or web — the web always requires one) | `users/{uid}/transactions` in Firestore | `users/{uid}/budgets/{cut-off}` and `users/{uid}/settings/*` |
+| Account with the developer Sheets switch on | Household Google Sheet via the gateway | Firestore, as above |
 
-Budgets are per **cut-off**: the 1st–15th (`YYYY-MM-1`) and the 16th–end of month (`YYYY-MM-2`).
+- Categories, income sources, payment modes and budgets start **empty** — users create, rename and delete their own.
+- When a phone user signs in or creates an account, everything on the phone is uploaded to the account (lists merged, missing budgets copied, transactions written under their own ids so a retry never duplicates them), then cleared from the phone.
+- Accounts re-read their data whenever the app returns to the foreground, so web and phone stay in sync.
+- Budgets are per **cut-off**: the 1st–15th (`YYYY-MM-1`) and the 16th–end of month (`YYYY-MM-2`).
 
-## 4. Granting Sheets access
+## 4. Granting Sheets access (developer only)
 
-The household sheet is reachable only through `apps-script/sheets-gateway.gs`, which verifies the
-caller's Firebase ID token and an allow-list. To grant an account:
+The household sheet is a developer option, invisible to everyone else: the **Developer** section
+in Settings (with the "Household sheet ledger" switch) only appears for accounts holding a grant.
+It is reachable only through `apps-script/sheets-gateway.gs`, which verifies the caller's Firebase
+ID token and an allow-list. To grant an account:
 
 1. Find the user's **uid** in Firebase console → Authentication.
 2. In Firestore, create document `users/{uid}/access/ledger` with field `source` = `"sheets"`.
    Clients can't write this path, so nobody can grant it to themselves.
 3. Add the same uid to the gateway's `ALLOWED_UIDS` script property.
+4. In the app, Settings → Developer → "Household sheet ledger" switches that account between the
+   sheet and its own cloud ledger (stored at `users/{uid}/settings/developer`; on by default once granted).
 
 Deploying the gateway (once per spreadsheet) is described at the top of
 `apps-script/sheets-gateway.gs`. After updating the script (e.g. to get the `delete` action used by

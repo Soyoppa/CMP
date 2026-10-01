@@ -34,33 +34,40 @@ service cloud.firestore {
 
     // --- Budgets: one document per cut-off --------------------------------------------
     // Id "YYYY-MM-1" (1st–15th) or "YYYY-MM-2" (16th–end of month):
-    // { total: number, <bucket name>: number, ..., updatedAt: int }
+    // { total: number, categories: { <category name>: number, ... }, updatedAt: int }
     match /users/{uid}/budgets/{periodId} {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid)
         && periodId.matches('^[0-9]{4}-(0[1-9]|1[0-2])-[12]$')
-        && request.resource.data.size() <= 30
-        && request.resource.data.updatedAt is int
+        && request.resource.data.keys().hasOnly(['total', 'categories', 'updatedAt'])
         && request.resource.data.total is number
-        && request.resource.data.total >= 0;
+        && request.resource.data.total >= 0
+        && request.resource.data.categories is map
+        && request.resource.data.categories.size() <= 100
+        && request.resource.data.updatedAt is int;
     }
 
-    // --- Settings: editable option lists ----------------------------------------------
-    // (settings/budget is the old per-month budget: still readable to seed the first
-    // cut-off's suggestion, no longer writable.)
+    // --- Settings: the user's own option lists, and the developer switch --------------
     match /users/{uid}/settings/{docId} {
       allow read, delete: if isOwner(uid);
 
-      // "categories" / "paymentModes": { items: [string, ...], updatedAt: int }
+      // "categories" / "incomeCategories" / "paymentModes": { items: [string, ...], updatedAt: int }
       allow write: if isOwner(uid)
-        && docId in ['categories', 'paymentModes']
+        && docId in ['categories', 'incomeCategories', 'paymentModes']
         && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
         && request.resource.data.items is list
         && request.resource.data.items.size() <= 100
         && request.resource.data.updatedAt is int;
+
+      // "developer": { useSheets: bool, updatedAt: int } — only matters with a Sheets grant below.
+      allow write: if isOwner(uid)
+        && docId == 'developer'
+        && request.resource.data.keys().hasOnly(['useSheets', 'updatedAt'])
+        && request.resource.data.useSheets is bool
+        && request.resource.data.updatedAt is int;
     }
 
-    // --- Ledger access grant (Google Sheets on web) ------------------------------------
+    // --- Household-sheet grant (developer only) -----------------------------------------
     // Created by the project owner in the Firebase console: { source: "sheets" }.
     // Clients may read (and delete, on account deletion) their own grant but never write one.
     match /users/{uid}/access/{docId} {

@@ -27,22 +27,32 @@ What the code already covers is marked ✅. The rest needs your accounts, assets
       1024×1024 App Store icon and Play's 512×512 listing icon need a high-resolution logo.
 - [ ] **Store listings.** Screenshots, description, Play Data safety form and App Store privacy
       labels (match `iosApp/iosApp/PrivacyInfo.xcprivacy`: email, user ID, financial info;
-      linked to the user; no tracking).
+      linked to the user; no tracking). Say that an account is optional: without one, data stays
+      on the device and is never sent anywhere.
+- [ ] **Store build without the sheet.** Leave `<schema>.SHEETS_GATEWAY_URL` out of the release
+      `local.properties` if the developer Sheets ledger shouldn't ship at all; with it, the switch
+      still only appears for accounts granted in the Firebase console.
 - [ ] **Version.** Bump `app.versionCode` (every upload) and `app.versionName` in
       `gradle.properties`; `CURRENT_PROJECT_VERSION`/`MARKETING_VERSION` in `Config.xcconfig`.
 
 ## Covered in code
 
-- ✅ Every account has its own Firestore ledger; guests only ever see demo data.
-- ✅ Household sheet only via the authenticated Apps Script gateway (granted accounts, any platform whose build has the gateway URL); no Sheets API key in any build.
+- ✅ Mobile works without an account (everything stored on the phone); signing in later uploads it to the account.
+- ✅ The web requires an account; every account has its own Firestore ledger, lists and budgets.
+- ✅ No pre-filled categories, payment modes or budgets — users create, rename and delete their own.
+- ✅ Household sheet is a developer-only switch: only accounts granted in the Firebase console see it, only via the authenticated Apps Script gateway; no Sheets API key in any build.
 - ✅ Real sign-in on every platform (JS SDK web, native Android, REST + Keychain iOS).
-- ✅ In-app account deletion that also erases the user's Firestore data (App Store 5.1.1(v), Play policy).
+- ✅ In-app account deletion that also erases the user's Firestore data (App Store 5.1.1(v), Play policy); no-account users can erase the phone's data from Settings.
 - ✅ Android: R8 minify + resource shrink, cleartext disabled, system CAs only, no backup of app data,
   predictive back, adaptive icon, brand launch background.
 - ✅ iOS: display name, export-compliance flag, launch screen, privacy manifest.
 - ✅ Web: CSP without inline scripts, HSTS, frame-ancestors none, mic allowed for voice entry.
 
 ## Known gaps
+
+- Phone-only data isn't backed up (Android backup is off on purpose), so uninstalling or losing the
+  phone loses it — the Settings card nudges these users to create an account.
+- The AI assistant is for accounts only; no-account users get local voice parsing without the Gemini fallback.
 
 - iOS and desktop have no AI chat yet (the chat bubble is hidden there) and no voice entry.
 - Android voice entry isn't wired (the mic button is hidden).
