@@ -206,7 +206,7 @@ class TransactionFormViewModel(
             try {
                 val result = ledger.addTransaction(buildTransaction(state))
                 if (result.success) {
-                    _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved"))
+                    _effects.emit(TransactionFormEffect.ShowSuccess("Transaction saved", isIncome = state.isIncome))
                     resetForm()
                 } else {
                     _effects.emit(TransactionFormEffect.ShowError(result.errorMessage ?: "Failed to save transaction."))

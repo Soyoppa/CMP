@@ -2,6 +2,7 @@ package org.example.project.ui
 
 import org.example.project.util.FormatUtils
 import org.example.project.ui.components.BudgetPromptBanner
+import org.example.project.ui.components.BudgetPulse
 import org.example.project.ui.components.RemainingBudgetBanner
 import org.example.project.model.BudgetStatus
 import androidx.compose.animation.AnimatedVisibility
@@ -159,6 +160,11 @@ fun TransactionFormScreen(
     var saveSuccess by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    // Replays the life bar's hit/heal animation on every save — a fresh id each time so two
+    // expenses (or two incomes) in a row still retrigger it.
+    var budgetPulseId by remember { mutableStateOf(0L) }
+    var budgetPulse by remember { mutableStateOf<BudgetPulse?>(null) }
+
     // Open keyboard on the amount field immediately — no extra tap needed.
     LaunchedEffect(Unit) {
         delay(700)
@@ -174,6 +180,8 @@ fun TransactionFormScreen(
                 }
                 is TransactionFormEffect.ShowSuccess -> {
                     saveSuccess = true
+                    budgetPulseId++
+                    budgetPulse = BudgetPulse(id = budgetPulseId, isIncome = effect.isIncome)
                     scope.launch {
                         delay(1300)
                         saveSuccess = false
@@ -262,7 +270,12 @@ fun TransactionFormScreen(
         }
         // Skip the "no budget" row when the prompt above already covers the same cut-off.
         if (budgetStatus != null && (budgetStatus.hasBudget || budgetPromptLabel != budgetPeriodLabel)) {
-            RemainingBudgetBanner(status = budgetStatus, periodLabel = budgetPeriodLabel, onClick = onBudgetClick)
+            RemainingBudgetBanner(
+                status = budgetStatus,
+                periodLabel = budgetPeriodLabel,
+                onClick = onBudgetClick,
+                pulse = budgetPulse,
+            )
         }
 
         // 1. Type decision first — it changes what the amount means.
