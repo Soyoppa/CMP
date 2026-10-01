@@ -2,12 +2,14 @@ package org.example.project.repository
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.example.project.config.LedgerProfile
 import org.example.project.data.config.DeviceConfigStore
 import org.example.project.data.device.InMemoryDeviceStore
 import org.example.project.data.sheets.SheetDataSourceFactory
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
 import org.example.project.model.OptionList
@@ -62,6 +64,39 @@ class ConfigRepositoryTest {
         repository.addOption(OptionList.PAYMENT_MODES, "GCash")
         repository.deleteOption(OptionList.PAYMENT_MODES, "Cash").getOrThrow()
         assertEquals(listOf("GCash"), store.load().paymentModes)
+    }
+
+    @Test
+    fun theBudgetingCycleIsSavedAndKeepsBothSetsOfBudgets() = runTest {
+        val cutOff = BudgetPeriod(2026, 10, 1)
+        val month = BudgetPeriod(2026, 10, BudgetPeriod.WHOLE_MONTH)
+        repository.saveBudget(cutOff, BudgetPlan(total = 5_000.0)).getOrThrow()
+
+        repository.setCycle(BudgetCycle.MONTHLY).getOrThrow()
+        assertEquals(BudgetCycle.MONTHLY, repository.config.cycle)
+        repository.saveBudget(month, BudgetPlan(total = 12_000.0)).getOrThrow()
+
+        // Both survive: their ids differ, so switching back shows the old figures again.
+        val reopened = ConfigRepository(DeviceConfigStore(deviceStore))
+        reopened.ensureLoaded()
+        assertEquals(BudgetCycle.MONTHLY, reopened.config.cycle)
+        assertEquals(5_000.0, reopened.config.planFor(cutOff)?.total)
+        assertEquals(12_000.0, reopened.config.planFor(month)?.total)
+
+        reopened.setCycle(BudgetCycle.CUT_OFF).getOrThrow()
+        val switchedBack = ConfigRepository(DeviceConfigStore(deviceStore))
+        switchedBack.ensureLoaded()
+        assertEquals(BudgetCycle.CUT_OFF, switchedBack.config.cycle)
+    }
+
+    @Test
+    fun aSuggestionNeverCrossesCycles() = runTest {
+        repository.saveBudget(BudgetPeriod(2026, 9, 2), BudgetPlan(total = 7_000.0)).getOrThrow()
+        val config = repository.config
+        // An earlier cut-off's plan suggests the next cut-off…
+        assertEquals(7_000.0, config.suggestedPlan(BudgetPeriod(2026, 10, 1))?.total)
+        // …but says nothing about a monthly budget.
+        assertNull(config.suggestedPlan(BudgetPeriod(2026, 10, BudgetPeriod.WHOLE_MONTH)))
     }
 
     @Test

@@ -45,7 +45,7 @@ The build fails loudly when a required key is missing.
 - Categories, income sources, payment modes and budgets start **empty** — users create, rename and delete their own.
 - When a phone user signs in or creates an account, everything on the phone is uploaded to the account (lists merged, missing budgets copied, transactions written under their own ids so a retry never duplicates them), then cleared from the phone.
 - Accounts re-read their data whenever the app returns to the foreground, so web and phone stay in sync.
-- Budgets are per **cut-off**: the 1st–15th (`YYYY-MM-1`) and the 16th–end of month (`YYYY-MM-2`).
+- Budgets run per **cut-off** (the 1st–15th `YYYY-MM-1`, the 16th–end `YYYY-MM-2`) or per **month** (`YYYY-MM`), chosen in Settings → "How you budget" (`settings/preferences.budgetCycle`). Both sets are kept, so switching back restores the old figures.
 
 ## 4. Granting Sheets access (developer only)
 

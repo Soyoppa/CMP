@@ -40,6 +40,24 @@ class BudgetSummaryMapperTest {
     }
 
     @Test
+    fun monthlyCycleSumsTheWholeMonthIntoOnePeriod() {
+        val october = BudgetPeriod(2026, 10, BudgetPeriod.WHOLE_MONTH)
+        val summary = BudgetSummaryMapper.build(
+            entries = listOf(
+                entry("Food", 1000.0, "10/3/2026"),
+                entry("Food", 200.0, "10/20/2026"),   // the other half of the month
+                entry("Food", 50.0, "11/1/2026"),     // a different month: ignored
+            ),
+            periods = listOf(october),
+            plans = mapOf(october.id to BudgetPlan(byBucket = mapOf("Food" to 3000.0))),
+            buckets = userBuckets,
+        )
+        val food = summary.first { it.category == "Food" }
+        assertEquals(1200.0, food.spentIn(october.id))
+        assertEquals(3000.0, food.budgetFor(october.id))
+    }
+
+    @Test
     fun withNoCategoriesEverythingIsOther() {
         val summary = BudgetSummaryMapper.build(
             listOf(entry("", 40.0, "9/2/2026")), periods, emptyMap(), SpendingBuckets.of(emptyList()),

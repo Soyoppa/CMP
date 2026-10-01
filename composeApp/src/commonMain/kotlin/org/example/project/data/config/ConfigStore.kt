@@ -1,5 +1,6 @@
 package org.example.project.data.config
 
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPlan
 import org.example.project.model.OptionList
 import org.example.project.model.UserConfig
@@ -16,4 +17,7 @@ interface ConfigStore {
     suspend fun saveList(list: OptionList, items: List<String>)
 
     suspend fun saveBudget(periodId: String, plan: BudgetPlan)
+
+    /** Persists how often the user budgets; their saved budgets of either cycle are untouched. */
+    suspend fun saveCycle(cycle: BudgetCycle)
 }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.datetime.number
 import org.example.project.config.LedgerProfile
 import org.example.project.data.config.DeviceConfigStore
 import org.example.project.data.device.InMemoryDeviceStore
@@ -20,6 +21,7 @@ import org.example.project.data.ledger.LabelField
 import org.example.project.data.ledger.LedgerDataSource
 import org.example.project.data.ledger.LedgerEntry
 import org.example.project.data.ledger.LedgerYear
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
 import org.example.project.model.OptionList
@@ -80,5 +82,30 @@ class SummaryViewModelTest {
 
         config.saveBudget(BudgetPeriod.current(), BudgetPlan(total = 1_000.0))
         assertEquals(750.0, vm.uiState.value.thisPeriod?.remaining)
+    }
+
+    @Test
+    fun monthlyCycleChartsOnePeriodPerMonth() = runTest {
+        val ledger = LedgerRepository(DeviceLedgerDataSource(device))
+        config.setCycle(BudgetCycle.MONTHLY).getOrThrow()
+        config.addOption(OptionList.EXPENSE_CATEGORIES, "Food")
+        val today = DateUtils.today()
+        val vm = SummaryViewModel(ledger, config, LedgerProfile.STANDARD)
+
+        assertEquals(12, vm.uiState.value.periods.size)
+        assertEquals(BudgetCycle.MONTHLY, vm.uiState.value.cycle)
+        assertEquals(BudgetPeriod.of(today, BudgetCycle.MONTHLY), vm.uiState.value.currentPeriod)
+
+        // Spending from either half of the month lands in the same period.
+        ledger.addTransaction(
+            Transaction(date = "${today.month.number}/2/${today.year}", description = "Early", outflow = 100.0, category = "Food")
+        )
+        ledger.addTransaction(
+            Transaction(date = "${today.month.number}/20/${today.year}", description = "Late", outflow = 400.0, category = "Food")
+        )
+        config.saveBudget(BudgetPeriod.current(BudgetCycle.MONTHLY), BudgetPlan(total = 2_000.0))
+
+        assertEquals(500.0, vm.uiState.value.thisPeriod?.spent)
+        assertEquals(1_500.0, vm.uiState.value.thisPeriod?.remaining)
     }
 }

@@ -13,7 +13,8 @@ object BudgetSummaryMapper {
 
     /**
      * @param entries expense rows (income already excluded upstream).
-     * @param periods the cut-offs to chart, oldest first; spend outside them is ignored.
+     * @param periods the periods to chart, oldest first; spend outside them is ignored. Their
+     *   [BudgetCycle] is what each transaction's date is bucketed by.
      * @param plans saved budgets keyed by [BudgetPeriod.id].
      * @param buckets the roll-up used by the current ledger profile.
      */
@@ -24,6 +25,7 @@ object BudgetSummaryMapper {
         buckets: SpendingBuckets,
     ): List<CategorySummary> {
         val periodIds = periods.map { it.id }
+        val cycle = periods.firstOrNull()?.cycle ?: BudgetCycle.CUT_OFF
         fun zeroed(): MutableMap<String, Double> = periodIds.associateWithTo(LinkedHashMap()) { 0.0 }
 
         // Seed the canonical buckets so they always appear (even at zero) in a stable order.
@@ -31,7 +33,7 @@ object BudgetSummaryMapper {
         buckets.names.forEach { bucket -> spendByBucket[bucket] = zeroed() }
 
         entries.forEach { entry ->
-            val periodId = BudgetPeriod.of(entry)?.id ?: return@forEach
+            val periodId = BudgetPeriod.of(entry, cycle)?.id ?: return@forEach
             if (periodId !in periodIds) return@forEach
             val spend = spendByBucket.getOrPut(buckets.bucketFor(entry.category)) { zeroed() }
             spend[periodId] = (spend[periodId] ?: 0.0) + entry.amount

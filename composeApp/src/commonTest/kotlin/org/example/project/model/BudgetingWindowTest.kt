@@ -86,11 +86,13 @@ class BudgetingWindowTest {
     }
 
     @Test
-    fun editorStaysOnTheCurrentCutOffOutsideTheWindows() {
+    fun editorOpensOnTheCurrentCutOffOutsideTheWindowsAndStillOffersBoth() {
         val state = budgetViewModel(LocalDate(2026, 9, 10)).uiState.value
         assertEquals(BudgetPeriod(2026, 9, 1), state.period)
-        assertEquals(listOf(BudgetPeriod(2026, 9, 1)), state.selectablePeriods)
         assertFalse(state.isUpcoming)
+        // Both halves stay reachable: a budget can be set ahead, or corrected afterwards,
+        // whatever today's date is (see BudgetViewModelTest).
+        assertEquals(listOf(BudgetPeriod(2026, 9, 1), sepSecondHalf), state.selectablePeriods)
     }
 
     @Test

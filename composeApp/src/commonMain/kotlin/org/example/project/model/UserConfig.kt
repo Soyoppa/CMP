@@ -12,11 +12,13 @@ enum class OptionList(val id: String, val noun: String, val plural: String) {
     PAYMENT_MODES("paymentModes", "payment mode", "payment modes"),
 }
 
-/** Everything a user configures: their option lists and a budget per cut-off. */
+/** Everything a user configures: their option lists, their budgets, and how often they budget. */
 data class UserConfig(
     val lists: Map<OptionList, List<String>> = emptyMap(),
-    /** Budgets keyed by [BudgetPeriod.id]. */
+    /** Budgets keyed by [BudgetPeriod.id] — both cycles' budgets live here, under distinct ids. */
     val budgets: Map<String, BudgetPlan> = emptyMap(),
+    /** Whether budgets run per cut-off (1–15, 16–end) or per calendar month. */
+    val cycle: BudgetCycle = BudgetCycle.CUT_OFF,
 ) {
     fun items(list: OptionList): List<String> = lists[list].orEmpty()
 
@@ -26,13 +28,19 @@ data class UserConfig(
 
     fun withItems(list: OptionList, items: List<String>): UserConfig = copy(lists = lists + (list to items))
 
+    /** The budget saved for [period], if it has one. */
+    fun planFor(period: BudgetPeriod): BudgetPlan? = budgets[period.id]?.takeUnless { it.isEmpty }
+
     /**
-     * What to pre-fill for a cut-off that has no budget yet, so the user reviews rather than
-     * retypes: the most recent earlier cut-off's plan.
+     * What to pre-fill for a period that has no budget yet, so the user reviews rather than
+     * retypes: the most recent earlier period of the same cycle (a monthly budget is no
+     * suggestion for a cut-off, or the other way round).
      */
     fun suggestedPlan(period: BudgetPeriod): BudgetPlan? =
         budgets
-            .filterKeys { key -> BudgetPeriod.fromId(key)?.let { it < period } == true }
+            .filterKeys { key ->
+                BudgetPeriod.fromId(key)?.let { it.cycle == period.cycle && it < period } == true
+            }
             .maxByOrNull { (key, _) -> key }
             ?.value
             ?.takeUnless { it.isEmpty }

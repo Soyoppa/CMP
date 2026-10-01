@@ -11,6 +11,7 @@ import org.example.project.AppContainer
 import org.example.project.SessionGraph
 import org.example.project.auth.AppUser
 import org.example.project.auth.SessionRepository
+import org.example.project.model.BudgetCycle
 import org.example.project.util.DateUtils
 import org.example.project.util.FormatUtils
 import org.example.project.util.toUserMessage
@@ -27,6 +28,9 @@ data class SettingsUiState(
     /** Null when using the app without an account (data on this phone only). */
     val email: String? = null,
     val hasAccount: Boolean = false,
+    /** How often the user budgets — the Settings toggle. */
+    val budgetCycle: BudgetCycle = BudgetCycle.CUT_OFF,
+    val isSwitchingCycle: Boolean = false,
     val expenseCategoryCount: Int = 0,
     val incomeCategoryCount: Int = 0,
     val paymentModeCount: Int = 0,
@@ -43,6 +47,7 @@ data class SettingsUiState(
 )
 
 sealed interface SettingsEvent {
+    data class BudgetCycleSelected(val cycle: BudgetCycle) : SettingsEvent
     data object SignOutClicked : SettingsEvent
     data object EraseClicked : SettingsEvent
     data object EraseConfirmed : SettingsEvent
@@ -81,6 +86,7 @@ class SettingsViewModel(
                 val config = configState.config
                 _uiState.update {
                     it.copy(
+                        budgetCycle = config.cycle,
                         expenseCategoryCount = config.expenseCategories.size,
                         incomeCategoryCount = config.incomeCategories.size,
                         paymentModeCount = config.paymentModes.size,
@@ -92,6 +98,7 @@ class SettingsViewModel(
 
     fun onEvent(event: SettingsEvent) {
         when (event) {
+            is SettingsEvent.BudgetCycleSelected -> selectCycle(event.cycle)
             SettingsEvent.SignOutClicked -> viewModelScope.launch { sessionRepository.signOut() }
             SettingsEvent.EraseClicked -> _uiState.update { it.copy(confirmErase = true) }
             SettingsEvent.EraseDismissed -> _uiState.update { it.copy(confirmErase = false) }
@@ -99,6 +106,23 @@ class SettingsViewModel(
             is SettingsEvent.SheetsToggled -> toggleSheets(event.enabled)
             SettingsEvent.TestReadClicked -> testRead()
             SettingsEvent.ErrorShown -> _uiState.update { it.copy(error = null) }
+        }
+    }
+
+    private fun selectCycle(cycle: BudgetCycle) {
+        if (_uiState.value.isSwitchingCycle || cycle == _uiState.value.budgetCycle) return
+        // Optimistic: the toggle moves at once, and the config flow confirms it (or puts it back).
+        _uiState.update { it.copy(budgetCycle = cycle, isSwitchingCycle = true) }
+        viewModelScope.launch {
+            val result = session.config.setCycle(cycle)
+            _uiState.update { state ->
+                if (result.isSuccess) state.copy(isSwitchingCycle = false)
+                else state.copy(
+                    isSwitchingCycle = false,
+                    budgetCycle = session.config.config.cycle,
+                    error = result.exceptionOrNull()?.toUserMessage("Couldn't change how you budget."),
+                )
+            }
         }
     }
 

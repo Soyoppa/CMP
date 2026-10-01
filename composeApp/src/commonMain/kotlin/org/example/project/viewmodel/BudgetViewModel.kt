@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import org.example.project.AppContainer
 import org.example.project.config.LedgerProfile
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
 import org.example.project.repository.ConfigRepository
@@ -17,21 +18,21 @@ import org.example.project.util.DateUtils
 import org.example.project.util.toUserMessage
 
 data class BudgetUiState(
-    /** The cut-off being budgeted. */
+    /** The period being budgeted. */
     val period: BudgetPeriod,
     /**
-     * Cut-offs the user can switch between. Normally just the current one; in the days before a
-     * cut-off starts (its budgeting window is already open) the upcoming one is offered too.
+     * Periods the user can switch between without leaving the sheet: the cut-offs of [period]'s
+     * month (just the month itself when budgeting monthly).
      */
-    val selectablePeriods: List<BudgetPeriod> = listOf(period),
-    /** Days until [period] ends, counted from today (0 = it ends today). */
+    val selectablePeriods: List<BudgetPeriod> = period.periodsInMonth(),
+    /** Days until [period] ends, counted from today (0 = it ends today; negative once it's over). */
     val daysLeft: Int = 0,
-    /** True when [period] hasn't started yet (budgeting ahead for the upcoming cut-off). */
+    /** True when [period] hasn't started yet (budgeting ahead). */
     val isUpcoming: Boolean = false,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     /**
-     * True when this cut-off has no saved budget yet and the fields were pre-filled from the
-     * previous one — the user still has to review and save to set this cut-off's budget.
+     * True when this period has no saved budget yet and the fields were pre-filled from the
+     * previous one — the user still has to review and save to set this period's budget.
      */
     val isSuggestion: Boolean = false,
     /** Raw text of the overall budget field (empty = use the category sum). */
@@ -44,6 +45,12 @@ data class BudgetUiState(
     val saved: Boolean = false,
     val error: String? = null,
 ) {
+    /** "cut-off" or "month", for copy that has to name the period. */
+    val periodNoun: String get() = period.cycle.noun
+
+    /** True once the period is over — its budget can still be corrected. */
+    val hasEnded: Boolean get() = daysLeft < 0
+
     /** Live sum of the per-category budgets. */
     val categoryTotal: Double get() = amounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
 
@@ -66,43 +73,50 @@ sealed interface BudgetEvent {
 }
 
 /**
- * Backs the [org.example.project.ui.BudgetScreen] editor for one cut-off (1st–15th or 16th–end of
- * month): an overall budget plus optional per-bucket budgets.
+ * Backs the [org.example.project.ui.BudgetScreen] editor for one period: an overall budget plus
+ * optional per-category budgets.
  *
- * It opens on the cut-off whose budgeting window is open (see [BudgetPeriod.budgetingNow]) — that
- * can be the upcoming one in the days just before it starts — otherwise on the current cut-off.
- * A cut-off with no budget yet is pre-filled from the most recent earlier one so the user reviews
+ * It opens on [initialPeriod] — whichever period the caller is showing, so the Summary's "Set a
+ * budget" always edits the cut-off on screen — or, with none given (Settings, the payday prompt),
+ * on the period being asked for now. Its pills switch between the cut-offs of that month, so a
+ * budget can be set ahead or corrected afterwards regardless of today's date.
+ *
+ * A period with no budget yet is pre-filled from the most recent earlier one so the user reviews
  * and saves instead of retyping. Budgets live with the rest of the user's config (on the phone or
  * in their account), so a save shows up on the Summary straight away.
  */
 class BudgetViewModel(
     private val config: ConfigRepository = AppContainer.session().config,
     private val profile: LedgerProfile = AppContainer.session().profile,
+    /** The period to budget; null = the one the app would ask for today. */
+    private val initialPeriod: BudgetPeriod? = null,
     private val today: LocalDate = DateUtils.today(),
 ) : ViewModel() {
 
-    private val currentPeriod = BudgetPeriod.of(today)
-
-    private val _uiState = MutableStateFlow(
-        (BudgetPeriod.budgetingNow(today) ?: currentPeriod).let { target ->
-            BudgetUiState(
-                period = target,
-                selectablePeriods = listOf(currentPeriod, target).distinct(),
-            )
-        }
-    )
+    private val _uiState = MutableStateFlow(BudgetUiState(period = initialPeriod ?: BudgetPeriod.of(today)))
     val uiState: StateFlow<BudgetUiState> = _uiState.asStateFlow()
 
     init {
-        load(_uiState.value.period)
+        viewModelScope.launch {
+            // The cycle decides which periods exist, so the target is only known once config loads.
+            config.ensureLoaded()
+            load(targetPeriod(config.config.cycle))
+        }
     }
+
+    /** The period to open on, re-cut to the user's cycle in case the caller's was from the other. */
+    private fun targetPeriod(cycle: BudgetCycle): BudgetPeriod =
+        initialPeriod?.inCycle(cycle)
+            ?: BudgetPeriod.budgetingNow(today, cycle)
+            ?: BudgetPeriod.of(today, cycle)
 
     private fun load(period: BudgetPeriod) {
         _uiState.update { state ->
             state.copy(
                 period = period,
+                selectablePeriods = period.periodsInMonth(),
                 daysLeft = period.endDate.toEpochDays().toInt() - today.toEpochDays().toInt(),
-                isUpcoming = period > currentPeriod,
+                isUpcoming = today < period.startDate,
                 isLoading = true,
                 isSuggestion = false,
                 totalInput = "",
@@ -114,7 +128,7 @@ class BudgetViewModel(
         viewModelScope.launch {
             config.ensureLoaded()
             val userConfig = config.config
-            val saved = userConfig.budgets[period.id]?.takeUnless { it.isEmpty }
+            val saved = userConfig.planFor(period)
             val plan = saved ?: userConfig.suggestedPlan(period)
             val buckets = profile.bucketsFor(userConfig).names
             _uiState.update { state ->

@@ -76,6 +76,7 @@ import org.example.project.auth.sessionKey
 import org.example.project.config.FeatureFlagStore
 import org.example.project.config.createFeatureFlagLoader
 import org.example.project.domain.transaction.TransactionFormEffect
+import org.example.project.model.BudgetPeriod
 import org.example.project.ui.AccountSheet
 import org.example.project.ui.BudgetScreen
 import org.example.project.ui.CategoriesScreen
@@ -201,6 +202,9 @@ private fun SignedInApp(
     var chatOpen by remember { mutableStateOf(false) }
     // Full-screen modal overlays: budgets (Summary + Settings), list editors and Paid & Unpaid (Settings).
     var budgetOpen by remember { mutableStateOf(false) }
+    // Which period the budget sheet edits: the cut-off showing on the Summary, the one being
+    // prompted for, or null for "whatever the app would ask for today" (Settings, Add screen).
+    var budgetTarget by remember { mutableStateOf<BudgetPeriod?>(null) }
     var categoriesOpen by remember { mutableStateOf(false) }
     var paymentModesOpen by remember { mutableStateOf(false) }
     var paymentStatusOpen by remember { mutableStateOf(false) }
@@ -232,12 +236,16 @@ private fun SignedInApp(
     // has never budgeted (a first launch) only gets the banner.
     var promptedPeriodId by remember { mutableStateOf<String?>(null) }
     val budgetPromptId = summaryState.budgetPrompt?.id
-    LaunchedEffect(budgetPromptId, summaryState.isLoading) {
+    LaunchedEffect(budgetPromptId, summaryState.isLoading, selectedTab) {
         val ready = !summaryState.isLoading && summaryState.error == null
         if (ready && budgetPromptId != null && summaryState.budgetPromptOpensSheet &&
-            profile.summaryAvailable && promptedPeriodId != budgetPromptId
+            profile.summaryAvailable && promptedPeriodId != budgetPromptId &&
+            // Never over Settings: changing how you budget there shouldn't throw the editor in
+            // your face. The Add banner and the Summary card still ask.
+            selectedTab != NavTab.SETTINGS
         ) {
             promptedPeriodId = budgetPromptId
+            budgetTarget = summaryState.budgetPrompt
             budgetOpen = true
         }
     }
@@ -300,14 +308,23 @@ private fun SignedInApp(
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.weight(1f)) {
-                    val openBudgets: (() -> Unit)? = if (profile.summaryAvailable) ({ budgetOpen = true }) else null
+                    // From the Summary: edit the cut-off on screen, not today's.
+                    val openSelectedBudget: (() -> Unit)? =
+                        if (profile.summaryAvailable) ({
+                            budgetTarget = summaryState.selectedPeriod
+                            budgetOpen = true
+                        }) else null
+                    val openCurrentBudget = {
+                        budgetTarget = null
+                        budgetOpen = true
+                    }
                     val openPaymentStatus: (() -> Unit)? =
                         if (profile.showPaidToggle) ({ paymentStatusOpen = true }) else null
                     when (selectedTab) {
                         NavTab.SUMMARY -> SummaryScreen(
                             modifier = Modifier.fillMaxSize(),
                             bottomPadding = 100.dp, // clears the floating nav pill
-                            onOpenBudgets = openBudgets,
+                            onOpenBudgets = openSelectedBudget,
                             onOpenPaymentStatus = openPaymentStatus,
                             viewModel = summaryViewModel,
                         )
@@ -317,12 +334,12 @@ private fun SignedInApp(
                             budgetStatus = summaryState.thisPeriod.takeIf { profile.summaryAvailable },
                             budgetPeriodLabel = summaryState.currentPeriod.label,
                             budgetPromptLabel = summaryState.budgetPrompt?.label
-                                .takeIf { profile.summaryAvailable && openBudgets != null },
-                            onSetBudget = { budgetOpen = true },
+                                .takeIf { profile.summaryAvailable },
+                            onSetBudget = openCurrentBudget,
                             // No budget yet → straight to the editor; otherwise the full breakdown.
                             onBudgetClick = {
                                 val hasBudget = summaryState.thisPeriod?.hasBudget == true
-                                if (!hasBudget && openBudgets != null) budgetOpen = true
+                                if (!hasBudget && profile.summaryAvailable) openCurrentBudget()
                                 else selectedTab = NavTab.SUMMARY
                             },
                         )
@@ -333,7 +350,7 @@ private fun SignedInApp(
                             aiAvailable = chatAvailable,
                             onOpenAccount = { accountSheetMode = it },
                             onDeleteAccount = { deleteAccountOpen = true },
-                            onOpenBudgets = { budgetOpen = true },
+                            onOpenBudgets = openCurrentBudget,
                             onOpenCategories = { categoriesOpen = true },
                             onOpenPaymentModes = { paymentModesOpen = true },
                             onOpenPaymentStatus = openPaymentStatus,
@@ -376,6 +393,7 @@ private fun SignedInApp(
             if (budgetOpen && profile.summaryAvailable) {
                 OverlayScope {
                     BudgetScreen(
+                        period = budgetTarget,
                         onClose = { budgetOpen = false },
                         onManageCategories = {
                             budgetOpen = false

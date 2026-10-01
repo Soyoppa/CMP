@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.example.project.config.LedgerProfile
 import org.example.project.data.config.ConfigStore
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetPlan
 import org.example.project.model.OptionList
@@ -104,6 +105,16 @@ class ConfigRepository(
     suspend fun saveBudget(period: BudgetPeriod, plan: BudgetPlan): Result<Unit> = mutate { config ->
         store.saveBudget(period.id, plan)
         config.copy(budgets = config.budgets + (period.id to plan)) to Unit
+    }
+
+    /**
+     * Switches between budgeting per cut-off and per month. Budgets of both cycles are kept — they
+     * have separate ids — so switching back shows the old figures again.
+     */
+    suspend fun setCycle(cycle: BudgetCycle): Result<Unit> = mutate { config ->
+        if (cycle == config.cycle) return@mutate config to Unit
+        store.saveCycle(cycle)
+        config.copy(cycle = cycle) to Unit
     }
 
     /** Runs one write against the latest config; publishes the result only once it's saved. */

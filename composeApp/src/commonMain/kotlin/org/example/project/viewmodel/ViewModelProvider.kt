@@ -2,6 +2,7 @@ package org.example.project.viewmodel
 
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.example.project.model.BudgetPeriod
 import org.example.project.model.OptionList
 
 // ViewModels are scoped to the nearest LocalViewModelStoreOwner — the per-session store set up by
@@ -17,8 +18,10 @@ fun createChatViewModel(): ChatViewModel = viewModel { ChatViewModel() }
 @Composable
 fun createSummaryViewModel(): SummaryViewModel = viewModel { SummaryViewModel() }
 
+/** The budget editor for [period] (null = whichever period the app would ask for today). */
 @Composable
-fun createBudgetViewModel(): BudgetViewModel = viewModel { BudgetViewModel() }
+fun createBudgetViewModel(period: BudgetPeriod? = null): BudgetViewModel =
+    viewModel(key = "budget-${period?.id}") { BudgetViewModel(initialPeriod = period) }
 
 @Composable
 fun createPaymentStatusViewModel(): PaymentStatusViewModel = viewModel { PaymentStatusViewModel() }

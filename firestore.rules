@@ -32,13 +32,14 @@ service cloud.firestore {
         && request.resource.data.createdAt is int;
     }
 
-    // --- Budgets: one document per cut-off --------------------------------------------
-    // Id "YYYY-MM-1" (1st–15th) or "YYYY-MM-2" (16th–end of month):
+    // --- Budgets: one document per budgeting period -----------------------------------
+    // Id "YYYY-MM-1" (1st–15th), "YYYY-MM-2" (16th–end of month) or "YYYY-MM" (whole month,
+    // for users who budget monthly):
     // { total: number, categories: { <category name>: number, ... }, updatedAt: int }
     match /users/{uid}/budgets/{periodId} {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid)
-        && periodId.matches('^[0-9]{4}-(0[1-9]|1[0-2])-[12]$')
+        && periodId.matches('^[0-9]{4}-(0[1-9]|1[0-2])(-[12])?$')
         && request.resource.data.keys().hasOnly(['total', 'categories', 'updatedAt'])
         && request.resource.data.total is number
         && request.resource.data.total >= 0
@@ -57,6 +58,13 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
         && request.resource.data.items is list
         && request.resource.data.items.size() <= 100
+        && request.resource.data.updatedAt is int;
+
+      // "preferences": { budgetCycle: string, updatedAt: int } — how often the user budgets.
+      allow write: if isOwner(uid)
+        && docId == 'preferences'
+        && request.resource.data.keys().hasOnly(['budgetCycle', 'updatedAt'])
+        && isShortString(request.resource.data.budgetCycle, 20)
         && request.resource.data.updatedAt is int;
 
       // "developer": { useSheets: bool, updatedAt: int } — only matters with a Sheets grant below.

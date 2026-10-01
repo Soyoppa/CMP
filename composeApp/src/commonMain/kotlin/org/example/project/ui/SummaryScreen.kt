@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetStatus
 import org.example.project.model.CategorySummary
@@ -147,6 +148,7 @@ fun SummaryScreen(
                 uiState.categories.isEmpty() -> SummaryEmpty()
                 else -> SummaryContent(
                     categories = uiState.categories,
+                    cycle = uiState.cycle,
                     year = uiState.year,
                     isCurrentYear = uiState.isCurrentYear,
                     canGoBack = uiState.canGoBack,
@@ -176,6 +178,8 @@ fun SummaryScreen(
 @Composable
 private fun SummaryContent(
     categories: List<CategorySummary>,
+    /** Whether the user budgets per cut-off or per month — decides the chips and the copy. */
+    cycle: BudgetCycle,
     /** The calendar year on screen: the chart's twelve bars are this year's months. */
     year: Int,
     isCurrentYear: Boolean,
@@ -224,9 +228,9 @@ private fun SummaryContent(
             )
         }
     }
-    // The cut-offs of the month on screen — the chips that pick which one the card describes.
+    // The periods of the month on screen — the chips that pick which one the card describes.
     val monthPeriods = selectedPeriod?.let { monthsInOrder[it.monthKey] }.orEmpty()
-    // Bars are monthly, so the reference line is too: the month's cut-off budgets added up.
+    // Bars are monthly, so the reference line is too: the month's period budgets added up.
     val monthBudget = monthPeriods.sumOf(::budgetOf)
 
     val chartBudget = selectedPeriod?.let(::budgetOf) ?: 0.0
@@ -243,24 +247,29 @@ private fun SummaryContent(
     }
 
     // Remaining budget is the headline; spend sits beside it. A budget only applies to a single
-    // cut-off, so "all cut-offs" shows spend alone.
+    // period, so "all periods" shows spend alone. The cut-off chips sit inside the card, right
+    // above the figures they switch.
     BudgetOverviewCard(
         title = cardTitle,
         status = BudgetStatus(spent = selectedTotal, budget = chartBudget),
         showRemaining = selectedPeriod != null,
+        periodNoun = cycle.noun,
         // In By-Category mode the prompt would set the overall budget, which isn't what's shown.
         onSetBudget = onSetBudget.takeIf { !byCategory },
+        // Only worth showing when there's a choice to make — never when budgeting monthly.
+        selector = if (monthPeriods.size > 1) {
+            {
+                CutOffChips(
+                    periods = monthPeriods,
+                    selectedId = selectedPeriod?.id,
+                    onSelected = onPeriodSelected,
+                )
+            }
+        } else {
+            null
+        },
         modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
     )
-
-    // Which half of the charted month the card and breakdown describe.
-    if (monthPeriods.size > 1) {
-        CutOffChips(
-            periods = monthPeriods,
-            selectedId = selectedPeriod?.id,
-            onSelected = onPeriodSelected,
-        )
-    }
 
     ViewModeToggle(
         mode = viewMode,
@@ -790,10 +799,7 @@ private fun CutOffChips(
     onSelected: (String) -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         periods.forEach { period ->
@@ -804,7 +810,7 @@ private fun CutOffChips(
                 color = if (selected) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceContainer,
                 pressedScale = 0.94f,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                 modifier = Modifier.heightIn(min = 40.dp),
             ) {
                 Text(

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import org.example.project.config.FeatureFlagStore
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ai.AiPrefs
+import org.example.project.model.BudgetCycle
 import org.example.project.data.ai.AiUsageTracker
 import org.example.project.data.ai.ProviderUsage
 import org.example.project.data.ai.SessionUsage
@@ -138,9 +139,17 @@ fun SettingsScreen(
                 onClick = onOpenPaymentModes,
             )
             if (profile.summaryAvailable) {
+                BudgetCycleCard(
+                    cycle = uiState.budgetCycle,
+                    enabled = !uiState.isSwitchingCycle,
+                    onSelect = { viewModel.onEvent(SettingsEvent.BudgetCycleSelected(it)) },
+                )
                 NavigationRow(
                     title = "Budgets",
-                    subtitle = "Set what you can spend each cut-off",
+                    subtitle = when (uiState.budgetCycle) {
+                        BudgetCycle.CUT_OFF -> "Set what you can spend each cut-off"
+                        BudgetCycle.MONTHLY -> "Set what you can spend each month"
+                    },
                     onClick = onOpenBudgets,
                 )
             }
@@ -244,6 +253,72 @@ fun SettingsScreen(
                     Text("Cancel")
                 }
             },
+        )
+    }
+}
+
+/**
+ * Picks how often budgets run. Both cycles keep their own saved budgets (their ids differ), so
+ * switching is reversible — which the footnote says out loud, because the figures on the Summary
+ * change the moment you tap.
+ */
+@Composable
+private fun BudgetCycleCard(cycle: BudgetCycle, enabled: Boolean, onSelect: (BudgetCycle) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.field)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = "How you budget",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = when (cycle) {
+                    BudgetCycle.CUT_OFF -> "Two budgets a month — the 1st–15th and the 16th to the end."
+                    BudgetCycle.MONTHLY -> "One budget for the whole calendar month."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BudgetCycle.entries.forEach { option ->
+                val selected = option == cycle
+                BounceSurface(
+                    onClick = { onSelect(option) },
+                    enabled = enabled,
+                    shape = AppShapes.pill,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                    pressedScale = 0.95f,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                ) {
+                    Text(
+                        text = when (option) {
+                            BudgetCycle.CUT_OFF -> "Per cut-off"
+                            BudgetCycle.MONTHLY -> "Per month"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Text(
+            text = "Each way keeps its own budgets, so you can switch back any time.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

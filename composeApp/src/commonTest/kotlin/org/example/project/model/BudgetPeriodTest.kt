@@ -36,8 +36,44 @@ class BudgetPeriodTest {
         assertEquals(BudgetPeriod(2027, 1, 1), BudgetPeriod(2026, 12, 2).next())
         assertEquals(BudgetPeriod(2025, 12, 2), BudgetPeriod(2026, 1, 1).previous())
         assertEquals(
-            listOf("2026-08-2", "2026-09-1", "2026-09-2"),
-            BudgetPeriod.recent(3, last = BudgetPeriod(2026, 9, 2)).map { it.id },
+            listOf("2026-09-2", "2026-09-1", "2026-08-2"),
+            generateSequence(BudgetPeriod(2026, 9, 2)) { it.previous() }.take(3).map { it.id }.toList(),
+        )
+    }
+
+    @Test
+    fun monthlyPeriodsCoverTheWholeMonthAndKeepTheirOwnIds() {
+        val october = BudgetPeriod.of(LocalDate(2026, 10, 20), BudgetCycle.MONTHLY)
+        assertEquals(BudgetPeriod(2026, 10, BudgetPeriod.WHOLE_MONTH), october)
+        assertEquals(BudgetCycle.MONTHLY, october.cycle)
+        assertEquals("2026-10", october.id)                     // never collides with "2026-10-1"
+        assertEquals("Oct", october.label)
+        assertEquals("1–31", october.rangeLabel)
+        assertTrue(LocalDate(2026, 10, 1) in october)
+        assertTrue(LocalDate(2026, 10, 31) in october)
+        assertEquals(october, BudgetPeriod.fromId(october.id))
+        assertEquals(listOf(october), october.periodsInMonth())
+
+        assertEquals(BudgetPeriod(2026, 11, BudgetPeriod.WHOLE_MONTH), october.next())
+        assertEquals(BudgetPeriod(2026, 9, BudgetPeriod.WHOLE_MONTH), october.previous())
+        assertEquals(BudgetPeriod(2027, 1, BudgetPeriod.WHOLE_MONTH), BudgetPeriod(2026, 12, BudgetPeriod.WHOLE_MONTH).next())
+
+        assertEquals(12, BudgetPeriod.allIn(2026, BudgetCycle.MONTHLY).size)
+        assertEquals(24, BudgetPeriod.allIn(2026, BudgetCycle.CUT_OFF).size)
+        // A monthly budget prompts around the 1st, like the first cut-off does.
+        assertTrue(october.isBudgetingOpen(LocalDate(2026, 9, 29)))
+        assertTrue(october.isBudgetingOpen(LocalDate(2026, 10, 5)))
+        assertFalse(october.isBudgetingOpen(LocalDate(2026, 10, 6)))
+    }
+
+    @Test
+    fun aPeriodCanBeRecutIntoTheOtherCycle() {
+        val secondHalf = BudgetPeriod(2026, 10, 2)
+        assertEquals(BudgetPeriod(2026, 10, BudgetPeriod.WHOLE_MONTH), secondHalf.inCycle(BudgetCycle.MONTHLY))
+        assertEquals(secondHalf, secondHalf.inCycle(BudgetCycle.CUT_OFF))
+        assertEquals(
+            BudgetPeriod(2026, 10, 1),
+            BudgetPeriod(2026, 10, BudgetPeriod.WHOLE_MONTH).inCycle(BudgetCycle.CUT_OFF),
         )
     }
 

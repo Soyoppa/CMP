@@ -48,6 +48,7 @@ import org.example.project.ui.theme.IncomeGreen
 import org.example.project.ui.theme.SageBright
 import org.example.project.ui.theme.SageGreen
 import org.example.project.util.FormatUtils
+import org.example.project.model.BudgetPeriod
 import org.example.project.viewmodel.BudgetEvent
 import org.example.project.viewmodel.BudgetViewModel
 import org.example.project.viewmodel.createBudgetViewModel
@@ -59,32 +60,38 @@ private val BucketColors = listOf(
 private fun colorForIndex(index: Int): Color = BucketColors[index % BucketColors.size]
 
 /**
- * Budget editor sheet for the current cut-off (1st–15th or 16th–end of month): an overall budget
- * (what "Remaining" is measured against) and optional per-category budgets. The Save bar stays
- * pinned at the bottom however long the list is.
+ * Budget editor sheet for one period: an overall budget (what "Remaining" is measured against)
+ * and optional per-category budgets. The Save bar stays pinned at the bottom however long the
+ * list is.
+ *
+ * @param period the period to edit — the cut-off the caller is showing, so what you set is what
+ *   you were looking at. Null opens on the period the app would ask for today.
  */
 @Composable
 fun BudgetScreen(
     onClose: () -> Unit,
+    period: BudgetPeriod? = null,
     /** Opens the category editor (from the "no categories yet" hint). */
     onManageCategories: () -> Unit = {},
-    viewModel: BudgetViewModel = createBudgetViewModel(),
+    viewModel: BudgetViewModel = createBudgetViewModel(period),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    val period = uiState.period
+    val editing = uiState.period
+    val noun = uiState.periodNoun
     AppSheet(
-        title = "Budget · ${period.label}",
+        title = "Budget · ${editing.label}",
         subtitle = when {
-            uiState.isUpcoming -> "Upcoming cut-off · set it once your salary is in"
-            uiState.daysLeft == 0 -> "This cut-off ends today"
-            uiState.daysLeft == 1 -> "1 day left in this cut-off"
-            else -> "${uiState.daysLeft} days left in this cut-off"
+            uiState.isUpcoming -> "Upcoming $noun · set it once your salary is in"
+            uiState.hasEnded -> "This $noun has ended — you can still correct it"
+            uiState.daysLeft == 0 -> "This $noun ends today"
+            uiState.daysLeft == 1 -> "1 day left in this $noun"
+            else -> "${uiState.daysLeft} days left in this $noun"
         },
         onClose = onClose,
         footer = if (uiState.isLoading) null else ({
             SaveBar(
-                label = "Save budget for ${period.label}",
+                label = "Save budget for ${editing.label}",
                 enabled = uiState.canSave,
                 isSaving = uiState.isSaving,
                 saved = uiState.saved,
@@ -110,23 +117,24 @@ fun BudgetScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Just before a cut-off starts, both it and the one ending can be budgeted.
+                // Either cut-off of the month can be budgeted from here — ahead of payday, or
+                // afterwards to correct it.
                 if (uiState.selectablePeriods.size > 1) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         uiState.selectablePeriods.forEach { option ->
                             PeriodPill(
                                 label = option.label,
-                                selected = option == period,
+                                selected = option == editing,
                                 onClick = { viewModel.onEvent(BudgetEvent.PeriodSelected(option)) },
                             )
                         }
                     }
                 }
 
-                if (uiState.isSuggestion) NewCutOffNotice(periodLabel = period.label)
+                if (uiState.isSuggestion) NewPeriodNotice(periodLabel = editing.label, noun = noun)
 
                 TotalBudgetCard(
-                    periodLabel = period.label,
+                    periodLabel = editing.label,
                     value = uiState.totalInput,
                     categoryTotal = uiState.categoryTotal,
                     categoriesExceedTotal = uiState.categoriesExceedTotal,
@@ -217,11 +225,11 @@ private fun PeriodPill(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Shown when the cut-off has no budget yet and the form was pre-filled from the last one. */
+/** Shown when the period has no budget yet and the form was pre-filled from the last one. */
 @Composable
-private fun NewCutOffNotice(periodLabel: String) {
+private fun NewPeriodNotice(periodLabel: String, noun: String) {
     Text(
-        text = "New cut-off — set your budget for $periodLabel. " +
+        text = "New $noun — set your budget for $periodLabel. " +
             "The amounts below are copied from your last budget; adjust them and save.",
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.Medium,

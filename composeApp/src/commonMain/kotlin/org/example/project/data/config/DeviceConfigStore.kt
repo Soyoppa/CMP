@@ -6,6 +6,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import org.example.project.data.device.DeviceStore
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPlan
 import org.example.project.model.OptionList
 import org.example.project.model.UserConfig
@@ -13,7 +14,8 @@ import org.example.project.util.UserFacingException
 
 /**
  * Config for someone using the app without an account, as JSON in the [DeviceStore]:
- * `config/lists/{listId}` (an array of names) and `config/budgets` (cut-off id → plan).
+ * `config/lists/{listId}` (an array of names), `config/budgets` (period id → plan) and
+ * `config/preferences` (the budgeting cycle).
  */
 class DeviceConfigStore(private val store: DeviceStore) : ConfigStore {
 
@@ -26,6 +28,7 @@ class DeviceConfigStore(private val store: DeviceStore) : ConfigStore {
             store.read(listKey(list))?.let { decode(it) { raw -> json.decodeFromString(itemsSerializer, raw) } }.orEmpty()
         },
         budgets = loadBudgets(),
+        cycle = loadPreferences().cycle(),
     )
 
     override suspend fun saveList(list: OptionList, items: List<String>) {
@@ -37,11 +40,21 @@ class DeviceConfigStore(private val store: DeviceStore) : ConfigStore {
         store.write(BUDGETS_KEY, json.encodeToString(budgetsSerializer, budgets.mapValues { StoredPlan.of(it.value) }))
     }
 
-    /** Removes every saved list and budget. */
+    override suspend fun saveCycle(cycle: BudgetCycle) {
+        store.write(PREFERENCES_KEY, json.encodeToString(StoredPreferences.serializer(), StoredPreferences(cycle.name)))
+    }
+
+    /** Removes every saved list, budget and preference. */
     suspend fun clear() {
         OptionList.entries.forEach { store.delete(listKey(it)) }
         store.delete(BUDGETS_KEY)
+        store.delete(PREFERENCES_KEY)
     }
+
+    private suspend fun loadPreferences(): StoredPreferences =
+        store.read(PREFERENCES_KEY)
+            ?.let { decode(it) { raw -> json.decodeFromString(StoredPreferences.serializer(), raw) } }
+            ?: StoredPreferences()
 
     private suspend fun loadBudgets(): Map<String, BudgetPlan> =
         store.read(BUDGETS_KEY)
@@ -54,6 +67,12 @@ class DeviceConfigStore(private val store: DeviceStore) : ConfigStore {
         runCatching { block(raw) }.getOrElse { throw UserFacingException("Your settings on this phone couldn't be read.") }
 
     @Serializable
+    private data class StoredPreferences(val budgetCycle: String? = null) {
+        /** An unknown (or never-saved) value reads as the default cycle. */
+        fun cycle(): BudgetCycle = BudgetCycle.entries.firstOrNull { it.name == budgetCycle } ?: BudgetCycle.CUT_OFF
+    }
+
+    @Serializable
     private data class StoredPlan(val total: Double = 0.0, val categories: Map<String, Double> = emptyMap()) {
         fun toPlan() = BudgetPlan(total = total, byBucket = categories)
 
@@ -64,6 +83,7 @@ class DeviceConfigStore(private val store: DeviceStore) : ConfigStore {
 
     private companion object {
         const val BUDGETS_KEY = "config/budgets"
+        const val PREFERENCES_KEY = "config/preferences"
         fun listKey(list: OptionList) = "config/lists/${list.id}"
     }
 }

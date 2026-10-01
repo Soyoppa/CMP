@@ -7,6 +7,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.example.project.data.firestore.FirestoreRestClient
 import org.example.project.data.firestore.number
+import org.example.project.data.firestore.string
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPlan
 import org.example.project.model.OptionList
 import org.example.project.model.UserConfig
@@ -15,7 +17,8 @@ import org.example.project.model.UserConfig
  * An account's config in Firestore:
  *  - `users/{uid}/settings/{listId}`: `{ items: [..], updatedAt }`, one document per [OptionList]
  *  - `users/{uid}/budgets/{periodId}`: `{ total, categories: { name: amount }, updatedAt }`, one
- *    document per cut-off
+ *    document per period ("2026-10-1" per cut-off, "2026-10" per month)
+ *  - `users/{uid}/settings/preferences`: `{ budgetCycle, updatedAt }`
  */
 @OptIn(ExperimentalTime::class)
 class CloudConfigStore(
@@ -28,7 +31,11 @@ class CloudConfigStore(
         val budgets = async {
             firestore.listDocuments(budgetsPath(uid)).associate { doc -> doc.id to doc.fields.toBudgetPlan() }
         }
-        UserConfig(lists = lists.awaitAll().toMap(), budgets = budgets.await())
+        val cycle = async {
+            val saved = firestore.getDocument(preferencesPath(uid))?.string(BUDGET_CYCLE)
+            BudgetCycle.entries.firstOrNull { it.name == saved } ?: BudgetCycle.CUT_OFF
+        }
+        UserConfig(lists = lists.awaitAll().toMap(), budgets = budgets.await(), cycle = cycle.await())
     }
 
     override suspend fun saveList(list: OptionList, items: List<String>) {
@@ -44,6 +51,10 @@ class CloudConfigStore(
                 UPDATED_AT to now(),
             ),
         )
+    }
+
+    override suspend fun saveCycle(cycle: BudgetCycle) {
+        firestore.setDocument(preferencesPath(uid), mapOf(BUDGET_CYCLE to cycle.name, UPDATED_AT to now()))
     }
 
     private suspend fun loadList(list: OptionList): List<String> {
@@ -73,10 +84,15 @@ class CloudConfigStore(
         private const val TOTAL = "total"
         private const val CATEGORIES = "categories"
         private const val UPDATED_AT = "updatedAt"
+        private const val BUDGET_CYCLE = "budgetCycle"
         private val RESERVED_FIELDS = setOf(TOTAL, CATEGORIES, UPDATED_AT, "totalMonthly")
 
         fun budgetsPath(uid: String) = "users/$uid/budgets"
         fun settingsPath(uid: String) = "users/$uid/settings"
         fun listPath(uid: String, list: OptionList) = "${settingsPath(uid)}/${list.id}"
+        fun preferencesPath(uid: String) = "${settingsPath(uid)}/$PREFERENCES_DOC"
+
+        /** Settings document holding the budgeting cycle (not an option list). */
+        const val PREFERENCES_DOC = "preferences"
     }
 }

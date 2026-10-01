@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import org.example.project.AppContainer
 import org.example.project.config.LedgerProfile
 import org.example.project.data.ledger.LedgerEntry
+import org.example.project.model.BudgetCycle
 import org.example.project.model.BudgetPeriod
 import org.example.project.model.BudgetStatus
 import org.example.project.model.BudgetSummaryMapper
@@ -39,22 +40,24 @@ data class SummaryUiState(
     val categories: List<CategorySummary> = emptyList(),
     /** How ledger categories roll up into [categories] (one per user category, or the sheet's buckets). */
     val buckets: SpendingBuckets = SpendingBuckets.of(emptyList()),
-    /** [year]'s cut-offs, oldest first: Jan 1–15 through Dec 16–31. */
+    /** [year]'s budgeting periods, oldest first: 12 months, or 24 cut-offs. */
     val periods: List<BudgetPeriod> = emptyList(),
-    /** [BudgetPeriod.id] of the cut-off in focus; null = the whole year. */
+    /** Whether the user budgets per cut-off or per month — decides [periods] and the copy. */
+    val cycle: BudgetCycle = BudgetCycle.CUT_OFF,
+    /** [BudgetPeriod.id] of the period in focus; null = the whole year. */
     val selectedPeriodId: String? = null,
-    /** Overall budget per cut-off id: the user's total if set, else the sum of category budgets. */
+    /** Overall budget per period id: the user's total if set, else the sum of category budgets. */
     val totalBudgetByPeriod: Map<String, Double> = emptyMap(),
-    /** The cut-off today falls in. */
+    /** The period today falls in. */
     val currentPeriod: BudgetPeriod = BudgetPeriod.current(),
     /**
-     * The current cut-off's spending against its budget — the "left to spend" figure the Add
+     * The current period's spending against its budget — the "left to spend" figure the Add
      * screen shows. Always about today, whichever year is being browsed.
      */
     val thisPeriod: BudgetStatus? = null,
     /**
-     * The cut-off the user should budget now: its budgeting window is open (salary has arrived)
-     * and it has no budget yet. Can be the *upcoming* cut-off in the last days of the current one.
+     * The period the user should budget now: its budgeting window is open (salary has arrived)
+     * and it has no budget yet. Can be the *upcoming* one in the last days of the current period.
      */
     val budgetPrompt: BudgetPeriod? = null,
     /**
@@ -76,11 +79,11 @@ data class SummaryUiState(
     /** Whether an earlier year can be opened (the ledger reaches back that far). */
     val canGoBack: Boolean get() = earliestYear?.let { year > it } ?: false
 
-    /** [year]'s cut-offs within one calendar month, oldest first. */
+    /** [year]'s periods within one calendar month, oldest first (one of them when monthly). */
     fun periodsIn(monthKey: String): List<BudgetPeriod> = periods.filter { it.monthKey == monthKey }
 
     /**
-     * Which cut-off to focus when the user taps [monthKey]'s bar: the same half they were already
+     * Which period to focus when the user taps [monthKey]'s bar: the same half they were already
      * looking at, so stepping across months keeps comparing like with like; otherwise the latest.
      */
     fun periodIn(monthKey: String): String? {
@@ -95,7 +98,7 @@ sealed interface SummaryEvent {
     data object Refresh : SummaryEvent
     /** Open another calendar year; reads are scoped to it. */
     data class YearSelected(val year: Int) : SummaryEvent
-    /** A chart bar: selects a cut-off inside that calendar month (see [BudgetPeriod.monthKey]). */
+    /** A chart bar: selects the period inside that calendar month (see [BudgetPeriod.monthKey]). */
     data class MonthSelected(val monthKey: String) : SummaryEvent
     data class PeriodSelected(val periodId: String) : SummaryEvent
     data class ViewModeSelected(val mode: SummaryViewMode) : SummaryEvent
@@ -182,8 +185,9 @@ class SummaryViewModel(
         val userConfig: UserConfig = configState.config
         val plans = userConfig.budgets
         val buckets = profile.bucketsFor(userConfig)
-        val currentPeriod = BudgetPeriod.current()
-        val periods = BudgetPeriod.allIn(year.year)
+        val cycle = userConfig.cycle
+        val currentPeriod = BudgetPeriod.current(cycle)
+        val periods = BudgetPeriod.allIn(year.year, cycle)
         val categories = BudgetSummaryMapper.build(year.expenses, periods, plans, buckets)
         val totalBudgetByPeriod = periods
             .mapNotNull { p -> plans[p.id]?.effectiveTotal?.takeIf { it > 0.0 }?.let { p.id to it } }
@@ -198,6 +202,7 @@ class SummaryViewModel(
                 categories = categories,
                 buckets = buckets,
                 periods = periods,
+                cycle = cycle,
                 totalBudgetByPeriod = totalBudgetByPeriod,
                 currentPeriod = currentPeriod,
                 transactions = year.expenses,
@@ -214,7 +219,7 @@ class SummaryViewModel(
                 budgetPrompt = when {
                     !viewingCurrentYear -> state.budgetPrompt
                     configState.error != null -> null
-                    else -> BudgetPeriod.budgetingNow()?.takeIf { p -> plans[p.id]?.isEmpty != false }
+                    else -> BudgetPeriod.budgetingNow(cycle = cycle)?.takeIf { p -> plans[p.id]?.isEmpty != false }
                 },
                 budgetPromptOpensSheet = plans.values.any { !it.isEmpty },
                 selectedPeriodId = focusedPeriod(state.selectedPeriodId, periods, categories, currentPeriod),
@@ -227,8 +232,8 @@ class SummaryViewModel(
     }
 
     /**
-     * The cut-off to open on: the one already in focus if it's still in range, else today's when
-     * this is the current year, else the year's last cut-off that has spending (a past year opens
+     * The period to open on: the one already in focus if it's still in range, else today's when
+     * this is the current year, else the year's last period that has spending (a past year opens
      * on its most recent activity rather than an empty December).
      */
     private fun focusedPeriod(
